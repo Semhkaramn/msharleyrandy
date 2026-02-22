@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String, Text, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from .database import Base, SessionLocal
 
@@ -6,9 +6,9 @@ class Raffle(Base):
     __tablename__ = "raffles"
 
     id = Column(Integer, primary_key=True, index=True)
-    chat_id = Column(Integer, index=True, nullable=False)
-    message_id = Column(Integer, index=True, nullable=True)
-    participants_ids = Column(ARRAY(Integer), default=[], nullable=False)
+    chat_id = Column(BigInteger, index=True, nullable=False)
+    message_id = Column(BigInteger, index=True, nullable=True)
+    participants_ids = Column(ARRAY(BigInteger), default=[], nullable=False)
     winners = Column(Text, nullable=True)
     raffle_message = Column(JSONB, nullable=True)
     winner_message = Column(JSONB, nullable=True)
