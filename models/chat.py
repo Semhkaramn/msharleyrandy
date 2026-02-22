@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Text
+from sqlalchemy import Column, Integer, String, Boolean, Text, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 from .database import Base, SessionLocal
 from enum import Enum
@@ -13,7 +13,7 @@ class Chat(Base):
     __tablename__ = "chats"
 
     id = Column(Integer, primary_key=True, index=True)
-    chat_id = Column(Integer, unique=True, index=True, nullable=False)
+    chat_id = Column(BigInteger, unique=True, index=True, nullable=False)
     number = Column(Integer, default=1, nullable=False)
     subscribe = Column(String, nullable=True)
     nodelete = Column(Boolean, default=False, nullable=False)
