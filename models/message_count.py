@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, BigInteger
 from .database import Base, SessionLocal
 from datetime import datetime, timedelta
 
@@ -6,8 +6,8 @@ class MessageCount(Base):
     __tablename__ = "message_counts"
 
     id = Column(Integer, primary_key=True, index=True)
-    chat_id = Column(Integer, index=True, nullable=False)
-    user_id = Column(Integer, index=True, nullable=False)
+    chat_id = Column(BigInteger, index=True, nullable=False)
+    user_id = Column(BigInteger, index=True, nullable=False)
     date = Column(String, index=True, nullable=False)
     count = Column(Integer, default=0, nullable=False)
 
