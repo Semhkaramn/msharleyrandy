@@ -13,12 +13,12 @@ from helpers.locale import get_text
 from helpers.message_counter import handle_message_count
 
 from commands.start_help import start_command, help_command
-from commands.randy import randy_command, participate_callback, finish_raffle
+from commands.randy import randy_command, participate_callback, finish_raffle, finish_raffle_by_message
 from commands.number import number_command
 from commands.subscribe import subscribe_command
 from commands.nosubscribe import nosubscribe_command
-from commands.raffle_message import rafflemessage_command
-from commands.winner_message import winnermessage_command
+from commands.raffle_message import rafflemessage_command, norafflemessage_command
+from commands.winner_message import winnermessage_command, nowinnermessage_command
 from commands.nodelete import nodelete_command
 from commands.set_min_message import setminmessage_command
 from commands.stats import stats_command
@@ -75,6 +75,37 @@ async def forward_handler(update: Update, context):
         logger.error(f"Raffle finish error: {e}")
         await update.message.reply_text("Bir hata olustu, tekrar deneyin.")
 
+
+async def reply_to_raffle_handler(update: Update, context):
+    """Handle replies to raffle messages to finish them"""
+    if not update.message or not update.message.reply_to_message:
+        return
+
+    # Only in groups
+    if update.effective_chat.type == "private":
+        return
+
+    # Check if admin
+    from helpers.check_admin import is_admin
+    if not await is_admin(update):
+        return
+
+    reply_message_id = update.message.reply_to_message.message_id
+    chat_id = update.effective_chat.id
+
+    # Try to finish raffle if this is a reply to a raffle message
+    try:
+        result = await finish_raffle_by_message(reply_message_id, context, chat_id)
+        if result:
+            # Try to delete the admin's reply message
+            try:
+                await update.message.delete()
+            except:
+                pass
+    except Exception as e:
+        logger.error(f"Reply raffle finish error: {e}")
+
+
 def main():
     init_db()
     logger.info("Database initialized")
@@ -89,7 +120,9 @@ def main():
     app.add_handler(CommandHandler("subscribe", subscribe_command))
     app.add_handler(CommandHandler("nosubscribe", nosubscribe_command))
     app.add_handler(CommandHandler("rafflemessage", rafflemessage_command))
+    app.add_handler(CommandHandler("norafflemessage", norafflemessage_command))
     app.add_handler(CommandHandler("winnermessage", winnermessage_command))
+    app.add_handler(CommandHandler("nowinnermessage", nowinnermessage_command))
     app.add_handler(CommandHandler("nodelete", nodelete_command))
     app.add_handler(CommandHandler("setminmessage", setminmessage_command))
     app.add_handler(CommandHandler("stats", stats_command))
@@ -100,6 +133,7 @@ def main():
 
     # Message handlers
     app.add_handler(MessageHandler(filters.FORWARDED & filters.ChatType.PRIVATE, forward_handler))
+    app.add_handler(MessageHandler(filters.REPLY & ~filters.COMMAND & filters.ChatType.GROUPS, reply_to_raffle_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, message_handler))
 
     logger.info("Bot is starting...")
