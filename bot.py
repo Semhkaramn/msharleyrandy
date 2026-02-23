@@ -121,7 +121,7 @@ def main():
     # Randy reply bitirme ve medya ekleme için gerekli
     application.add_handler(MessageHandler(
         (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
-         filters.STICKER | filters.Document.ALL) & ~filters.COMMAND,
+         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
         handle_message
     ))
 
