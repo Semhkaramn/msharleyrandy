@@ -62,9 +62,9 @@ RANDY = {
 
     "TASLAK_YOK": "❌ Bu grup için hazır Randy taslağı yok.\n\nÖnce özelden /start ile taslak oluşturun.",
 
-    "BASLADI": "🎰 <b>{title}</b>\n\n{message}\n\n👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
+    "BASLADI": "🎉 <b>{title}</b>\n\n{message}\n\n{channels_text}👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
 
-    "BASLADI_SARTLI": "🎰 <b>{title}</b>\n\n{message}\n\n📋 <b>Şart:</b> {requirement}\n\n👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
+    "BASLADI_SARTLI": "🎉 <b>{title}</b>\n\n{message}\n\n📋 <b>Şart:</b> {requirement}\n{channels_text}👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
 
     "BITTI": "🎉 <b>{title} - Sona Erdi!</b>\n\n👥 Toplam Katılımcı: {participants}\n\n🏆 <b>Kazananlar:</b>\n{winner_list}\n\nTebrikler! 🎊",
 
