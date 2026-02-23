@@ -76,6 +76,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media_type = data.replace("randy_media_", "")
         await select_media_type(query, user_id, media_type, context)
 
+    # Kanal ekleme
+    elif data == "randy_channels":
+        await show_channels_menu(query, user_id, context)
+
     # Sabitleme
     elif data == "randy_pin":
         await toggle_pin(query, user_id)
@@ -187,12 +191,14 @@ async def show_setup_menu(query, user_id: int):
     winner_status = f"({draft.get('winner_count', 1)})"
     media_status = "✅" if draft.get('media_file_id') else "➖"
     pin_status = "✅" if draft.get('pin_message') else "❌"
+    channel_status = "✅" if draft.get('channel_ids') else "➖"
 
     keyboard = [
         [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
         [InlineKeyboardButton(f"{req_status} {BUTTONS['SART_AYARLA']}", callback_data="randy_requirement")],
         [InlineKeyboardButton(f"{BUTTONS['KAZANAN_AYARLA']} {winner_status}", callback_data="randy_winners")],
         [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
+        [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
         [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
         [
             InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
@@ -333,6 +339,37 @@ async def select_media_type(query, user_id: int, media_type: str, context: Conte
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
+
+
+async def show_channels_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Kanal ekleme menüsü"""
+    draft = await get_draft(user_id)
+
+    if not draft:
+        await query.edit_message_text(ERRORS["GENEL"])
+        return
+
+    current_channels = draft.get('channel_ids', '')
+
+    if current_channels:
+        channel_list = current_channels.split(',')
+        channel_text = "\n".join([f"• {ch.strip()}" for ch in channel_list if ch.strip()])
+        info_text = f"📢 <b>Mevcut Kanallar:</b>\n{channel_text}\n\n"
+    else:
+        info_text = "📢 <b>Henüz kanal eklenmedi.</b>\n\n"
+
+    context.user_data['waiting_for'] = 'randy_channels'
+
+    keyboard = [
+        [InlineKeyboardButton("🗑️ Kanalları Temizle", callback_data="randy_channels_clear")],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")],
+    ]
+
+    await query.edit_message_text(
+        f"{info_text}{MENU['KANAL_EKLE']}",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
 
 
 async def toggle_pin(query, user_id: int):
