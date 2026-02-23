@@ -197,16 +197,30 @@ SUCCESS = {
 
 
 def format_winner_list(winners: list) -> str:
-    """Kazanan listesini formatla"""
+    """Kazanan listesini formatla (tıklanabilir mention)"""
     if not winners:
         return "Kazanan yok"
 
     result = []
     for i, w in enumerate(winners, 1):
-        if w.get("username"):
-            name = f"@{w['username']}"
+        telegram_id = w.get("telegram_id")
+        first_name = w.get("first_name", "Kullanıcı")
+        username = w.get("username")
+
+        # Her zaman tıklanabilir mention kullan
+        if telegram_id:
+            # Username varsa parantez içinde göster
+            if username:
+                name = f'<a href="tg://user?id={telegram_id}">{first_name}</a> (@{username})'
+            else:
+                name = f'<a href="tg://user?id={telegram_id}">{first_name}</a>'
         else:
-            name = w.get("first_name", "Kullanıcı")
+            # telegram_id yoksa (olmaması lazım ama fallback)
+            if username:
+                name = f"@{username}"
+            else:
+                name = first_name
+
         result.append(f"{i}. {name}")
 
     return "\n".join(result)
