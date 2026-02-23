@@ -99,11 +99,12 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     /start komutu
-    - Özel mesajda: Ana menüyü göster
+    - Özel mesajda: Ana menüyü göster (sadece adminler)
     - Grupta: Grubu kaydet
     """
     chat = update.effective_chat
     user = update.effective_user
+    message = update.effective_message
 
     if not user:
         return
@@ -122,13 +123,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    # Özel mesajda /start - Ana menüyü göster
+    # Özel mesajda /start - Önce admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user.id)
+
+    if not is_admin:
+        await message.reply_text(
+            "❌ <b>Erişim Engellendi</b>\n\n"
+            "Bu botu kullanmak için ana gruptaki admin olmanız gerekiyor.\n\n"
+            "💡 <i>Eğer admin olduğunuzu düşünüyorsanız, önce grupta /start yazarak kendinizi kaydedin.</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    # Admin ise ana menüyü göster
     keyboard = [
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
         [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
     ]
 
-    await update.message.reply_text(
+    await message.reply_text(
         MENU["ANA_MENU"],
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
