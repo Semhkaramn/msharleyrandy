@@ -93,7 +93,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sabitleme
     elif data == "randy_pin":
-        await toggle_pin(query, user_id)
+        await toggle_pin(query, user_id, context)
 
     # Önizleme
     elif data == "randy_preview":
@@ -198,21 +198,42 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
 
 
 async def select_group(query, user_id: int, group_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Grup seçildi"""
-    await update_draft(user_id, group_id=group_id, current_step='setup')
-    await show_setup_menu(query, user_id)
+    """Grup seçildi - mevcut grup taslağını kontrol et"""
+    from services.randy_service import get_or_create_group_draft
+
+    # Grup için mevcut taslak varsa onu kullan, yoksa yeni oluştur
+    draft = await get_or_create_group_draft(user_id, group_id)
+
+    if not draft:
+        await query.edit_message_text(
+            "❌ Taslak oluşturulamadı. Lütfen tekrar deneyin.",
+            parse_mode="HTML"
+        )
+        return
+
+    # Context'e aktif grup ID'sini kaydet
+    context.user_data['active_group_id'] = group_id
+
+    await show_setup_menu(query, user_id, group_id)
 
 
-async def show_setup_menu(query, user_id: int):
-    """Randy ayar menüsünü göster"""
-    draft = await get_draft(user_id)
+async def show_setup_menu(query, user_id: int, group_id: int = None):
+    """Randy ayar menüsünü göster (grup bazlı)"""
+    # Grup ID'yi context'ten al eğer parametre olarak verilmediyse
+    if not group_id:
+        group_id = query.message.chat.id if hasattr(query, 'message') else None
+
+    draft = await get_draft(user_id, group_id)
 
     if not draft:
         await query.edit_message_text(ERRORS["GENEL"])
         return
 
-    # Kanalları getir
-    channels = await get_draft_channels(user_id)
+    # Aktif grup ID'sini güncelle
+    group_id = draft.get('group_id')
+
+    # Kanalları getir (grup bazlı)
+    channels = await get_draft_channels(user_id, group_id)
 
     # Durumu göster
     message_status = "✅" if draft.get('message') else "❌"
@@ -221,6 +242,11 @@ async def show_setup_menu(query, user_id: int):
     media_status = "✅" if draft.get('media_file_id') else "➖"
     pin_status = "✅" if draft.get('pin_message') else "❌"
     channel_status = f"✅ ({len(channels)})" if channels else "➖"
+
+    # Oluşturanı göster
+    creator_info = ""
+    if draft.get('creator_id') and draft['creator_id'] != user_id:
+        creator_info = "\n\n<i>📝 Bu taslak başka bir admin tarafından oluşturuldu.</i>"
 
     keyboard = [
         [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
@@ -237,7 +263,7 @@ async def show_setup_menu(query, user_id: int):
     ]
 
     await query.edit_message_text(
-        MENU["RANDY_OLUSTUR"],
+        MENU["RANDY_OLUSTUR"] + creator_info,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
@@ -436,15 +462,19 @@ async def remove_channel(query, user_id: int, channel_id: int, context: ContextT
     await show_channels_menu(query, user_id, context)
 
 
-async def toggle_pin(query, user_id: int):
+async def toggle_pin(query, user_id: int, context: ContextTypes.DEFAULT_TYPE = None):
     """Sabitleme toggle"""
-    draft = await get_draft(user_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    draft = await get_draft(user_id, group_id)
 
     if draft:
         new_value = not draft.get('pin_message', False)
-        await update_draft(user_id, pin_message=new_value)
+        if draft.get('group_id'):
+            await update_draft(user_id, group_id=draft['group_id'], pin_message=new_value)
+        else:
+            await update_draft(user_id, pin_message=new_value)
 
-    await show_setup_menu(query, user_id)
+    await show_setup_menu(query, user_id, group_id)
 
 
 async def show_preview(query, user_id: int):
@@ -551,10 +581,13 @@ async def go_back(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Geri dön"""
     context.user_data.pop('waiting_for', None)
 
-    draft = await get_draft(user_id)
+    # Aktif grup ID'sini context'ten al
+    group_id = context.user_data.get('active_group_id')
+
+    draft = await get_draft(user_id, group_id)
 
     if draft and draft.get('group_id'):
-        await show_setup_menu(query, user_id)
+        await show_setup_menu(query, user_id, draft.get('group_id'))
     else:
         await show_randy_menu(query)
 
