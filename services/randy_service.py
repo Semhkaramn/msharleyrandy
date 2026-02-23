@@ -100,6 +100,18 @@ async def delete_draft(creator_id: int) -> bool:
     """Taslağı sil"""
     try:
         async with db.pool.acquire() as conn:
+            # Önce taslak ID'sini al
+            draft = await conn.fetchrow("""
+                SELECT id FROM randy_drafts WHERE creator_id = $1
+            """, creator_id)
+
+            if draft:
+                # Taslağa bağlı kanalları sil
+                await conn.execute("""
+                    DELETE FROM randy_channels WHERE randy_draft_id = $1
+                """, draft['id'])
+
+            # Taslağı sil
             await conn.execute("""
                 DELETE FROM randy_drafts WHERE creator_id = $1
             """, creator_id)
@@ -108,6 +120,135 @@ async def delete_draft(creator_id: int) -> bool:
     except Exception as e:
         print(f"❌ Taslak silme hatası: {e}")
         return False
+
+
+# ============================================
+# KANAL YÖNETİMİ
+# ============================================
+
+async def add_channel_to_draft(
+    creator_id: int,
+    channel_id: int,
+    channel_username: str = None,
+    channel_title: str = None
+) -> Tuple[bool, str]:
+    """
+    Taslağa kanal ekle
+
+    Args:
+        creator_id: Taslak sahibi
+        channel_id: Kanal ID
+        channel_username: Kanal kullanıcı adı (@olmadan)
+        channel_title: Kanal başlığı
+
+    Returns:
+        tuple: (Başarılı mı, Mesaj)
+    """
+    try:
+        draft = await get_draft(creator_id)
+        if not draft:
+            return False, "Taslak bulunamadı"
+
+        async with db.pool.acquire() as conn:
+            # Kanal zaten ekli mi?
+            existing = await conn.fetchval("""
+                SELECT id FROM randy_channels
+                WHERE randy_draft_id = $1 AND channel_id = $2
+            """, draft['id'], channel_id)
+
+            if existing:
+                return False, "Bu kanal zaten ekli"
+
+            # Kanalı ekle
+            await conn.execute("""
+                INSERT INTO randy_channels (randy_draft_id, channel_id, channel_username, channel_title)
+                VALUES ($1, $2, $3, $4)
+            """, draft['id'], channel_id, channel_username, channel_title)
+
+            return True, "Kanal eklendi"
+
+    except Exception as e:
+        print(f"❌ Kanal ekleme hatası: {e}")
+        return False, str(e)
+
+
+async def remove_channel_from_draft(creator_id: int, channel_id: int) -> bool:
+    """Taslaktan kanal sil"""
+    try:
+        draft = await get_draft(creator_id)
+        if not draft:
+            return False
+
+        async with db.pool.acquire() as conn:
+            await conn.execute("""
+                DELETE FROM randy_channels
+                WHERE randy_draft_id = $1 AND channel_id = $2
+            """, draft['id'], channel_id)
+
+            return True
+
+    except Exception as e:
+        print(f"❌ Kanal silme hatası: {e}")
+        return False
+
+
+async def get_draft_channels(creator_id: int) -> List[Dict]:
+    """Taslağa eklenen kanalları getir"""
+    try:
+        draft = await get_draft(creator_id)
+        if not draft:
+            return []
+
+        async with db.pool.acquire() as conn:
+            channels = await conn.fetch("""
+                SELECT channel_id, channel_username, channel_title
+                FROM randy_channels
+                WHERE randy_draft_id = $1
+                ORDER BY created_at
+            """, draft['id'])
+
+            return [dict(c) for c in channels]
+
+    except Exception as e:
+        print(f"❌ Kanal listesi hatası: {e}")
+        return []
+
+
+async def clear_draft_channels(creator_id: int) -> bool:
+    """Taslaktaki tüm kanalları sil"""
+    try:
+        draft = await get_draft(creator_id)
+        if not draft:
+            return False
+
+        async with db.pool.acquire() as conn:
+            await conn.execute("""
+                DELETE FROM randy_channels WHERE randy_draft_id = $1
+            """, draft['id'])
+
+            return True
+
+    except Exception as e:
+        print(f"❌ Kanal temizleme hatası: {e}")
+        return False
+
+
+async def get_randy_channels(randy_id: int) -> List[Dict]:
+    """Randy'nin zorunlu kanallarını getir"""
+    try:
+        async with db.pool.acquire() as conn:
+            channels = await conn.fetch("""
+                SELECT channel_id, channel_username, channel_title
+                FROM randy_channels
+                WHERE randy_id = $1
+                ORDER BY created_at
+            """, randy_id)
+
+            return [dict(c) for c in channels]
+
+    except Exception as e:
+        print(f"❌ Randy kanal listesi hatası: {e}")
+        return []
 
 
 # ============================================
@@ -180,6 +321,13 @@ async def start_randy(group_id: int, creator_id: int, message_id: int = None) ->
                 draft.get('pin_message', False), STATUS_ACTIVE, message_id
             )
 
+            # Taslaktaki kanalları Randy'ye taşı
+            await conn.execute("""
+                UPDATE randy_channels
+                SET randy_id = $1, randy_draft_id = NULL
+                WHERE randy_draft_id = $2
+            """, randy_id, draft['id'])
+
             # Taslağı sil
             await conn.execute("""
                 DELETE FROM randy_drafts WHERE id = $1
@@ -241,10 +389,18 @@ async def join_randy(
     randy_id: int,
     user_id: int,
     username: str = None,
-    first_name: str = None
+    first_name: str = None,
+    bot = None
 ) -> Tuple[bool, str]:
     """
     Randy'ye katıl
+
+    Args:
+        randy_id: Randy ID
+        user_id: Kullanıcı ID
+        username: Kullanıcı adı
+        first_name: İsim
+        bot: Telegram bot instance (kanal üyelik kontrolü için)
 
     Returns:
         tuple: (Başarılı mı, Mesaj kodu)
@@ -267,6 +423,24 @@ async def join_randy(
 
             if existing:
                 return False, "zaten_katildi"
+
+            # Kanal üyelik kontrolü
+            if bot:
+                channels = await get_randy_channels(randy_id)
+                if channels:
+                    not_member_channels = []
+                    for channel in channels:
+                        try:
+                            member = await bot.get_chat_member(channel['channel_id'], user_id)
+                            if member.status in ['left', 'kicked']:
+                                channel_name = f"@{channel['channel_username']}" if channel['channel_username'] else channel['channel_title']
+                                not_member_channels.append(channel_name)
+                        except Exception:
+                            # Kanal kontrolü başarısız, atla
+                            pass
+
+                    if not_member_channels:
+                        return False, f"kanal_uyesi_degil:{','.join(not_member_channels)}"
 
             # Şart kontrolü
             if randy['requirement_type'] != 'none':
