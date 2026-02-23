@@ -9,12 +9,10 @@ from typing import Optional, Dict, Any, List, Tuple
 from database import db
 from services.message_service import get_user_stats, check_message_requirement
 
-
 # Status tipleri
 STATUS_DRAFT = 'draft'
 STATUS_ACTIVE = 'active'
 STATUS_ENDED = 'ended'
-
 
 # ============================================
 # TASLAK YÖNETİMİ (Özelden ayarlama)
@@ -237,7 +235,6 @@ async def delete_draft(creator_id: int, group_id: int = None) -> bool:
         print(f"❌ Taslak silme hatası: {e}")
         return False
 
-
 # ============================================
 # KANAL YÖNETİMİ
 # ============================================
@@ -395,7 +392,6 @@ async def get_randy_channels(randy_id: int) -> List[Dict]:
     except Exception as e:
         print(f"❌ Randy kanal listesi hatası: {e}")
         return []
-
 
 # ============================================
 # RANDY YÖNETİMİ
@@ -591,32 +587,54 @@ async def join_randy(
             return False, "aktif_degil"
 
         async with db.pool.acquire() as conn:
-            # Zaten katılmış mı?
-            existing = await conn.fetchval("""
-                SELECT id FROM randy_participants
+            # Zaten GERÇEKTEN katılmış mı? (username veya first_name dolu olanlar gerçek katılımcı)
+            existing = await conn.fetchrow("""
+                SELECT id, username, first_name, post_randy_message_count FROM randy_participants
                 WHERE randy_id = $1 AND telegram_id = $2
             """, randy_id, user_id)
 
-            if existing:
+            # Eğer kayıt var VE username/first_name dolu ise gerçekten katılmış
+            if existing and (existing['username'] is not None or existing['first_name'] is not None):
                 return False, "zaten_katildi"
 
-            # Kanal üyelik kontrolü
+            # Kanal üyelik kontrolü - HER KATILIM DENEMESINDE YAPILIR
+            # Activity group da zorunlu kanal olarak kontrol edilir
             if bot:
-                channels = await get_randy_channels(randy_id)
-                if channels:
-                    not_member_channels = []
-                    for channel in channels:
-                        try:
-                            member = await bot.get_chat_member(channel['channel_id'], user_id)
-                            if member.status in ['left', 'kicked']:
-                                channel_name = f"@{channel['channel_username']}" if channel['channel_username'] else channel['channel_title']
-                                not_member_channels.append(channel_name)
-                        except Exception:
-                            # Kanal kontrolü başarısız, atla
-                            pass
+                not_member_channels = []
 
-                    if not_member_channels:
-                        return False, f"kanal_uyesi_degil:{','.join(not_member_channels)}"
+                # Önce activity group kontrolü (her zaman zorunlu)
+                from config import ACTIVITY_GROUP_ID
+                if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+                    try:
+                        member = await bot.get_chat_member(ACTIVITY_GROUP_ID, user_id)
+                        if member.status in ['left', 'kicked']:
+                            # Activity group bilgisini otomatik al
+                            try:
+                                activity_chat = await bot.get_chat(ACTIVITY_GROUP_ID)
+                                if activity_chat.username:
+                                    activity_name = f"@{activity_chat.username}"
+                                else:
+                                    activity_name = activity_chat.title or "Ana Grup"
+                            except:
+                                activity_name = "Ana Grup"
+                            not_member_channels.append(activity_name)
+                    except Exception:
+                        pass
+
+                # Sonra eklenen zorunlu kanalları kontrol et
+                channels = await get_randy_channels(randy_id)
+                for channel in channels:
+                    try:
+                        member = await bot.get_chat_member(channel['channel_id'], user_id)
+                        if member.status in ['left', 'kicked']:
+                            channel_name = f"@{channel['channel_username']}" if channel['channel_username'] else channel['channel_title']
+                            not_member_channels.append(channel_name)
+                    except Exception:
+                        # Kanal kontrolü başarısız, atla
+                        pass
+
+                if not_member_channels:
+                    return False, f"kanal_uyesi_degil:{', '.join(not_member_channels)}"
 
             # Şart kontrolü
             if randy['requirement_type'] != 'none':
@@ -624,13 +642,10 @@ async def join_randy(
                 req_count = randy['required_message_count'] or 0
 
                 if req_type == 'post_randy':
-                    # Randy sonrası mesaj kontrolü
-                    participant = await conn.fetchrow("""
-                        SELECT post_randy_message_count FROM randy_participants
-                        WHERE randy_id = $1 AND telegram_id = $2
-                    """, randy_id, user_id)
-
-                    current_count = participant['post_randy_message_count'] if participant else 0
+                    # Randy sonrası mesaj kontrolü - mevcut kaydı kontrol et
+                    current_count = 0
+                    if existing:
+                        current_count = existing['post_randy_message_count'] or 0
 
                     if current_count < req_count:
                         return False, f"post_randy:{req_count}:{current_count}"
@@ -644,14 +659,20 @@ async def join_randy(
                     if not met:
                         return False, f"mesaj_sarti:{req_type}:{req_count}:{current}"
 
-            # Katılımcı ekle
-            await conn.execute("""
-                INSERT INTO randy_participants (randy_id, telegram_id, username, first_name)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (randy_id, telegram_id) DO UPDATE
-                SET username = COALESCE($3, randy_participants.username),
-                    first_name = COALESCE($4, randy_participants.first_name)
-            """, randy_id, user_id, username, first_name)
+            # Katılımcı ekle veya güncelle (username ve first_name ile GERÇEK katılımcı yap)
+            if existing:
+                # Mevcut kaydı güncelle - artık gerçek katılımcı
+                await conn.execute("""
+                    UPDATE randy_participants
+                    SET username = $1, first_name = $2
+                    WHERE randy_id = $3 AND telegram_id = $4
+                """, username, first_name, randy_id, user_id)
+            else:
+                # Yeni kayıt ekle
+                await conn.execute("""
+                    INSERT INTO randy_participants (randy_id, telegram_id, username, first_name)
+                    VALUES ($1, $2, $3, $4)
+                """, randy_id, user_id, username, first_name)
 
             return True, "basarili"
 
@@ -789,7 +810,6 @@ async def end_randy_with_count(randy_id: int, winner_count: int) -> Tuple[bool, 
         print(f"❌ Randy sonlandırma hatası (count): {e}")
         return False, []
 
-
 async def track_post_randy_message(
     group_id: int,
     user_id: int,
@@ -798,12 +818,14 @@ async def track_post_randy_message(
 ) -> bool:
     """
     Randy sonrası mesaj takibi
+    NOT: Bu fonksiyon kullanıcıyı GERÇEK katılımcı olarak EKLEMEZ
+    Sadece mesaj sayısını takip eder (username ve first_name NULL kalır)
 
     Args:
         group_id: Grup ID
         user_id: Kullanıcı ID
-        username: Username
-        first_name: İsim
+        username: Username (kullanılmaz, geriye uyumluluk için)
+        first_name: İsim (kullanılmaz, geriye uyumluluk için)
 
     Returns:
         bool: Aktif post_randy Randy varsa True
@@ -819,20 +841,32 @@ async def track_post_randy_message(
             if not randy:
                 return False
 
-            # Kullanıcı kaydı var mı? Yoksa oluştur, varsa mesaj sayısını artır
-            await conn.execute("""
-                INSERT INTO randy_participants (randy_id, telegram_id, username, first_name, post_randy_message_count)
-                VALUES ($1, $2, $3, $4, 1)
-                ON CONFLICT (randy_id, telegram_id)
-                DO UPDATE SET post_randy_message_count = randy_participants.post_randy_message_count + 1
-            """, randy['id'], user_id, username, first_name)
+            # Kullanıcı kaydı var mı?
+            existing = await conn.fetchrow("""
+                SELECT id, username, first_name FROM randy_participants
+                WHERE randy_id = $1 AND telegram_id = $2
+            """, randy['id'], user_id)
+
+            if existing:
+                # Mevcut kayıt var, sadece mesaj sayısını artır
+                # username/first_name'i DEĞİŞTİRME (gerçek katılımcı değilse NULL kalmalı)
+                await conn.execute("""
+                    UPDATE randy_participants
+                    SET post_randy_message_count = post_randy_message_count + 1
+                    WHERE randy_id = $1 AND telegram_id = $2
+                """, randy['id'], user_id)
+            else:
+                # Yeni kayıt oluştur - AMA username ve first_name NULL (henüz gerçek katılımcı değil)
+                await conn.execute("""
+                    INSERT INTO randy_participants (randy_id, telegram_id, username, first_name, post_randy_message_count)
+                    VALUES ($1, $2, NULL, NULL, 1)
+                """, randy['id'], user_id)
 
             return True
 
     except Exception as e:
         print(f"❌ Post-Randy mesaj takip hatası: {e}")
         return False
-
 
 async def update_randy_message_id(randy_id: int, message_id: int) -> bool:
     """Randy mesaj ID'sini güncelle"""
