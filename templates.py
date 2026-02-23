@@ -64,7 +64,11 @@ RANDY = {
 
     "BASLADI": "🎰 <b>{title}</b>\n\n{message}\n\n👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
 
+    "BASLADI_SARTLI": "🎰 <b>{title}</b>\n\n{message}\n\n📋 <b>Şart:</b> {requirement}\n\n👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
+
     "BITTI": "🎉 <b>{title} - Sona Erdi!</b>\n\n👥 Toplam Katılımcı: {participants}\n\n🏆 <b>Kazananlar:</b>\n{winner_list}\n\nTebrikler! 🎊",
+
+    "BITTI_KATILIMCI_AZ": "🎉 <b>{title} - Sona Erdi!</b>\n\n👥 Toplam Katılımcı: {participants}\n⚠️ Katılımcı sayısı ({participants}) kazanan sayısından ({winner_count}) az olduğu için tüm katılımcılar kazandı!\n\n🏆 <b>Kazananlar:</b>\n{winner_list}\n\nTebrikler! 🎊",
 
     "KAZANAN_YOK": "😔 Yeterli katılımcı olmadığı için kazanan belirlenemedi.",
 
