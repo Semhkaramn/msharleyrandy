@@ -18,11 +18,12 @@ from services.roll_service import (
 )
 from services.randy_service import (
     track_post_randy_message, update_draft, get_draft,
-    add_channel_to_draft, get_draft_channels
+    add_channel_to_draft, get_draft_channels,
+    get_randy_by_message_id, get_participant_count, end_randy_with_count
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from templates import MENU, BUTTONS, get_period_text
+from templates import MENU, BUTTONS, get_period_text, RANDY as RANDY_TEMPLATES, format_winner_list
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -328,19 +329,102 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         return
 
 
+async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_TYPE, reply_message):
+    """
+    Admin Randy mesajına herhangi bir şekilde reply yaparsa Randy'yi bitir
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not reply_message or not chat or not user:
+        return False
+
+    # Reply yapılan mesajdan Randy'yi bul
+    randy = await get_randy_by_message_id(chat.id, reply_message.message_id)
+
+    if not randy:
+        return False  # Bu mesaj bir Randy değil
+
+    if randy['status'] != 'active':
+        return False  # Randy zaten bitmiş
+
+    # Admin kontrolü
+    is_anonymous = message.sender_chat is not None and user.id == 1087968824
+
+    if is_anonymous:
+        is_admin = can_anonymous_admin_use_commands(message)
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return False  # Admin değil
+
+    # Admin'in reply mesajını sil
+    try:
+        await message.delete()
+    except TelegramError:
+        pass
+
+    # Katılımcı sayısını al
+    participant_count = await get_participant_count(randy['id'])
+    winner_count = randy['winner_count']
+
+    # Randy'yi bitir
+    success, winners = await end_randy_with_count(randy['id'], winner_count)
+
+    if not success:
+        return True
+
+    if not winners:
+        await context.bot.send_message(
+            chat.id,
+            RANDY_TEMPLATES["KAZANAN_YOK"],
+            parse_mode="HTML"
+        )
+        return True
+
+    # Kazanan mesajı
+    winner_list = format_winner_list(winners)
+
+    # Katılımcı sayısı kazanandan az mı?
+    if participant_count < winner_count:
+        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_count=winner_count,
+            winner_list=winner_list
+        )
+    else:
+        text = RANDY_TEMPLATES["BITTI"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_list=winner_list
+        )
+
+    await context.bot.send_message(chat.id, text, parse_mode="HTML")
+    return True
+
+
 async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Grup mesajlarını işler - Roll sistemi ve mesaj sayma"""
     chat = update.effective_chat
     user = update.effective_user
     message = update.effective_message
 
-    if not message or not message.text:
+    if not message:
         return
 
-    text = message.text.strip()
-    lower_text = text.lower()
+    # ========== RANDY REPLY BİTİRME KONTROLÜ ==========
+    # Admin Randy mesajına herhangi bir şekilde reply yaparsa Randy'yi bitir
+    if message.reply_to_message:
+        handled = await _handle_randy_reply_end(update, context, message.reply_to_message)
+        if handled:
+            return  # Randy bitirildi, başka işlem yapma
 
     # ========== SİSTEM HESABI KONTROLÜ ==========
+    text = message.text or ""
+    lower_text = text.strip().lower() if text else ""
 
     # Telegram servis hesabı (777000) - bağlı kanal mesajları
     if user and user.id in IGNORED_USER_IDS:
@@ -350,6 +434,20 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
     is_anonymous = message.sender_chat is not None and user and user.id == 1087968824
 
     # ========== ROLL KOMUTLARI (Admin) ==========
+
+    # Text mesajı yoksa roll komutlarını atla
+    if not text:
+        # Mesaj sayma ve Randy takibi için devam et
+        if user and not is_system_user(user.id) and not is_anonymous:
+            await track_message(
+                user.id, chat.id,
+                user.username, user.first_name, user.last_name
+            )
+            await track_post_randy_message(
+                chat.id, user.id,
+                user.username, user.first_name
+            )
+        return
 
     # "liste" komutu
     if lower_text == 'liste':
