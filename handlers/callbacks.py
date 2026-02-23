@@ -14,9 +14,11 @@ from templates import (
 from services.randy_service import (
     create_draft, get_draft, update_draft, delete_draft,
     get_user_admin_groups, join_randy, get_participant_count,
-    get_randy_by_id, end_randy
+    get_randy_by_id, end_randy,
+    add_channel_to_draft, remove_channel_from_draft,
+    get_draft_channels, clear_draft_channels
 )
-from utils.admin_check import is_group_admin
+from utils.admin_check import is_group_admin, is_activity_group_admin
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -80,6 +82,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "randy_channels":
         await show_channels_menu(query, user_id, context)
 
+    # Kanal temizle
+    elif data == "randy_channels_clear":
+        await clear_channels(query, user_id, context)
+
+    # Kanal sil (tek tek)
+    elif data.startswith("randy_channel_remove_"):
+        channel_id = int(data.replace("randy_channel_remove_", ""))
+        await remove_channel(query, user_id, channel_id, context)
+
     # Sabitleme
     elif data == "randy_pin":
         await toggle_pin(query, user_id)
@@ -103,7 +114,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Randy'ye katıl
     elif data.startswith("randy_join_"):
         randy_id = int(data.replace("randy_join_", ""))
-        await handle_randy_join(query, user_id, randy_id)
+        await handle_randy_join(query, user_id, randy_id, context)
 
 
 async def show_main_menu(query):
@@ -136,7 +147,22 @@ async def show_randy_menu(query):
 
 
 async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Randy oluşturmayı başlat - grup seçimi"""
+    """Randy oluşturmayı başlat - önce activity group admin kontrolü"""
+
+    # Activity group admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        await query.edit_message_text(
+            "❌ <b>Yetkiniz Yok</b>\n\n"
+            "Randy oluşturmak için ana gruptaki admin olmanız gerekiyor.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_menu")]
+            ]),
+            parse_mode="HTML"
+        )
+        return
+
     # Taslak oluştur
     await create_draft(user_id)
 
@@ -185,13 +211,16 @@ async def show_setup_menu(query, user_id: int):
         await query.edit_message_text(ERRORS["GENEL"])
         return
 
+    # Kanalları getir
+    channels = await get_draft_channels(user_id)
+
     # Durumu göster
     message_status = "✅" if draft.get('message') else "❌"
     req_status = "✅" if draft.get('requirement_type') and draft['requirement_type'] != 'none' else "➖"
     winner_status = f"({draft.get('winner_count', 1)})"
     media_status = "✅" if draft.get('media_file_id') else "➖"
     pin_status = "✅" if draft.get('pin_message') else "❌"
-    channel_status = "✅" if draft.get('channel_ids') else "➖"
+    channel_status = f"✅ ({len(channels)})" if channels else "➖"
 
     keyboard = [
         [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
@@ -349,27 +378,62 @@ async def show_channels_menu(query, user_id: int, context: ContextTypes.DEFAULT_
         await query.edit_message_text(ERRORS["GENEL"])
         return
 
-    current_channels = draft.get('channel_ids', '')
+    # Veritabanından kanalları getir
+    channels = await get_draft_channels(user_id)
 
-    if current_channels:
-        channel_list = current_channels.split(',')
-        channel_text = "\n".join([f"• {ch.strip()}" for ch in channel_list if ch.strip()])
-        info_text = f"📢 <b>Mevcut Kanallar:</b>\n{channel_text}\n\n"
+    if channels:
+        channel_list = []
+        for ch in channels:
+            if ch.get('channel_username'):
+                channel_list.append(f"• @{ch['channel_username']}")
+            elif ch.get('channel_title'):
+                channel_list.append(f"• {ch['channel_title']}")
+            else:
+                channel_list.append(f"• Kanal ID: {ch['channel_id']}")
+
+        channel_text = "\n".join(channel_list)
+        info_text = f"📢 <b>Eklenen Kanallar ({len(channels)}):</b>\n{channel_text}\n\n"
     else:
         info_text = "📢 <b>Henüz kanal eklenmedi.</b>\n\n"
 
     context.user_data['waiting_for'] = 'randy_channels'
 
-    keyboard = [
-        [InlineKeyboardButton("🗑️ Kanalları Temizle", callback_data="randy_channels_clear")],
-        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")],
-    ]
+    keyboard = []
+
+    # Her kanal için silme butonu
+    for ch in channels:
+        if ch.get('channel_username'):
+            btn_text = f"❌ @{ch['channel_username']}"
+        else:
+            btn_text = f"❌ {ch.get('channel_title', 'Kanal')}"
+        keyboard.append([
+            InlineKeyboardButton(btn_text, callback_data=f"randy_channel_remove_{ch['channel_id']}")
+        ])
+
+    if channels:
+        keyboard.append([InlineKeyboardButton("🗑️ Tüm Kanalları Temizle", callback_data="randy_channels_clear")])
+
+    keyboard.append([InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")])
 
     await query.edit_message_text(
-        f"{info_text}{MENU['KANAL_EKLE']}",
+        f"{info_text}📝 Kanal eklemek için username gönderin:\n<i>Örnek: @kanaladi</i>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+
+
+async def clear_channels(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Tüm kanalları temizle"""
+    await clear_draft_channels(user_id)
+    await query.answer("✅ Tüm kanallar temizlendi!", show_alert=True)
+    await show_channels_menu(query, user_id, context)
+
+
+async def remove_channel(query, user_id: int, channel_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Tek kanal sil"""
+    await remove_channel_from_draft(user_id, channel_id)
+    await query.answer("✅ Kanal silindi!", show_alert=True)
+    await show_channels_menu(query, user_id, context)
 
 
 async def toggle_pin(query, user_id: int):
@@ -413,6 +477,19 @@ async def show_preview(query, user_id: int):
     # Pin bilgisi
     pin = "Evet" if draft.get('pin_message') else "Hayır"
 
+    # Kanal bilgisi
+    channels = await get_draft_channels(user_id)
+    if channels:
+        channel_names = []
+        for ch in channels:
+            if ch.get('channel_username'):
+                channel_names.append(f"@{ch['channel_username']}")
+            else:
+                channel_names.append(ch.get('channel_title', 'Kanal'))
+        channel_info = ", ".join(channel_names)
+    else:
+        channel_info = "Yok"
+
     text = MENU["ONIZLEME"].format(
         preview=preview,
         group=f"Grup ID: {draft.get('group_id', 'Belirlenmedi')}",
@@ -421,6 +498,8 @@ async def show_preview(query, user_id: int):
         media=media,
         pin=pin
     )
+
+    text += f"\n• Kanallar: {channel_info}"
 
     keyboard = [
         [InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")],
@@ -480,12 +559,13 @@ async def go_back(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
         await show_randy_menu(query)
 
 
-async def handle_randy_join(query, user_id: int, randy_id: int):
+async def handle_randy_join(query, user_id: int, randy_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Randy'ye katılım"""
     username = query.from_user.username
     first_name = query.from_user.first_name
 
-    success, code = await join_randy(randy_id, user_id, username, first_name)
+    # Bot instance'ı da gönder (kanal kontrolü için)
+    success, code = await join_randy(randy_id, user_id, username, first_name, context.bot)
 
     if success:
         await query.answer(RANDY["BASARIYLA_KATILDIN"], show_alert=True)
@@ -524,6 +604,13 @@ async def handle_randy_join(query, user_id: int, randy_id: int):
 
     elif code == "aktif_degil":
         await query.answer(RANDY["AKTIF_DEGIL"], show_alert=True)
+
+    elif code.startswith("kanal_uyesi_degil:"):
+        channels = code.split(":", 1)[1]
+        await query.answer(
+            RANDY["KANAL_UYESI_DEGIL"].format(channels=channels),
+            show_alert=True
+        )
 
     elif code.startswith("mesaj_sarti:"):
         parts = code.split(":")
