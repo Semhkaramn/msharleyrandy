@@ -20,29 +20,36 @@ STATUS_ENDED = 'ended'
 # TASLAK YÖNETİMİ (Özelden ayarlama)
 # ============================================
 
-async def create_draft(creator_id: int) -> int:
+async def create_draft(creator_id: int, group_id: int = None) -> int:
     """
     Yeni Randy taslağı oluştur
 
     Args:
         creator_id: Oluşturan kullanıcı ID
+        group_id: Grup ID (opsiyonel)
 
     Returns:
         int: Taslak ID
     """
     try:
         async with db.pool.acquire() as conn:
-            # Mevcut taslağı sil
-            await conn.execute("""
-                DELETE FROM randy_drafts WHERE creator_id = $1
-            """, creator_id)
+            # Grup belirtilmişse, o grup için mevcut taslağı sil
+            if group_id:
+                await conn.execute("""
+                    DELETE FROM randy_drafts WHERE creator_id = $1 AND group_id = $2
+                """, creator_id, group_id)
+            else:
+                # Grup belirtilmemişse, grup olmayan taslakları sil
+                await conn.execute("""
+                    DELETE FROM randy_drafts WHERE creator_id = $1 AND group_id IS NULL
+                """, creator_id)
 
             # Yeni taslak oluştur
             draft_id = await conn.fetchval("""
-                INSERT INTO randy_drafts (creator_id, current_step)
-                VALUES ($1, 'group_select')
+                INSERT INTO randy_drafts (creator_id, group_id, current_step)
+                VALUES ($1, $2, 'group_select')
                 RETURNING id
-            """, creator_id)
+            """, creator_id, group_id)
 
             return draft_id
 
@@ -51,13 +58,34 @@ async def create_draft(creator_id: int) -> int:
         return 0
 
 
-async def get_draft(creator_id: int) -> Optional[Dict[str, Any]]:
-    """Kullanıcının taslağını getir"""
+async def get_draft(creator_id: int, group_id: int = None) -> Optional[Dict[str, Any]]:
+    """
+    Kullanıcının taslağını getir
+
+    Args:
+        creator_id: Oluşturan kullanıcı ID
+        group_id: Grup ID (opsiyonel - belirtilirse o grubun taslağını getirir)
+
+    Returns:
+        dict: Taslak bilgileri veya None
+    """
     try:
         async with db.pool.acquire() as conn:
-            draft = await conn.fetchrow("""
-                SELECT * FROM randy_drafts WHERE creator_id = $1
-            """, creator_id)
+            if group_id:
+                # Belirli bir grubun taslağını getir
+                draft = await conn.fetchrow("""
+                    SELECT * FROM randy_drafts
+                    WHERE group_id = $1
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """, group_id)
+            else:
+                # Kullanıcının son taslağını getir
+                draft = await conn.fetchrow("""
+                    SELECT * FROM randy_drafts WHERE creator_id = $1
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """, creator_id)
 
             if draft:
                 return dict(draft)
@@ -68,8 +96,63 @@ async def get_draft(creator_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def update_draft(creator_id: int, **kwargs) -> bool:
-    """Taslağı güncelle"""
+async def get_or_create_group_draft(creator_id: int, group_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Grup için mevcut taslağı getir veya yeni oluştur
+
+    Args:
+        creator_id: Oluşturan kullanıcı ID
+        group_id: Grup ID
+
+    Returns:
+        dict: Taslak bilgileri veya None
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            # Önce bu grup için mevcut taslak var mı kontrol et
+            draft = await conn.fetchrow("""
+                SELECT * FROM randy_drafts
+                WHERE group_id = $1
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """, group_id)
+
+            if draft:
+                # Mevcut taslağı döndür
+                return dict(draft)
+
+            # Yoksa yeni taslak oluştur
+            draft_id = await conn.fetchval("""
+                INSERT INTO randy_drafts (creator_id, group_id, current_step)
+                VALUES ($1, $2, 'setup')
+                RETURNING id
+            """, creator_id, group_id)
+
+            if draft_id:
+                draft = await conn.fetchrow("""
+                    SELECT * FROM randy_drafts WHERE id = $1
+                """, draft_id)
+                return dict(draft) if draft else None
+
+            return None
+
+    except Exception as e:
+        print(f"❌ Grup taslağı getirme/oluşturma hatası: {e}")
+        return None
+
+
+async def update_draft(creator_id: int, group_id: int = None, **kwargs) -> bool:
+    """
+    Taslağı güncelle
+
+    Args:
+        creator_id: Oluşturan kullanıcı ID
+        group_id: Grup ID (opsiyonel)
+        **kwargs: Güncellenecek alanlar
+
+    Returns:
+        bool: Başarılı ise True
+    """
     try:
         async with db.pool.acquire() as conn:
             set_clauses = []
@@ -77,18 +160,32 @@ async def update_draft(creator_id: int, **kwargs) -> bool:
             i = 1
 
             for key, value in kwargs.items():
-                set_clauses.append(f"{key} = ${i}")
-                values.append(value)
-                i += 1
+                if key != 'group_id':  # group_id'yi ayrı ele al
+                    set_clauses.append(f"{key} = ${i}")
+                    values.append(value)
+                    i += 1
 
-            values.append(creator_id)
+            if not set_clauses:
+                return True  # Güncellenecek bir şey yok
 
-            await conn.execute(f"""
-                UPDATE randy_drafts
-                SET {', '.join(set_clauses)}, updated_at = NOW()
-                WHERE creator_id = ${i}
-            """, *values)
+            if group_id:
+                # Grup bazlı güncelleme
+                query = f"""
+                    UPDATE randy_drafts
+                    SET {', '.join(set_clauses)}, updated_at = NOW()
+                    WHERE group_id = ${i}
+                """
+                values.append(group_id)
+            else:
+                # Kullanıcı bazlı güncelleme
+                query = f"""
+                    UPDATE randy_drafts
+                    SET {', '.join(set_clauses)}, updated_at = NOW()
+                    WHERE creator_id = ${i}
+                """
+                values.append(creator_id)
 
+            await conn.execute(query, *values)
             return True
 
     except Exception as e:
@@ -96,14 +193,28 @@ async def update_draft(creator_id: int, **kwargs) -> bool:
         return False
 
 
-async def delete_draft(creator_id: int) -> bool:
-    """Taslağı sil"""
+async def delete_draft(creator_id: int, group_id: int = None) -> bool:
+    """
+    Taslağı sil
+
+    Args:
+        creator_id: Oluşturan kullanıcı ID
+        group_id: Grup ID (opsiyonel)
+
+    Returns:
+        bool: Başarılı ise True
+    """
     try:
         async with db.pool.acquire() as conn:
-            # Önce taslak ID'sini al
-            draft = await conn.fetchrow("""
-                SELECT id FROM randy_drafts WHERE creator_id = $1
-            """, creator_id)
+            if group_id:
+                # Önce taslak ID'sini al
+                draft = await conn.fetchrow("""
+                    SELECT id FROM randy_drafts WHERE group_id = $1
+                """, group_id)
+            else:
+                draft = await conn.fetchrow("""
+                    SELECT id FROM randy_drafts WHERE creator_id = $1
+                """, creator_id)
 
             if draft:
                 # Taslağa bağlı kanalları sil
@@ -112,9 +223,14 @@ async def delete_draft(creator_id: int) -> bool:
                 """, draft['id'])
 
             # Taslağı sil
-            await conn.execute("""
-                DELETE FROM randy_drafts WHERE creator_id = $1
-            """, creator_id)
+            if group_id:
+                await conn.execute("""
+                    DELETE FROM randy_drafts WHERE group_id = $1
+                """, group_id)
+            else:
+                await conn.execute("""
+                    DELETE FROM randy_drafts WHERE creator_id = $1
+                """, creator_id)
             return True
 
     except Exception as e:
@@ -130,7 +246,8 @@ async def add_channel_to_draft(
     creator_id: int,
     channel_id: int,
     channel_username: str = None,
-    channel_title: str = None
+    channel_title: str = None,
+    group_id: int = None
 ) -> Tuple[bool, str]:
     """
     Taslağa kanal ekle
@@ -140,12 +257,13 @@ async def add_channel_to_draft(
         channel_id: Kanal ID
         channel_username: Kanal kullanıcı adı (@olmadan)
         channel_title: Kanal başlığı
+        group_id: Grup ID (opsiyonel)
 
     Returns:
         tuple: (Başarılı mı, Mesaj)
     """
     try:
-        draft = await get_draft(creator_id)
+        draft = await get_draft(creator_id, group_id)
         if not draft:
             return False, "Taslak bulunamadı"
 
@@ -172,10 +290,20 @@ async def add_channel_to_draft(
         return False, str(e)
 
 
-async def remove_channel_from_draft(creator_id: int, channel_id: int) -> bool:
-    """Taslaktan kanal sil"""
+async def remove_channel_from_draft(creator_id: int, channel_id: int, group_id: int = None) -> bool:
+    """
+    Taslaktan kanal sil
+
+    Args:
+        creator_id: Taslak sahibi
+        channel_id: Kanal ID
+        group_id: Grup ID (opsiyonel)
+
+    Returns:
+        bool: Başarılı ise True
+    """
     try:
-        draft = await get_draft(creator_id)
+        draft = await get_draft(creator_id, group_id)
         if not draft:
             return False
 
@@ -192,10 +320,19 @@ async def remove_channel_from_draft(creator_id: int, channel_id: int) -> bool:
         return False
 
 
-async def get_draft_channels(creator_id: int) -> List[Dict]:
-    """Taslağa eklenen kanalları getir"""
+async def get_draft_channels(creator_id: int, group_id: int = None) -> List[Dict]:
+    """
+    Taslağa eklenen kanalları getir
+
+    Args:
+        creator_id: Taslak sahibi
+        group_id: Grup ID (opsiyonel)
+
+    Returns:
+        list: Kanal listesi
+    """
     try:
-        draft = await get_draft(creator_id)
+        draft = await get_draft(creator_id, group_id)
         if not draft:
             return []
 
@@ -214,10 +351,19 @@ async def get_draft_channels(creator_id: int) -> List[Dict]:
         return []
 
 
-async def clear_draft_channels(creator_id: int) -> bool:
-    """Taslaktaki tüm kanalları sil"""
+async def clear_draft_channels(creator_id: int, group_id: int = None) -> bool:
+    """
+    Taslaktaki tüm kanalları sil
+
+    Args:
+        creator_id: Taslak sahibi
+        group_id: Grup ID (opsiyonel)
+
+    Returns:
+        bool: Başarılı ise True
+    """
     try:
-        draft = await get_draft(creator_id)
+        draft = await get_draft(creator_id, group_id)
         if not draft:
             return False
 
@@ -274,6 +420,33 @@ async def get_group_draft(group_id: int) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         print(f"❌ Grup taslağı getirme hatası: {e}")
+        return None
+
+
+async def get_randy_by_message_id(group_id: int, message_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Mesaj ID'sine göre Randy'yi getir
+
+    Args:
+        group_id: Grup ID
+        message_id: Telegram mesaj ID
+
+    Returns:
+        dict: Randy bilgileri veya None
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            randy = await conn.fetchrow("""
+                SELECT * FROM randy
+                WHERE group_id = $1 AND message_id = $2
+            """, group_id, message_id)
+
+            if randy:
+                return dict(randy)
+            return None
+
+    except Exception as e:
+        print(f"❌ Randy mesaj ID ile getirme hatası: {e}")
         return None
 
 
