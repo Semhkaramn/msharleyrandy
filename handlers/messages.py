@@ -1,6 +1,7 @@
 """
 📨 Mesaj Handler
 Grup mesajlarını işler - Roll sistemi ve mesaj sayma
+Özel mesajları işler - Randy ayarları
 """
 
 from telegram import Update
@@ -15,19 +16,194 @@ from services.roll_service import (
     start_break, resume_roll, lock_roll, unlock_roll,
     track_user_message, get_status_list, clean_inactive_users
 )
-from services.randy_service import track_post_randy_message
+from services.randy_service import (
+    track_post_randy_message, update_draft, get_draft,
+    add_channel_to_draft
+)
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Grup mesajlarını işler:
-    1. Roll komutları (admin)
-    2. Liste komutu (admin)
-    3. Mesaj sayma
-    4. Roll kullanıcı takibi
-    5. Randy sonrası mesaj takibi
+    Tüm mesajları işler:
+    - Özel mesajlar: Randy ayarları
+    - Grup mesajları: Roll komutları, mesaj sayma
     """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not message:
+        return
+
+    # ========== ÖZEL MESAJLAR (Randy ayarları) ==========
+    if chat.type == 'private':
+        await handle_private_message(update, context)
+        return
+
+    # ========== GRUP MESAJLARI ==========
+    await handle_group_message(update, context)
+
+
+async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Özel mesajları işler - Randy ayarları"""
+    user = update.effective_user
+    message = update.effective_message
+
+    if not message or not user:
+        return
+
+    waiting_for = context.user_data.get('waiting_for')
+
+    if not waiting_for:
+        return
+
+    user_id = user.id
+
+    # ========== RANDY MESAJI AYARLAMA ==========
+    if waiting_for == 'randy_message':
+        text = message.text or message.caption or ""
+
+        if text:
+            # İlk satır başlık, geri kalan mesaj
+            lines = text.split('\n', 1)
+            title = lines[0].strip()
+            msg = lines[1].strip() if len(lines) > 1 else title
+
+            await update_draft(user_id, title=title, message=msg)
+            context.user_data.pop('waiting_for', None)
+
+            await message.reply_text(
+                f"✅ Randy mesajı ayarlandı!\n\n"
+                f"<b>Başlık:</b> {title}\n"
+                f"<b>Mesaj:</b> {msg}\n\n"
+                f"Diğer ayarları yapmak için /randy yazın.",
+                parse_mode="HTML"
+            )
+        return
+
+    # ========== MESAJ SAYISI AYARLAMA ==========
+    if waiting_for == 'randy_msg_count':
+        text = message.text or ""
+
+        try:
+            count = int(text.strip())
+            if count < 1:
+                raise ValueError()
+
+            await update_draft(user_id, required_message_count=count)
+            context.user_data.pop('waiting_for', None)
+
+            await message.reply_text(
+                f"✅ Mesaj şartı ayarlandı: <b>{count}</b> mesaj\n\n"
+                f"Diğer ayarları yapmak için /randy yazın.",
+                parse_mode="HTML"
+            )
+        except ValueError:
+            await message.reply_text(
+                "❌ Geçerli bir sayı girin.\n\nÖrnek: 50",
+                parse_mode="HTML"
+            )
+        return
+
+    # ========== KANAL EKLEME ==========
+    if waiting_for == 'randy_channels':
+        text = message.text or ""
+        text = text.strip()
+
+        # Geç yazıldıysa
+        if text.lower() == 'geç':
+            context.user_data.pop('waiting_for', None)
+            await message.reply_text(
+                "✅ Kanal ekleme atlandı.\n\n"
+                "Diğer ayarları yapmak için /randy yazın.",
+                parse_mode="HTML"
+            )
+            return
+
+        # @ ile başlayan username
+        if text.startswith('@'):
+            username = text[1:]  # @ işaretini kaldır
+        else:
+            username = text
+
+        # Kanalı doğrula
+        try:
+            chat_info = await context.bot.get_chat(f"@{username}")
+
+            if chat_info.type not in ['channel', 'supergroup']:
+                await message.reply_text(
+                    "❌ Bu bir kanal değil. Lütfen geçerli bir kanal username'i girin.\n\n"
+                    "Örnek: @kanaladi",
+                    parse_mode="HTML"
+                )
+                return
+
+            # Kanalı taslağa ekle
+            success, msg = await add_channel_to_draft(
+                user_id,
+                chat_info.id,
+                username,
+                chat_info.title
+            )
+
+            if success:
+                await message.reply_text(
+                    f"✅ Kanal eklendi: <b>{chat_info.title}</b> (@{username})\n\n"
+                    f"Başka kanal eklemek için username gönderin veya /randy yazarak devam edin.",
+                    parse_mode="HTML"
+                )
+            else:
+                await message.reply_text(
+                    f"⚠️ {msg}\n\nBaşka bir kanal deneyin veya /randy yazarak devam edin.",
+                    parse_mode="HTML"
+                )
+
+        except TelegramError as e:
+            await message.reply_text(
+                f"❌ Kanal bulunamadı veya bota erişim yok.\n\n"
+                f"Lütfen şunlara dikkat edin:\n"
+                f"• Kanal public olmalı\n"
+                f"• Bot kanalda admin olmalı\n"
+                f"• Username doğru yazılmalı\n\n"
+                f"Örnek: @kanaladi",
+                parse_mode="HTML"
+            )
+        return
+
+    # ========== MEDYA EKLEME ==========
+    if waiting_for.startswith('randy_media_'):
+        media_type = waiting_for.replace('randy_media_', '')
+        file_id = None
+
+        if media_type == 'photo' and message.photo:
+            file_id = message.photo[-1].file_id
+        elif media_type == 'video' and message.video:
+            file_id = message.video.file_id
+        elif media_type == 'animation' and message.animation:
+            file_id = message.animation.file_id
+
+        if file_id:
+            await update_draft(user_id, media_file_id=file_id)
+            context.user_data.pop('waiting_for', None)
+
+            media_names = {'photo': 'Fotoğraf', 'video': 'Video', 'animation': 'GIF'}
+            await message.reply_text(
+                f"✅ {media_names.get(media_type, 'Medya')} eklendi!\n\n"
+                f"Diğer ayarları yapmak için /randy yazın.",
+                parse_mode="HTML"
+            )
+        else:
+            media_names = {'photo': 'fotoğraf', 'video': 'video', 'animation': 'GIF'}
+            await message.reply_text(
+                f"❌ Lütfen bir {media_names.get(media_type, 'medya')} gönderin.",
+                parse_mode="HTML"
+            )
+        return
+
+
+async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Grup mesajlarını işler - Roll sistemi ve mesaj sayma"""
     chat = update.effective_chat
     user = update.effective_user
     message = update.effective_message
