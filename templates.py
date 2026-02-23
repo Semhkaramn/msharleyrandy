@@ -14,6 +14,8 @@ MENU = {
 
     "RANDY_OLUSTUR": "🆕 <b>Yeni Randy Oluştur</b>\n\nAşağıdaki adımları takip edin:",
 
+    "RANDY_OLUSTUR_START": "🆕 <b>Yeni Randy Oluştur</b>\n\nAşağıdaki adımları takip edin:\n\n📍 Randy'nin açılacağı grubu seçin:",
+
     "GRUP_SEC": "📍 <b>Grup Seçimi</b>\n\nRandy'nin açılacağı grubu seçin:\n\n<i>Not: Sadece admin olduğunuz gruplar listelenir.</i>",
 
     "GRUP_BULUNAMADI": "❌ Admin olduğunuz grup bulunamadı.\n\nBotu gruba ekleyip admin yapın.",
