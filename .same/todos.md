@@ -207,3 +207,26 @@ Puan sistemi YOK - sadece mesaj sayma ve çekiliş sistemi. randy mesajı format
 ### Bekleyen:
 - [ ] Test
 - [ ] Deployment
+
+Şimdi mevcut bot projesinin tüm dosyalarını gördüm ve referans tamsite projesindeki Randy ve Roll sistemini inceledim. Todo'lara göre eksik olanları tamamlamamız gerekiyor:
+
+Tamamlanan:
+
+Database.py ✅
+Config.py ✅
+Services (randy, roll, message) ✅
+Admin kontrolü ✅
+Callback handler'ları ✅
+Mesaj taslakları ✅
+Commands.py ✅
+Messages.py ✅
+Devam Eden / Eksik olan:
+
+end_randy_with_count fonksiyonu (randy_service.py'de yok) - /number komutu bu fonksiyonu kullanıyor
+format_winner_list fonksiyonu (templates.py'de kontrol edilmeli)
+templates.py dosyasında RANDY template'leri
+requirements.txt - bağımlılıklar
+Procfile - Heroku için
+runtime.txt - Python versiyonu
+Kanal ekleme (kullanıcı adıyla) - callback'lerde eksik
+Şimdi önce mevcut templates.py dosyasını kontrol edeyim:
