@@ -5,8 +5,16 @@ Kullanıcı mesajlarını sayar ve istatistikleri yönetir
 
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
+
 from database import db
 from config import IGNORED_USER_IDS
+
+# Türkiye saat dilimi
+TR_TZ = ZoneInfo("Europe/Istanbul")
 
 
 async def track_message(
@@ -193,27 +201,35 @@ async def check_message_requirement(
     return current >= required_count, current
 
 
+def _get_tr_time(dt: datetime) -> datetime:
+    """UTC datetime'ı Türkiye saatine çevir"""
+    if dt is None:
+        return None
+    # UTC olarak işaretle ve TR'ye çevir
+    if dt.tzinfo is None:
+        from datetime import timezone
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(TR_TZ)
+
+
 def _should_reset_daily(last_reset: datetime, now: datetime) -> bool:
-    """Günlük reset gerekli mi kontrol et (Türkiye saati)"""
+    """Günlük reset gerekli mi kontrol et (Türkiye saati - gece 00:00)"""
     if not last_reset:
         return True
 
-    # UTC+3 için düzeltme
-    tr_offset = timedelta(hours=3)
-    last_reset_tr = last_reset + tr_offset
-    now_tr = now + tr_offset
+    last_reset_tr = _get_tr_time(last_reset)
+    now_tr = _get_tr_time(now)
 
     return last_reset_tr.date() < now_tr.date()
 
 
 def _should_reset_weekly(last_reset: datetime, now: datetime) -> bool:
-    """Haftalık reset gerekli mi kontrol et (Pazartesi)"""
+    """Haftalık reset gerekli mi kontrol et (Pazartesi 00:00 TR)"""
     if not last_reset:
         return True
 
-    tr_offset = timedelta(hours=3)
-    last_reset_tr = last_reset + tr_offset
-    now_tr = now + tr_offset
+    last_reset_tr = _get_tr_time(last_reset)
+    now_tr = _get_tr_time(now)
 
     # Pazartesi = 0
     last_monday = last_reset_tr.date() - timedelta(days=last_reset_tr.weekday())
@@ -223,12 +239,11 @@ def _should_reset_weekly(last_reset: datetime, now: datetime) -> bool:
 
 
 def _should_reset_monthly(last_reset: datetime, now: datetime) -> bool:
-    """Aylık reset gerekli mi kontrol et (Ayın 1'i)"""
+    """Aylık reset gerekli mi kontrol et (Ayın 1'i 00:00 TR)"""
     if not last_reset:
         return True
 
-    tr_offset = timedelta(hours=3)
-    last_reset_tr = last_reset + tr_offset
-    now_tr = now + tr_offset
+    last_reset_tr = _get_tr_time(last_reset)
+    now_tr = _get_tr_time(now)
 
     return (last_reset_tr.year, last_reset_tr.month) < (now_tr.year, now_tr.month)
