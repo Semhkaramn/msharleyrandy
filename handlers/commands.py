@@ -64,32 +64,46 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
         return
 
     if not winners:
-        await context.bot.send_message(
-            chat.id,
-            RANDY_TEMPLATES["KAZANAN_YOK"],
-            parse_mode="HTML"
-        )
-        return
-
-    # Kazanan mesajı
-    winner_list = format_winner_list(winners)
-
-    # Katılımcı sayısı kazanandan az mı?
-    if participant_count < winner_count:
-        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_count=winner_count,
-            winner_list=winner_list
-        )
+        text = RANDY_TEMPLATES["KAZANAN_YOK"]
     else:
-        text = RANDY_TEMPLATES["BITTI"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_list=winner_list
-        )
+        # Kazanan mesajı
+        winner_list = format_winner_list(winners)
 
-    await context.bot.send_message(chat.id, text, parse_mode="HTML")
+        # Katılımcı sayısı kazanandan az mı?
+        if participant_count < winner_count:
+            text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_count=winner_count,
+                winner_list=winner_list
+            )
+        else:
+            text = RANDY_TEMPLATES["BITTI"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_list=winner_list
+            )
+
+    # Orijinal Randy mesajını düzenle
+    try:
+        if randy.get('media_file_id') and randy.get('media_type') != 'none':
+            await context.bot.edit_message_caption(
+                chat_id=chat.id,
+                message_id=randy['message_id'],
+                caption=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+        else:
+            await context.bot.edit_message_text(
+                chat_id=chat.id,
+                message_id=randy['message_id'],
+                text=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+    except TelegramError:
+        await context.bot.send_message(chat.id, text, parse_mode="HTML")
 
 
 # ============================================
@@ -422,31 +436,51 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not winners:
-        await message.reply_text(
-            RANDY_TEMPLATES["KAZANAN_YOK"],
-            parse_mode="HTML"
-        )
-        return
-
-    # Kazanan mesajı
-    winner_list = format_winner_list(winners)
-
-    # Katılımcı sayısı kazanandan az mı?
-    if participant_count < winner_count:
-        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_count=winner_count,
-            winner_list=winner_list
-        )
+        text = RANDY_TEMPLATES["KAZANAN_YOK"]
     else:
-        text = RANDY_TEMPLATES["BITTI"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_list=winner_list
-        )
+        # Kazanan mesajı
+        winner_list = format_winner_list(winners)
 
-    await message.reply_text(text, parse_mode="HTML")
+        # Katılımcı sayısı kazanandan az mı?
+        if participant_count < winner_count:
+            text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_count=winner_count,
+                winner_list=winner_list
+            )
+        else:
+            text = RANDY_TEMPLATES["BITTI"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_list=winner_list
+            )
+
+    # Orijinal Randy mesajını düzenle
+    try:
+        if randy.get('media_file_id') and randy.get('media_type') != 'none':
+            await context.bot.edit_message_caption(
+                chat_id=chat.id,
+                message_id=randy['message_id'],
+                caption=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+        else:
+            await context.bot.edit_message_text(
+                chat_id=chat.id,
+                message_id=randy['message_id'],
+                text=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+        # /number komutunu sil
+        try:
+            await message.delete()
+        except TelegramError:
+            pass
+    except TelegramError:
+        await message.reply_text(text, parse_mode="HTML")
 
 
 # ============================================
@@ -513,7 +547,7 @@ async def bitir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _finish_randy(context, chat_id: int, randy: dict):
-    """Randy'yi bitir ve sonuçları gönder"""
+    """Randy'yi bitir ve sonuçları orijinal mesajda göster"""
     from templates import RANDY as RANDY_TEMPLATES, format_winner_list
 
     participant_count = await get_participant_count(randy['id'])
@@ -525,30 +559,44 @@ async def _finish_randy(context, chat_id: int, randy: dict):
         return
 
     if not winners:
-        await context.bot.send_message(
-            chat_id,
-            RANDY_TEMPLATES["KAZANAN_YOK"],
-            parse_mode="HTML"
-        )
-        return
-
-    winner_list = format_winner_list(winners)
-
-    if participant_count < winner_count:
-        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_count=winner_count,
-            winner_list=winner_list
-        )
+        text = RANDY_TEMPLATES["KAZANAN_YOK"]
     else:
-        text = RANDY_TEMPLATES["BITTI"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_list=winner_list
-        )
+        winner_list = format_winner_list(winners)
 
-    await context.bot.send_message(chat_id, text, parse_mode="HTML")
+        if participant_count < winner_count:
+            text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_count=winner_count,
+                winner_list=winner_list
+            )
+        else:
+            text = RANDY_TEMPLATES["BITTI"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_list=winner_list
+            )
+
+    # Orijinal Randy mesajını düzenle
+    try:
+        if randy.get('media_file_id') and randy.get('media_type') != 'none':
+            await context.bot.edit_message_caption(
+                chat_id=chat_id,
+                message_id=randy['message_id'],
+                caption=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+        else:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=randy['message_id'],
+                text=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+    except TelegramError:
+        await context.bot.send_message(chat_id, text, parse_mode="HTML")
 
 
 # ============================================
