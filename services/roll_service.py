@@ -533,7 +533,7 @@ async def clean_inactive_users(group_id: int) -> int:
         return 0
 
 
-async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str, List[Dict]]:
+async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str, List[Dict], Dict]:
     """
     Roll durumu ve kullanıcı listesini getir
 
@@ -542,7 +542,7 @@ async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str,
         return_raw: True ise ham veriyi döndür (mesaj formatlaması için)
 
     Returns:
-        tuple: (Durum metni, Adımlar listesi)
+        tuple: (Durum metni, Adımlar listesi, Session bilgisi)
     """
     try:
         async with db.pool.acquire() as conn:
@@ -552,7 +552,7 @@ async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str,
             """, group_id)
 
             if not session:
-                return "stopped", []
+                return "stopped", [], {}
 
             # Aktif durumlarda temizlik yap
             if session['status'] in [STATUS_ACTIVE, STATUS_LOCKED, STATUS_LOCKED_BREAK]:
@@ -582,11 +582,19 @@ async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str,
                     'users': [dict(u) for u in users]
                 })
 
-            return session['status'], result_steps
+            # Session bilgisini döndür
+            session_info = {
+                'status': session['status'],
+                'active_duration': session['active_duration'],
+                'current_step': session['current_step'],
+                'created_at': session['created_at']
+            }
+
+            return session['status'], result_steps, session_info
 
     except Exception as e:
         print(f"❌ Status list hatası: {e}")
-        return "error", []
+        return "error", [], {}
 
 
 async def _update_all_last_active(conn, group_id: int):
