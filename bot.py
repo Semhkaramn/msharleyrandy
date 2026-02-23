@@ -32,7 +32,8 @@ from handlers.commands import (
     number_command,
     gunluk_command,
     haftalik_command,
-    aylik_command
+    aylik_command,
+    bitir_command
 )
 from handlers.messages import handle_message
 from handlers.callbacks import handle_callback
@@ -83,6 +84,9 @@ def main():
     # /number X - Kazanan sayısı ayarla (grup)
     application.add_handler(CommandHandler("number", number_command))
 
+    # /bitir - Randy'yi bitir (grup - admin)
+    application.add_handler(CommandHandler("bitir", bitir_command))
+
     # .ben, !ben, /ben - Kullanıcı istatistikleri
     application.add_handler(CommandHandler("ben", ben_command))
     application.add_handler(MessageHandler(
@@ -113,8 +117,11 @@ def main():
 
     # ========== MESAJ HANDLER ==========
     # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
+    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
+    # Randy reply bitirme ve medya ekleme için gerekli
     application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
+        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
+         filters.STICKER | filters.Document.ALL) & ~filters.COMMAND,
         handle_message
     ))
 
