@@ -30,6 +30,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
 
+    # Menü mesaj ID'sini kaydet (hep aynı mesajı düzenlemek için)
+    if query.message:
+        context.user_data['menu_message_id'] = query.message.message_id
+
     # Ana menü
     if data == "main_menu":
         await show_main_menu(query)
@@ -65,7 +69,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Kazanan sayısı
     elif data == "randy_winners":
-        await show_winner_count_menu(query)
+        await show_winner_count_menu(query, context)
 
     elif data.startswith("randy_win_"):
         count = int(data.replace("randy_win_", ""))
@@ -73,7 +77,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Medya seçimi
     elif data == "randy_media":
-        await show_media_menu(query)
+        await show_media_menu(query, context)
 
     elif data.startswith("randy_media_"):
         media_type = data.replace("randy_media_", "")
@@ -256,8 +260,19 @@ async def show_setup_menu(query, user_id: int, group_id: int = None):
 
     # Durumu göster
     message_status = "✅" if draft.get('message') else "❌"
-    req_status = "✅" if draft.get('requirement_type') and draft['requirement_type'] != 'none' else "➖"
-    winner_status = f"({draft.get('winner_count', 1)})"
+
+    # Şart durumu - detaylı göster
+    req_type = draft.get('requirement_type', 'none')
+    req_count = draft.get('required_message_count', 0)
+    if req_type != 'none' and req_count > 0:
+        period_text = get_period_text(req_type)
+        req_status = f"✅ ({period_text} {req_count})"
+    else:
+        req_status = "➖"
+
+    winner_count = draft.get('winner_count', 1)
+    winner_status = f"({winner_count})"
+
     media_status = "✅" if draft.get('media_file_id') else "➖"
     pin_status = "✅" if draft.get('pin_message') else "❌"
     channel_status = f"✅ ({len(channels)})" if channels else "➖"
@@ -353,7 +368,7 @@ async def prompt_message_count(query, user_id: int, context: ContextTypes.DEFAUL
 
 
 async def show_winner_count_menu(query, context: ContextTypes.DEFAULT_TYPE):
-    """Kazanan sayısı - yazıyla girişprompt_winner_count(query, context)"""
+    """Kazanan sayısı - yazıyla giriş"""
     context.user_data['waiting_for'] = 'randy_winner_count'
 
     keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")]]
@@ -367,41 +382,43 @@ async def show_winner_count_menu(query, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def show_media_menu(query):
-    """Medya seçim menüsü"""
+async def show_media_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
+    """Medya menüsü - direkt medya iste, seçenek yok"""
+    if context:
+        context.user_data['waiting_for'] = 'randy_media'
+
     keyboard = [
-        [InlineKeyboardButton(BUTTONS["SADECE_METIN"], callback_data="randy_media_none")],
-        [InlineKeyboardButton(BUTTONS["FOTOGRAF"], callback_data="randy_media_photo")],
-        [InlineKeyboardButton(BUTTONS["VIDEO"], callback_data="randy_media_video")],
-        [InlineKeyboardButton(BUTTONS["GIF"], callback_data="randy_media_animation")],
+        [InlineKeyboardButton("🗑️ Medyayı Kaldır", callback_data="randy_media_none")],
         [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")],
     ]
 
     await query.edit_message_text(
-        MENU["MEDYA_SEC"],
+        "🖼️ <b>Medya Ekle</b>\n\n"
+        "Fotoğraf, video veya GIF gönderin.\n\n"
+        "<i>Medya eklemek istemiyorsanız 'Geri' butonuna tıklayın.</i>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
 
 
 async def select_media_type(query, user_id: int, media_type: str, context: ContextTypes.DEFAULT_TYPE):
-    """Medya tipi seçildi"""
+    """Medya tipi seçildi - sadece none için kullanılır"""
     group_id = context.user_data.get('active_group_id') if context else None
 
     if media_type == 'none':
         await update_draft(user_id, group_id=group_id, media_type='none', media_file_id=None)
+        await query.answer("✅ Medya kaldırıldı!", show_alert=True)
         await show_setup_menu(query, user_id, group_id)
     else:
-        await update_draft(user_id, group_id=group_id, media_type=media_type)
-        context.user_data['waiting_for'] = f'randy_media_{media_type}'
+        # Artık bu duruma düşmemeli ama yine de handle edelim
+        await show_media_menu(query, context)
 
-        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")]]
 
-        await query.edit_message_text(
-            MENU["MEDYA_GONDER"],
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML"
-        )
+async def select_winner_count(query, user_id: int, count: int, context: ContextTypes.DEFAULT_TYPE):
+    """Kazanan sayısı seçildi"""
+    group_id = context.user_data.get('active_group_id') if context else None
+    await update_draft(user_id, group_id=group_id, winner_count=count)
+    await show_setup_menu(query, user_id, group_id)
 
 
 async def show_channels_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
@@ -623,13 +640,27 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
         randy = await get_randy_by_id(randy_id)
 
         if randy:
-            # Mesajı güncelle
-            new_text = RANDY["BASLADI"].format(
-                title=randy['title'],
-                message=randy['message'],
-                participants=count,
-                winners=randy['winner_count']
-            )
+            # Şart varsa şartlı template kullan
+            req_type = randy.get('requirement_type', 'none')
+            req_count = randy.get('required_message_count', 0)
+
+            if req_type != 'none' and req_count > 0:
+                period_text = get_period_text(req_type)
+                requirement = f"{period_text} {req_count} mesaj"
+                new_text = RANDY["BASLADI_SARTLI"].format(
+                    title=randy['title'],
+                    message=randy['message'],
+                    requirement=requirement,
+                    participants=count,
+                    winners=randy['winner_count']
+                )
+            else:
+                new_text = RANDY["BASLADI"].format(
+                    title=randy['title'],
+                    message=randy['message'],
+                    participants=count,
+                    winners=randy['winner_count']
+                )
 
             keyboard = [[
                 InlineKeyboardButton(
