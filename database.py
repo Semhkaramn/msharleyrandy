@@ -131,6 +131,21 @@ class Database:
                 )
             """)
 
+            # Randy Kanalları (Zorunlu takip edilecek kanallar)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS randy_channels (
+                    id SERIAL PRIMARY KEY,
+                    randy_draft_id INT,
+                    randy_id INT,
+                    channel_id BIGINT,
+                    channel_username TEXT,
+                    channel_title TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(randy_draft_id, channel_id),
+                    UNIQUE(randy_id, channel_id)
+                )
+            """)
+
             # Roll Oturumları
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS roll_sessions (
@@ -197,6 +212,8 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_status ON randy(status)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_group ON randy(group_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_roll_group ON roll_sessions(group_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_channels_draft ON randy_channels(randy_draft_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_channels_randy ON randy_channels(randy_id)")
 
             print("✅ Tablolar oluşturuldu")
 
