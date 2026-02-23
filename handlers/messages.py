@@ -377,32 +377,50 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
         return True
 
     if not winners:
-        await context.bot.send_message(
-            chat.id,
-            RANDY_TEMPLATES["KAZANAN_YOK"],
-            parse_mode="HTML"
-        )
-        return True
-
-    # Kazanan mesajı
-    winner_list = format_winner_list(winners)
-
-    # Katılımcı sayısı kazanandan az mı?
-    if participant_count < winner_count:
-        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_count=winner_count,
-            winner_list=winner_list
-        )
+        text = RANDY_TEMPLATES["KAZANAN_YOK"]
     else:
-        text = RANDY_TEMPLATES["BITTI"].format(
-            title=randy['title'],
-            participants=participant_count,
-            winner_list=winner_list
-        )
+        # Kazanan mesajı
+        winner_list = format_winner_list(winners)
 
-    await context.bot.send_message(chat.id, text, parse_mode="HTML")
+        # Katılımcı sayısı kazanandan az mı?
+        if participant_count < winner_count:
+            text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_count=winner_count,
+                winner_list=winner_list
+            )
+        else:
+            text = RANDY_TEMPLATES["BITTI"].format(
+                title=randy['title'],
+                participants=participant_count,
+                winner_list=winner_list
+            )
+
+    # Orijinal Randy mesajını düzenle
+    try:
+        if randy.get('media_file_id') and randy.get('media_type') != 'none':
+            # Medyalı mesaj - caption düzenle
+            await context.bot.edit_message_caption(
+                chat_id=chat.id,
+                message_id=randy['message_id'],
+                caption=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+        else:
+            # Sadece metin mesajı
+            await context.bot.edit_message_text(
+                chat_id=chat.id,
+                message_id=randy['message_id'],
+                text=text,
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+    except TelegramError:
+        # Mesaj düzenlenemezse yeni mesaj gönder
+        await context.bot.send_message(chat.id, text, parse_mode="HTML")
+
     return True
 
 
