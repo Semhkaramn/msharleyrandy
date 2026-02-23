@@ -59,6 +59,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     user_id = user.id
+    group_id = context.user_data.get('active_group_id')  # Aktif grup ID'sini al
 
     # ========== RANDY MESAJI AYARLAMA ==========
     if waiting_for == 'randy_message':
@@ -70,7 +71,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             title = lines[0].strip()
             msg = lines[1].strip() if len(lines) > 1 else title
 
-            await update_draft(user_id, title=title, message=msg)
+            await update_draft(user_id, group_id=group_id, title=title, message=msg)
             context.user_data.pop('waiting_for', None)
 
             await message.reply_text(
@@ -91,7 +92,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             if count < 1:
                 raise ValueError()
 
-            await update_draft(user_id, required_message_count=count)
+            await update_draft(user_id, group_id=group_id, required_message_count=count)
             context.user_data.pop('waiting_for', None)
 
             await message.reply_text(
@@ -144,7 +145,8 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
                 user_id,
                 chat_info.id,
                 username,
-                chat_info.title
+                chat_info.title,
+                group_id
             )
 
             if success:
@@ -184,7 +186,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             file_id = message.animation.file_id
 
         if file_id:
-            await update_draft(user_id, media_file_id=file_id)
+            await update_draft(user_id, group_id=group_id, media_file_id=file_id)
             context.user_data.pop('waiting_for', None)
 
             media_names = {'photo': 'Fotoğraf', 'video': 'Video', 'animation': 'GIF'}
@@ -233,8 +235,12 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
             is_admin = await is_group_admin(context.bot, chat.id, user.id) if user else False
 
         if is_admin:
-            status_msg = await get_status_list(chat.id)
-            await message.reply_text(status_msg, parse_mode="HTML")
+            status, steps = await get_status_list(chat.id, return_raw=True)
+            if not steps:
+                await message.reply_text(ROLL["LISTE_BOS"], parse_mode="HTML")
+            else:
+                step_list = _format_steps(steps)
+                await message.reply_text(step_list, parse_mode="HTML")
         return
 
     # Roll komutları
