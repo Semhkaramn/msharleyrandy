@@ -45,6 +45,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Gereksiz logları kapat
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+
 
 async def post_init(application: Application) -> None:
     """Bot başladığında veritabanı bağlantısını kur"""
