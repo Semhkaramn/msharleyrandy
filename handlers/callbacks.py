@@ -629,6 +629,9 @@ async def go_back(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_randy_join(query, user_id: int, randy_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Randy'ye katılım"""
+    from services.randy_service import get_randy_channels
+    from config import ACTIVITY_GROUP_ID
+
     username = query.from_user.username
     first_name = query.from_user.first_name
 
@@ -643,6 +646,34 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
         randy = await get_randy_by_id(randy_id)
 
         if randy:
+            # Zorunlu kanalları al (activity dahil)
+            channels_list = []
+
+            # Activity group'u ekle
+            if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+                try:
+                    activity_chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
+                    if activity_chat.username:
+                        channels_list.append(f"@{activity_chat.username}")
+                    else:
+                        channels_list.append(activity_chat.title or "Ana Grup")
+                except:
+                    pass
+
+            # Eklenen zorunlu kanalları al
+            randy_channels = await get_randy_channels(randy_id)
+            for ch in randy_channels:
+                if ch.get('channel_username'):
+                    channels_list.append(f"@{ch['channel_username']}")
+                elif ch.get('channel_title'):
+                    channels_list.append(ch['channel_title'])
+
+            # Kanal metni oluştur
+            if channels_list:
+                channels_text = "📢 <b>Zorunlu:</b> " + ", ".join(channels_list) + "\n\n"
+            else:
+                channels_text = ""
+
             # Şart varsa şartlı template kullan
             req_type = randy.get('requirement_type', 'none')
             req_count = randy.get('required_message_count', 0)
@@ -654,6 +685,7 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                     title=randy['title'],
                     message=randy['message'],
                     requirement=requirement,
+                    channels_text=channels_text,
                     participants=count,
                     winners=randy['winner_count']
                 )
@@ -661,6 +693,7 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                 new_text = RANDY["BASLADI"].format(
                     title=randy['title'],
                     message=randy['message'],
+                    channels_text=channels_text,
                     participants=count,
                     winners=randy['winner_count']
                 )
