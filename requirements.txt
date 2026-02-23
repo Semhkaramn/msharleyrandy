@@ -1,0 +1,11 @@
+# Telegram Bot
+python-telegram-bot[webhooks]==21.3
+
+# Database
+asyncpg==0.29.0
+
+# Environment
+python-dotenv==1.0.1
+
+# Async utilities
+aiohttp==3.9.5
