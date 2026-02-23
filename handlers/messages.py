@@ -465,11 +465,11 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
             is_admin = await is_group_admin(context.bot, chat.id, user.id) if user else False
 
         if is_admin:
-            status, steps = await get_status_list(chat.id, return_raw=True)
-            if not steps:
+            status, steps, session_info = await get_status_list(chat.id, return_raw=True)
+            if not steps and not session_info:
                 await message.reply_text(ROLL["LISTE_BOS"], parse_mode="HTML")
             else:
-                step_list = _format_steps(steps)
+                step_list = _format_steps(steps, session_info)
                 await message.reply_text(step_list, parse_mode="HTML")
         return
 
@@ -569,8 +569,8 @@ async def handle_roll_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             return
 
         # Adım listesini getir
-        status, steps = await get_status_list(chat.id, return_raw=True)
-        step_list = _format_steps(steps) if steps else ""
+        status, steps, session_info = await get_status_list(chat.id, return_raw=True)
+        step_list = _format_steps(steps, session_info) if steps else ""
 
         await message.reply_text(
             ROLL["ADIM_KAYDEDILDI"].format(step=step_number, list=step_list),
@@ -691,8 +691,8 @@ async def handle_roll_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await clean_inactive_users(chat.id)
 
         # Adım listesini al
-        status, steps = await get_status_list(chat.id, return_raw=True)
-        step_list = _format_steps(steps) if steps else ROLL["LISTE_BOS"]
+        status, steps, session_info = await get_status_list(chat.id, return_raw=True)
+        step_list = _format_steps(steps, session_info) if steps else ROLL["LISTE_BOS"]
 
         await stop_roll(chat.id)
 
@@ -703,19 +703,63 @@ async def handle_roll_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
 
-def _format_steps(steps: list) -> str:
-    """Adımları formatla"""
-    if not steps:
-        return "📭 Kullanıcı yok."
-
+def _format_steps(steps: list, session_info: dict = None) -> str:
+    """Adımları formatla - roll durumu ve başlama saati ile"""
     lines = []
+
+    # Session bilgisi varsa başlangıçta göster
+    if session_info:
+        status = session_info.get('status', '')
+        created_at = session_info.get('created_at')
+        duration = session_info.get('active_duration', 0)
+
+        # Durum metni
+        status_texts = {
+            'active': '🟢 Aktif',
+            'paused': '⏸️ Duraklatıldı',
+            'stopped': '🔴 Durduruldu',
+            'break': '☕ Mola',
+            'locked': '🔒 Kilitli',
+            'locked_break': '🔒☕ Kilitli Mola'
+        }
+        status_text = status_texts.get(status, status)
+
+        lines.append(f"📊 <b>Roll Durumu:</b> {status_text}")
+
+        # Başlama saati
+        if created_at:
+            # UTC+3 (Türkiye saati) için 3 saat ekle
+            from datetime import timedelta
+            local_time = created_at + timedelta(hours=3)
+            time_str = local_time.strftime("%d.%m.%Y %H:%M")
+            lines.append(f"🕐 <b>Başlama Saati:</b> {time_str}")
+
+        # Süre kuralı
+        if duration:
+            lines.append(f"⏳ <b>Süre Kuralı:</b> {duration} dakika")
+
+        lines.append("")  # Boşluk
+
+    if not steps:
+        lines.append("📭 Kullanıcı yok.")
+        return "\n".join(lines)
+
     for step in steps:
         step_num = step['step_number']
         is_active = step.get('is_active', False)
         users = step.get('users', [])
+        step_created_at = step.get('created_at')
 
         marker = "🔴 " if is_active else ""
         header = f"{marker}📍 Adım {step_num}"
+
+        # Adım başlama saatini ekle
+        if step_created_at:
+            from datetime import timedelta
+            local_time = step_created_at + timedelta(hours=3)
+            step_time_str = local_time.strftime("%H:%M")
+            header += f" ({step_time_str})"
+
         lines.append(header)
 
         if users:
