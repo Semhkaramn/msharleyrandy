@@ -18,7 +18,7 @@ MENU = {
 
     "GRUP_BULUNAMADI": "❌ Admin olduğunuz grup bulunamadı.\n\nBotu gruba ekleyip admin yapın.",
 
-    "MESAJ_AYARLA": "✏️ <b>Randy Mesajı</b>\n\nRandy mesajını yazın.\n\n<b>Kullanılabilir değişkenler:</b>\n• <code>$kazanan</code> - Kazanan sayısı\n• <code>$katilimci</code> - Katılımcı sayısı\n\n<i>Şu anda mesaj gönderin:</i>",
+    "MESAJ_AYARLA": "✏️ <b>Randy Mesajı</b>\n\nRandy mesajını yazın:\n\n<i>Şu anda mesaj gönderin:</i>",
 
     "SART_SEC": "📋 <b>Katılım Şartı</b>\n\nKatılım için gerekli şartı seçin:",
 
@@ -62,13 +62,13 @@ RANDY = {
 
     "TASLAK_YOK": "❌ Bu grup için hazır Randy taslağı yok.\n\nÖnce özelden /start ile taslak oluşturun.",
 
-    "BASLADI": "🎉 <b>{title}</b>\n\n{message}\n\n{channels_text}👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
+    "BASLADI": "🎉 <b>RANDY BAŞLADI!</b>\n\n{message}\n\n{channels_text}👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
 
-    "BASLADI_SARTLI": "🎉 <b>{title}</b>\n\n{message}\n\n📋 <b>Şart:</b> {requirement}\n{channels_text}👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
+    "BASLADI_SARTLI": "🎉 <b>RANDY BAŞLADI!</b>\n\n{message}\n\n📋 <b>Şart:</b> {requirement}\n{channels_text}👥 Katılımcı: {participants}\n🏆 Kazanan: {winners} kişi",
 
-    "BITTI": "🎉 <b>{title} - Sona Erdi!</b>\n\n👥 Toplam Katılımcı: {participants}\n\n🏆 <b>Kazananlar:</b>\n{winner_list}\n\nTebrikler! 🎊",
+    "BITTI": "🎊 <b>RANDY SONA ERDİ!</b>\n\n👥 Toplam Katılımcı: {participants}\n\n🏆 <b>Kazananlar:</b>\n{winner_list}\n\nTebrikler!",
 
-    "BITTI_KATILIMCI_AZ": "🎉 <b>{title} - Sona Erdi!</b>\n\n👥 Toplam Katılımcı: {participants}\n⚠️ Katılımcı sayısı ({participants}) kazanan sayısından ({winner_count}) az olduğu için tüm katılımcılar kazandı!\n\n🏆 <b>Kazananlar:</b>\n{winner_list}\n\nTebrikler! 🎊",
+    "BITTI_KATILIMCI_AZ": "🎊 <b>RANDY SONA ERDİ!</b>\n\n👥 Toplam Katılımcı: {participants}\n⚠️ Katılımcı sayısı ({participants}) kazanan sayısından ({winner_count}) az olduğu için tüm katılımcılar kazandı!\n\n🏆 <b>Kazananlar:</b>\n{winner_list}\n\nTebrikler!",
 
     "KAZANAN_YOK": "😔 Yeterli katılımcı olmadığı için kazanan belirlenemedi.",
 
