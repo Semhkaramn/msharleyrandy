@@ -16,7 +16,8 @@ from services.randy_service import (
     get_user_admin_groups, join_randy, get_participant_count,
     get_randy_by_id, end_randy,
     add_channel_to_draft, remove_channel_from_draft,
-    get_draft_channels, clear_draft_channels
+    get_draft_channels, clear_draft_channels,
+    get_or_create_group_draft
 )
 from utils.admin_check import is_group_admin, is_activity_group_admin
 
@@ -68,7 +69,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("randy_win_"):
         count = int(data.replace("randy_win_", ""))
-        await select_winner_count(query, user_id, count)
+        await select_winner_count(query, user_id, count, context)
 
     # Medya seçimi
     elif data == "randy_media":
@@ -97,15 +98,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Önizleme
     elif data == "randy_preview":
-        await show_preview(query, user_id)
+        await show_preview(query, user_id, context)
 
     # Kaydet
     elif data == "randy_save":
-        await save_draft(query, user_id)
+        await save_draft(query, user_id, context)
 
     # İptal
     elif data == "randy_cancel":
-        await cancel_creation(query, user_id)
+        await cancel_creation(query, user_id, context)
 
     # Geri
     elif data == "randy_back":
@@ -199,7 +200,6 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
 
 async def select_group(query, user_id: int, group_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Grup seçildi - mevcut grup taslağını kontrol et"""
-    from services.randy_service import get_or_create_group_draft
 
     # Grup için mevcut taslak varsa onu kullan, yoksa yeni oluştur
     draft = await get_or_create_group_draft(user_id, group_id)
@@ -219,10 +219,6 @@ async def select_group(query, user_id: int, group_id: int, context: ContextTypes
 
 async def show_setup_menu(query, user_id: int, group_id: int = None):
     """Randy ayar menüsünü göster (grup bazlı)"""
-    # Grup ID'yi context'ten al eğer parametre olarak verilmediyse
-    if not group_id:
-        group_id = query.message.chat.id if hasattr(query, 'message') else None
-
     draft = await get_draft(user_id, group_id)
 
     if not draft:
@@ -303,10 +299,11 @@ async def show_requirement_menu(query):
 
 async def select_requirement(query, user_id: int, req_type: str, context: ContextTypes.DEFAULT_TYPE):
     """Şart seçildi"""
-    await update_draft(user_id, requirement_type=req_type)
+    group_id = context.user_data.get('active_group_id') if context else None
+    await update_draft(user_id, group_id=group_id, requirement_type=req_type)
 
     if req_type == 'none':
-        await show_setup_menu(query, user_id)
+        await show_setup_menu(query, user_id, group_id)
     else:
         # Mesaj sayısı iste
         context.user_data['waiting_for'] = 'randy_msg_count'
@@ -355,10 +352,11 @@ async def show_winner_count_menu(query):
     )
 
 
-async def select_winner_count(query, user_id: int, count: int):
+async def select_winner_count(query, user_id: int, count: int, context: ContextTypes.DEFAULT_TYPE):
     """Kazanan sayısı seçildi"""
-    await update_draft(user_id, winner_count=count)
-    await show_setup_menu(query, user_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    await update_draft(user_id, group_id=group_id, winner_count=count)
+    await show_setup_menu(query, user_id, group_id)
 
 
 async def show_media_menu(query):
@@ -380,11 +378,13 @@ async def show_media_menu(query):
 
 async def select_media_type(query, user_id: int, media_type: str, context: ContextTypes.DEFAULT_TYPE):
     """Medya tipi seçildi"""
+    group_id = context.user_data.get('active_group_id') if context else None
+
     if media_type == 'none':
-        await update_draft(user_id, media_type='none', media_file_id=None)
-        await show_setup_menu(query, user_id)
+        await update_draft(user_id, group_id=group_id, media_type='none', media_file_id=None)
+        await show_setup_menu(query, user_id, group_id)
     else:
-        await update_draft(user_id, media_type=media_type)
+        await update_draft(user_id, group_id=group_id, media_type=media_type)
         context.user_data['waiting_for'] = f'randy_media_{media_type}'
 
         keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")]]
@@ -398,14 +398,15 @@ async def select_media_type(query, user_id: int, media_type: str, context: Conte
 
 async def show_channels_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Kanal ekleme menüsü"""
-    draft = await get_draft(user_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    draft = await get_draft(user_id, group_id)
 
     if not draft:
         await query.edit_message_text(ERRORS["GENEL"])
         return
 
     # Veritabanından kanalları getir
-    channels = await get_draft_channels(user_id)
+    channels = await get_draft_channels(user_id, group_id)
 
     if channels:
         channel_list = []
@@ -450,36 +451,36 @@ async def show_channels_menu(query, user_id: int, context: ContextTypes.DEFAULT_
 
 async def clear_channels(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Tüm kanalları temizle"""
-    await clear_draft_channels(user_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    await clear_draft_channels(user_id, group_id)
     await query.answer("✅ Tüm kanallar temizlendi!", show_alert=True)
     await show_channels_menu(query, user_id, context)
 
 
 async def remove_channel(query, user_id: int, channel_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Tek kanal sil"""
-    await remove_channel_from_draft(user_id, channel_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    await remove_channel_from_draft(user_id, channel_id, group_id)
     await query.answer("✅ Kanal silindi!", show_alert=True)
     await show_channels_menu(query, user_id, context)
 
 
-async def toggle_pin(query, user_id: int, context: ContextTypes.DEFAULT_TYPE = None):
+async def toggle_pin(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Sabitleme toggle"""
     group_id = context.user_data.get('active_group_id') if context else None
     draft = await get_draft(user_id, group_id)
 
     if draft:
         new_value = not draft.get('pin_message', False)
-        if draft.get('group_id'):
-            await update_draft(user_id, group_id=draft['group_id'], pin_message=new_value)
-        else:
-            await update_draft(user_id, pin_message=new_value)
+        await update_draft(user_id, group_id=group_id, pin_message=new_value)
 
     await show_setup_menu(query, user_id, group_id)
 
 
-async def show_preview(query, user_id: int):
+async def show_preview(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Önizleme göster"""
-    draft = await get_draft(user_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    draft = await get_draft(user_id, group_id)
 
     if not draft:
         await query.edit_message_text(ERRORS["GENEL"])
@@ -508,7 +509,7 @@ async def show_preview(query, user_id: int):
     pin = "Evet" if draft.get('pin_message') else "Hayır"
 
     # Kanal bilgisi
-    channels = await get_draft_channels(user_id)
+    channels = await get_draft_channels(user_id, group_id)
     if channels:
         channel_names = []
         for ch in channels:
@@ -543,9 +544,10 @@ async def show_preview(query, user_id: int):
     )
 
 
-async def save_draft(query, user_id: int):
+async def save_draft(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Taslağı kaydet"""
-    draft = await get_draft(user_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    draft = await get_draft(user_id, group_id)
 
     if not draft:
         await query.edit_message_text(ERRORS["GENEL"])
@@ -571,9 +573,14 @@ async def save_draft(query, user_id: int):
     )
 
 
-async def cancel_creation(query, user_id: int):
+async def cancel_creation(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Oluşturmayı iptal et"""
-    await delete_draft(user_id)
+    group_id = context.user_data.get('active_group_id') if context else None
+    await delete_draft(user_id, group_id)
+    # Context'i temizle
+    if context:
+        context.user_data.pop('active_group_id', None)
+        context.user_data.pop('waiting_for', None)
     await show_randy_menu(query)
 
 
@@ -624,11 +631,19 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
             ]]
 
             try:
-                await query.edit_message_text(
-                    new_text,
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode="HTML"
-                )
+                # Medya varsa caption güncelle, yoksa text güncelle
+                if randy.get('media_file_id') and randy.get('media_type') != 'none':
+                    await query.edit_message_caption(
+                        caption=new_text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode="HTML"
+                    )
+                else:
+                    await query.edit_message_text(
+                        new_text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode="HTML"
+                    )
             except TelegramError:
                 pass
 
