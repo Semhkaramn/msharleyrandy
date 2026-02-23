@@ -275,6 +275,17 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         elif message.animation:
             file_id = message.animation.file_id
             media_type = 'animation'
+        elif message.document:
+            # Bazı GIF'ler document olarak geliyor (t.me linklerinden vs.)
+            mime_type = message.document.mime_type or ""
+            if mime_type.startswith('video/') or mime_type == 'image/gif':
+                file_id = message.document.file_id
+                media_type = 'animation'
+        elif message.sticker:
+            # Animated sticker'lar da kabul edilebilir
+            if message.sticker.is_animated or message.sticker.is_video:
+                file_id = message.sticker.file_id
+                media_type = 'animation'
 
         if file_id and media_type:
             await update_draft(user_id, group_id=group_id, media_file_id=file_id, media_type=media_type)
