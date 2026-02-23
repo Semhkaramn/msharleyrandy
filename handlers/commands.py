@@ -15,7 +15,7 @@ from services.randy_service import (
     register_group, update_group_admin, get_user_admin_groups,
     get_group_draft
 )
-from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
+from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
 
 # ============================================
@@ -197,6 +197,17 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Özel mesajda /randy - Randy menüsünü göster
+    # Önce activity group admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user.id)
+
+    if not is_admin:
+        await message.reply_text(
+            "❌ <b>Yetkiniz Yok</b>\n\n"
+            "Randy ayarları yapmak için ana gruptaki admin olmanız gerekiyor.",
+            parse_mode="HTML"
+        )
+        return
+
     keyboard = [
         [InlineKeyboardButton(BUTTONS["YENI_RANDY"], callback_data="randy_create")],
         [InlineKeyboardButton(BUTTONS["AKTIF_RANDYLER"], callback_data="randy_active")],
