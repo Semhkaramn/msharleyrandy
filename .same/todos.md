@@ -230,3 +230,30 @@ Procfile - Heroku için
 runtime.txt - Python versiyonu
 Kanal ekleme (kullanıcı adıyla) - callback'lerde eksik
 Şimdi önce mevcut templates.py dosyasını kontrol edeyim:
+
+## 🐛 Tespit Edilen Mantıksal Hatalar
+
+1. [x] `get_status_list` fonksiyonu `return_raw=True` parametresi ile çağrılıyor ama fonksiyon tanımında bu parametre yok
+2. [x] TR saat dilimi offset'i için daha güvenilir bir yöntem kullanılmalı (pytz veya zoneinfo)
+3. [x] `/randy` komutu grupta silinmiyor - silindikten sonra Randy başlamalı
+4. [x] Taslaklar `creator_id` bazlı kaydediliyor - grup bazlı olmalı ki tüm adminler görebilsin
+5. [x] Reply ile Randy bitirme özelliği yok
+
+## ✨ İstenen Yeni Özellikler
+
+1. [x] Gruplarda /randy yazınca komut silinip Randy başlasın
+2. [x] Kanallarda admin ayarı için ACTIVITY_GROUP_ID kullanımı düzeltilmeli
+3. [x] Reply ile Randy bitirme (admin reply yaparsa bitirebilmeli)
+4. [x] Tüm adminler aynı Randy taslağını görmeli (grup bazlı taslak)
+5. [x] Randy mesajı hem görsel hem yazılı olabilmeli (zaten var - media_type)
+6. [x] Özelden /start yazınca adminse tüm menü gözükmeli
+7. [x] TR saatine göre sıfırlama düzeltmesi
+
+## 📝 Yapılan Değişiklikler
+
+- [ ] roll_service.py - get_status_list return_raw parametresi eklendi
+- [ ] message_service.py - TR saat dilimi düzeltmesi
+- [ ] commands.py - /randy komutu silme özelliği
+- [ ] commands.py - Reply ile bitirme özelliği
+- [ ] randy_service.py - Grup bazlı taslak sistemi
+- [ ] callbacks.py - Admin senkronizasyonu için güncelleme
