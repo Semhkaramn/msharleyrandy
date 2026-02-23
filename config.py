@@ -15,6 +15,11 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 # ========== DATABASE ==========
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+# ========== ACTIVITY GROUP ==========
+# Bu grup ID'si özelden ayar yapılırken admin kontrolü için kullanılır
+# Sadece bu grubun adminleri özelden Randy ayarı yapabilir
+ACTIVITY_GROUP_ID = int(os.getenv("ACTIVITY_GROUP_ID", "0"))
+
 # ========== CACHE AYARLARI ==========
 ADMIN_CACHE_TTL = 300  # 5 dakika (saniye)
 CLEANUP_THROTTLE_MS = 30000  # 30 saniye (milisaniye)
