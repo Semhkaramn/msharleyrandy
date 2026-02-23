@@ -450,6 +450,108 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================
+# /bitir - Randy'yi Bitir (Grup)
+# ============================================
+
+async def bitir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /bitir komutu - Aktif Randy'yi bitirir
+    Randy mesajına reply yaparak veya direkt kullanılabilir
+    Komut otomatik silinir
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    # Komutu sil
+    try:
+        await message.delete()
+    except TelegramError:
+        pass
+
+    # Reply ile Randy bitirme
+    if message.reply_to_message:
+        randy = await get_randy_by_message_id(chat.id, message.reply_to_message.message_id)
+        if randy and randy['status'] == 'active':
+            await _finish_randy(context, chat.id, randy)
+            return
+
+    # Reply yoksa aktif Randy'yi bitir
+    randy = await get_active_randy(chat.id)
+
+    if not randy:
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "❌ Bu grupta aktif Randy yok.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(3)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+        return
+
+    await _finish_randy(context, chat.id, randy)
+
+
+async def _finish_randy(context, chat_id: int, randy: dict):
+    """Randy'yi bitir ve sonuçları gönder"""
+    from templates import RANDY as RANDY_TEMPLATES, format_winner_list
+
+    participant_count = await get_participant_count(randy['id'])
+    winner_count = randy['winner_count']
+
+    success, winners = await end_randy_with_count(randy['id'], winner_count)
+
+    if not success:
+        return
+
+    if not winners:
+        await context.bot.send_message(
+            chat_id,
+            RANDY_TEMPLATES["KAZANAN_YOK"],
+            parse_mode="HTML"
+        )
+        return
+
+    winner_list = format_winner_list(winners)
+
+    if participant_count < winner_count:
+        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_count=winner_count,
+            winner_list=winner_list
+        )
+    else:
+        text = RANDY_TEMPLATES["BITTI"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_list=winner_list
+        )
+
+    await context.bot.send_message(chat_id, text, parse_mode="HTML")
+
+
+# ============================================
 # .ben / !ben / /ben - Kullanıcı İstatistikleri
 # ============================================
 
