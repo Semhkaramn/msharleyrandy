@@ -514,10 +514,9 @@ async def show_preview(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(ERRORS["GENEL"])
         return
 
-    title = draft.get('title', 'Başlık belirlenmedi')
     message = draft.get('message', 'Mesaj belirlenmedi')
 
-    preview = f"🎰 <b>{title}</b>\n\n{message}"
+    preview = f"🎉 <b>RANDY BAŞLADI!</b>\n\n{message}"
 
     # Şart bilgisi
     req_type = draft.get('requirement_type', 'none')
@@ -586,8 +585,8 @@ async def save_draft(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("❌ Grup seçilmedi!", show_alert=True)
         return
 
-    if not draft.get('title') or not draft.get('message'):
-        await query.answer("❌ Başlık ve mesaj zorunludur!", show_alert=True)
+    if not draft.get('message'):
+        await query.answer("❌ Mesaj zorunludur!", show_alert=True)
         return
 
     keyboard = [
@@ -654,9 +653,9 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                 try:
                     activity_chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
                     if activity_chat.username:
-                        channels_list.append(f"@{activity_chat.username}")
-                    else:
-                        channels_list.append(activity_chat.title or "Ana Grup")
+                        channels_list.append(f'<a href="https://t.me/{activity_chat.username}">{activity_chat.title or activity_chat.username}</a>')
+                    elif activity_chat.title:
+                        channels_list.append(activity_chat.title)
                 except:
                     pass
 
@@ -664,13 +663,14 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
             randy_channels = await get_randy_channels(randy_id)
             for ch in randy_channels:
                 if ch.get('channel_username'):
-                    channels_list.append(f"@{ch['channel_username']}")
+                    title = ch.get('channel_title') or ch['channel_username']
+                    channels_list.append(f'<a href="https://t.me/{ch["channel_username"]}">{title}</a>')
                 elif ch.get('channel_title'):
                     channels_list.append(ch['channel_title'])
 
-            # Kanal metni oluştur
+            # Kanal metni oluştur (alt alta)
             if channels_list:
-                channels_text = "📢 <b>Zorunlu:</b> " + ", ".join(channels_list) + "\n\n"
+                channels_text = "📢 <b>Zorunlu:</b>\n" + "\n".join(channels_list) + "\n\n"
             else:
                 channels_text = ""
 
@@ -682,7 +682,6 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                 period_text = get_period_text(req_type)
                 requirement = f"{period_text} {req_count} mesaj"
                 new_text = RANDY["BASLADI_SARTLI"].format(
-                    title=randy['title'],
                     message=randy['message'],
                     requirement=requirement,
                     channels_text=channels_text,
@@ -691,7 +690,6 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                 )
             else:
                 new_text = RANDY["BASLADI"].format(
-                    title=randy['title'],
                     message=randy['message'],
                     channels_text=channels_text,
                     participants=count,
