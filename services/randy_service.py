@@ -848,8 +848,17 @@ async def update_randy_message_id(randy_id: int, message_id: int) -> bool:
         return False
 
 
-async def get_user_admin_groups(creator_id: int) -> List[Dict]:
-    """Kullanıcının admin olduğu grupları getir (bot'un ekli olduğu)"""
+async def get_user_admin_groups(creator_id: int, bot=None) -> List[Dict]:
+    """
+    Kullanıcının admin olduğu grupları getir (bot'un ekli olduğu)
+
+    Args:
+        creator_id: Kullanıcı ID
+        bot: Telegram bot instance (opsiyonel - dinamik admin kontrolü için)
+
+    Returns:
+        List[Dict]: Admin olunan grupların listesi
+    """
     try:
         async with db.pool.acquire() as conn:
             groups = await conn.fetch("""
