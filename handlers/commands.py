@@ -240,6 +240,36 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Randy mesajını oluştur
         from templates import RANDY as RANDY_TEMPLATES, get_period_text
+        from services.randy_service import get_randy_channels
+        from config import ACTIVITY_GROUP_ID
+
+        # Zorunlu kanalları al (activity dahil)
+        channels_list = []
+
+        # Activity group'u ekle
+        if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+            try:
+                activity_chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
+                if activity_chat.username:
+                    channels_list.append(f"@{activity_chat.username}")
+                else:
+                    channels_list.append(activity_chat.title or "Ana Grup")
+            except:
+                pass
+
+        # Eklenen zorunlu kanalları al
+        randy_channels = await get_randy_channels(randy_data['id'])
+        for ch in randy_channels:
+            if ch.get('channel_username'):
+                channels_list.append(f"@{ch['channel_username']}")
+            elif ch.get('channel_title'):
+                channels_list.append(ch['channel_title'])
+
+        # Kanal metni oluştur
+        if channels_list:
+            channels_text = "📢 <b>Zorunlu:</b> " + ", ".join(channels_list) + "\n\n"
+        else:
+            channels_text = ""
 
         # Şart varsa şartlı template kullan
         req_type = randy_data.get('requirement_type', 'none')
@@ -252,6 +282,7 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 title=randy_data['title'],
                 message=randy_data['message'],
                 requirement=requirement,
+                channels_text=channels_text,
                 participants=0,
                 winners=randy_data['winner_count']
             )
@@ -259,6 +290,7 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text = RANDY_TEMPLATES["BASLADI"].format(
                 title=randy_data['title'],
                 message=randy_data['message'],
+                channels_text=channels_text,
                 participants=0,
                 winners=randy_data['winner_count']
             )
