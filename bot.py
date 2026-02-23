@@ -4,7 +4,7 @@ Ana giriş noktası - Heroku'da çalışır
 
 Komutlar:
 - /start - Bot başlat (özel)
-- /randy - Randy ayarları (özel)
+- /randy - Randy ayarları (özel/grup)
 - .ben, !ben, /ben - İstatistikler (grup)
 - .günlük, .haftalık, .aylık - Sıralamalar (grup - admin)
 - roll X - Roll başlat (grup - admin)
@@ -112,9 +112,9 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_callback))
 
     # ========== MESAJ HANDLER ==========
-    # Roll komutları + Mesaj sayma
+    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
     application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & filters.ChatType.GROUPS,
+        filters.TEXT & ~filters.COMMAND,
         handle_message
     ))
 
