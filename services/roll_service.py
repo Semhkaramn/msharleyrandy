@@ -533,9 +533,13 @@ async def clean_inactive_users(group_id: int) -> int:
         return 0
 
 
-async def get_status_list(group_id: int) -> Tuple[str, List[Dict]]:
+async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str, List[Dict]]:
     """
     Roll durumu ve kullanıcı listesini getir
+
+    Args:
+        group_id: Grup ID
+        return_raw: True ise ham veriyi döndür (mesaj formatlaması için)
 
     Returns:
         tuple: (Durum metni, Adımlar listesi)
