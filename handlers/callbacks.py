@@ -25,10 +25,13 @@ from utils.admin_check import is_group_admin, is_activity_group_admin
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Ana callback handler"""
     query = update.callback_query
-    await query.answer()
-
     data = query.data
     user_id = query.from_user.id
+
+    # Randy join callbackleri için answer'ı kendi içinde yapacağız (show_alert için)
+    # Diğer tüm callbackler için hemen answer çağır
+    if not data.startswith("randy_join_"):
+        await query.answer()
 
     # Menü mesaj ID'sini kaydet (hep aynı mesajı düzenlemek için)
     if query.message:
