@@ -13,9 +13,71 @@ from services.message_service import get_user_stats
 from services.randy_service import (
     get_active_randy, start_randy, end_randy,
     register_group, update_group_admin, get_user_admin_groups,
-    get_group_draft
+    get_group_draft, get_randy_by_message_id, end_randy_with_count, get_participant_count
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
+
+
+async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_TYPE, reply_message):
+    """
+    Reply ile Randy bitirme
+    Admin, Randy mesajına reply yaparak Randy'yi bitirebilir
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not reply_message or not chat or not user:
+        return
+
+    # Reply yapılan mesajdan Randy'yi bul
+    from services.randy_service import get_randy_by_message_id
+    randy = await get_randy_by_message_id(chat.id, reply_message.message_id)
+
+    if not randy:
+        return  # Bu mesaj bir Randy değil
+
+    if randy['status'] != 'active':
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "⚠️ Bu Randy zaten bitmiş.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(3)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+        return
+
+    # Randy'yi bitir (varsayılan kazanan sayısı ile)
+    from templates import RANDY as RANDY_TEMPLATES, format_winner_list
+
+    success, winners = await end_randy_with_count(randy['id'], randy['winner_count'])
+
+    if not success:
+        return
+
+    if not winners:
+        await context.bot.send_message(
+            chat.id,
+            RANDY_TEMPLATES["KAZANAN_YOK"],
+            parse_mode="HTML"
+        )
+        return
+
+    # Kazanan mesajı
+    winner_list = format_winner_list(winners)
+    participant_count = await get_participant_count(randy['id'])
+
+    text = RANDY_TEMPLATES["BITTI"].format(
+        title=randy['title'],
+        participants=participant_count,
+        winner_list=winner_list
+    )
+
+    await context.bot.send_message(chat.id, text, parse_mode="HTML")
 
 
 # ============================================
@@ -69,7 +131,7 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     /randy komutu
     - Özel mesajda: Randy menüsünü aç
-    - Grupta: Randy başlat (admin ise)
+    - Grupta: Randy başlat (admin ise) - komut silinir
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -89,15 +151,34 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin:
             return
 
+        # /randy komutunu sil
+        try:
+            await message.delete()
+        except TelegramError:
+            pass  # Silme yetkisi yoksa devam et
+
+        # Reply ile Randy bitirme kontrolü
+        if message.reply_to_message:
+            await _handle_randy_reply_end(update, context, message.reply_to_message)
+            return
+
         # Grup için taslak var mı?
         draft = await get_group_draft(chat.id)
 
         if not draft:
-            await message.reply_text(
+            info_msg = await context.bot.send_message(
+                chat.id,
                 "❌ Bu grup için hazır Randy taslağı yok.\n\n"
                 "Önce özelden /start ile taslak oluşturun.",
                 parse_mode="HTML"
             )
+            # 5 saniye sonra sil
+            import asyncio
+            await asyncio.sleep(5)
+            try:
+                await info_msg.delete()
+            except TelegramError:
+                pass
             return
 
         # Randy başlat
@@ -105,12 +186,17 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not success:
             if randy_data and randy_data.get("error") == "already_active":
-                await message.reply_text(
+                info_msg = await context.bot.send_message(
+                    chat.id,
                     "⚠️ Bu grupta zaten aktif bir Randy var.",
                     parse_mode="HTML"
                 )
-            else:
-                await message.reply_text(ERRORS["GENEL"])
+                import asyncio
+                await asyncio.sleep(5)
+                try:
+                    await info_msg.delete()
+                except TelegramError:
+                    pass
             return
 
         # Randy mesajını gönder
@@ -161,19 +247,22 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode="HTML"
                     )
                 else:
-                    sent_msg = await message.reply_text(
+                    sent_msg = await context.bot.send_message(
+                        chat.id,
                         text,
                         reply_markup=InlineKeyboardMarkup(keyboard),
                         parse_mode="HTML"
                     )
             except TelegramError:
-                sent_msg = await message.reply_text(
+                sent_msg = await context.bot.send_message(
+                    chat.id,
                     text,
                     reply_markup=InlineKeyboardMarkup(keyboard),
                     parse_mode="HTML"
                 )
         else:
-            sent_msg = await message.reply_text(
+            sent_msg = await context.bot.send_message(
+                chat.id,
                 text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="HTML"
