@@ -14,7 +14,8 @@ from services.randy_service import (
     get_active_randy, start_randy, end_randy,
     register_group, update_group_admin, get_user_admin_groups,
     get_group_draft, get_randy_by_message_id, end_randy_with_count, get_participant_count,
-    update_randy_winner_count, update_draft_winner_count, get_randy_channels
+    update_randy_winner_count, update_draft_winner_count, get_randy_channels,
+    get_or_create_group_draft
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
@@ -482,9 +483,11 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    /number X komutu - Aktif Randy'nin kazanan sayısını değiştir
-    Kullanım: /number 4 (kazanan sayısını 4 yapar, Randy mesajını günceller)
-    Randy'yi bitirmez, sadece kazanan sayısını değiştirir
+    /number X komutu - Kazanan sayısını değiştir
+    Kullanım: /number 4 (kazanan sayısını 4 yapar)
+
+    - Aktif Randy varsa: Randy mesajını günceller
+    - Aktif Randy yoksa: Taslağı günceller (bir sonraki Randy bu sayıyla başlar)
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -549,9 +552,15 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     randy = await get_active_randy(chat.id)
 
     if not randy:
+        # Aktif Randy yok - sadece taslağı güncelle
+        # Önce taslağı oluştur/getir
+        await get_or_create_group_draft(user.id, chat.id)
+        # Taslağın kazanan sayısını güncelle
+        await update_draft_winner_count(chat.id, winner_count)
+
         info_msg = await context.bot.send_message(
             chat.id,
-            "❌ Bu grupta aktif Randy yok.",
+            f"✅ Kazanan sayısı <b>{winner_count}</b> olarak ayarlandı.",
             parse_mode="HTML"
         )
         import asyncio
