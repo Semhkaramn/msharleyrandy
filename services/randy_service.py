@@ -107,7 +107,7 @@ async def get_or_create_group_draft(creator_id: int, group_id: int) -> Optional[
     """
     try:
         async with db.pool.acquire() as conn:
-            # Önce bu grup için mevcut taslak var mı kontrol et
+            # Önce bu grup için mevcut taslağı kontrol et
             draft = await conn.fetchrow("""
                 SELECT * FROM randy_drafts
                 WHERE group_id = $1
@@ -879,6 +879,53 @@ async def update_randy_message_id(randy_id: int, message_id: int) -> bool:
 
     except Exception as e:
         print(f"❌ Randy mesaj ID güncelleme hatası: {e}")
+        return False
+
+
+async def update_randy_winner_count(randy_id: int, winner_count: int) -> bool:
+    """
+    Aktif Randy'nin kazanan sayısını güncelle
+
+    Args:
+        randy_id: Randy ID
+        winner_count: Yeni kazanan sayısı
+
+    Returns:
+        bool: Başarılı ise True
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE randy SET winner_count = $1 WHERE id = $2 AND status = 'active'
+            """, winner_count, randy_id)
+            return True
+
+    except Exception as e:
+        print(f"❌ Randy kazanan sayısı güncelleme hatası: {e}")
+        return False
+
+
+async def update_draft_winner_count(group_id: int, winner_count: int) -> bool:
+    """
+    Grup taslağının kazanan sayısını güncelle
+
+    Args:
+        group_id: Grup ID
+        winner_count: Yeni kazanan sayısı
+
+    Returns:
+        bool: Başarılı ise True
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE randy_drafts SET winner_count = $1, updated_at = NOW()
+                WHERE group_id = $2
+            """, winner_count, group_id)
+            return True
+
+    except Exception as e:
+        print(f"❌ Taslak kazanan sayısı güncelleme hatası: {e}")
         return False
 
 
