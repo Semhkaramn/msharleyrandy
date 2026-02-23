@@ -145,12 +145,10 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         text = message.text or message.caption or ""
 
         if text:
-            # İlk satır başlık, geri kalan mesaj
-            lines = text.split('\n', 1)
-            title = lines[0].strip()
-            msg = lines[1].strip() if len(lines) > 1 else title
+            # Tüm metin direkt mesaj olarak kaydedilir (başlık yok)
+            msg = text.strip()
 
-            await update_draft(user_id, group_id=group_id, title=title, message=msg)
+            await update_draft(user_id, group_id=group_id, title="RANDY", message=msg)
             context.user_data.pop('waiting_for', None)
 
             # Menüye geri dön
@@ -385,14 +383,12 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
         # Katılımcı sayısı kazanandan az mı?
         if participant_count < winner_count:
             text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_count=winner_count,
                 winner_list=winner_list
             )
         else:
             text = RANDY_TEMPLATES["BITTI"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_list=winner_list
             )
