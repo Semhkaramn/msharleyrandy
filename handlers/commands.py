@@ -13,7 +13,8 @@ from services.message_service import get_user_stats
 from services.randy_service import (
     get_active_randy, start_randy, end_randy,
     register_group, update_group_admin, get_user_admin_groups,
-    get_group_draft, get_randy_by_message_id, end_randy_with_count, get_participant_count
+    get_group_draft, get_randy_by_message_id, end_randy_with_count, get_participant_count,
+    update_randy_winner_count, update_draft_winner_count, get_randy_channels
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
@@ -476,13 +477,14 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================
-# /number X - Kazanan Sayısı (Grup)
+# /number X - Kazanan Sayısı Değiştir (Grup)
 # ============================================
 
 async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    /number X komutu - Randy kazanan sayısını ayarla ve bitir
-    Kullanım: /number 3 (3 kazanan seçer ve Randy'yi bitirir)
+    /number X komutu - Aktif Randy'nin kazanan sayısını değiştir
+    Kullanım: /number 4 (kazanan sayısını 4 yapar, Randy mesajını günceller)
+    Randy'yi bitirmez, sadece kazanan sayısını değiştirir
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -504,12 +506,25 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin:
         return
 
+    # /number komutunu sil
+    try:
+        await message.delete()
+    except TelegramError:
+        pass
+
     # Argüman kontrolü
     if not context.args or len(context.args) < 1:
-        await message.reply_text(
-            "❌ Kullanım: /number X\n\nÖrnek: /number 3",
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "❌ Kullanım: /number X\n\nÖrnek: /number 4",
             parse_mode="HTML"
         )
+        import asyncio
+        await asyncio.sleep(5)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
         return
 
     try:
@@ -517,53 +532,106 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if winner_count < 1:
             raise ValueError("Kazanan sayısı en az 1 olmalı")
     except ValueError:
-        await message.reply_text(
-            "❌ Geçerli bir sayı girin.\n\nÖrnek: /number 3",
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "❌ Geçerli bir sayı girin.\n\nÖrnek: /number 4",
             parse_mode="HTML"
         )
+        import asyncio
+        await asyncio.sleep(5)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
         return
 
     # Aktif Randy var mı?
     randy = await get_active_randy(chat.id)
 
     if not randy:
-        await message.reply_text(
+        info_msg = await context.bot.send_message(
+            chat.id,
             "❌ Bu grupta aktif Randy yok.",
             parse_mode="HTML"
         )
+        import asyncio
+        await asyncio.sleep(5)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
         return
+
+    # Randy'nin kazanan sayısını güncelle
+    await update_randy_winner_count(randy['id'], winner_count)
+
+    # Taslağı da güncelle (gelecekteki randyler için)
+    await update_draft_winner_count(chat.id, winner_count)
 
     # Katılımcı sayısını al
     participant_count = await get_participant_count(randy['id'])
 
-    # Randy'yi sonlandır ve kazananları seç
-    from services.randy_service import end_randy_with_count
-    from templates import RANDY as RANDY_TEMPLATES, format_winner_list
+    # Randy mesajını güncelle
+    from templates import RANDY as RANDY_TEMPLATES, get_period_text
+    from config import ACTIVITY_GROUP_ID
 
-    success, winners = await end_randy_with_count(randy['id'], winner_count)
+    # Zorunlu kanalları al (activity dahil)
+    channels_list = []
 
-    if not success:
-        await message.reply_text(ERRORS["GENEL"])
-        return
+    # Activity group'u ekle
+    if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+        try:
+            activity_chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
+            if activity_chat.username:
+                channels_list.append(f'<a href="https://t.me/{activity_chat.username}">{activity_chat.title or activity_chat.username}</a>')
+            elif activity_chat.title:
+                channels_list.append(activity_chat.title)
+        except:
+            pass
 
-    if not winners:
-        text = RANDY_TEMPLATES["KAZANAN_YOK"]
+    # Eklenen zorunlu kanalları al
+    randy_channels = await get_randy_channels(randy['id'])
+    for ch in randy_channels:
+        if ch.get('channel_username'):
+            title = ch.get('channel_title') or ch['channel_username']
+            channels_list.append(f'<a href="https://t.me/{ch["channel_username"]}">{title}</a>')
+        elif ch.get('channel_title'):
+            channels_list.append(ch['channel_title'])
+
+    # Kanal metni oluştur (alt alta)
+    if channels_list:
+        channels_text = "📢 <b>Zorunlu:</b>\n" + "\n".join(channels_list) + "\n\n"
     else:
-        # Kazanan mesajı
-        winner_list = format_winner_list(winners)
+        channels_text = ""
 
-        # Katılımcı sayısı kazanandan az mı?
-        if participant_count < winner_count:
-            text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-                participants=participant_count,
-                winner_count=winner_count,
-                winner_list=winner_list
-            )
-        else:
-            text = RANDY_TEMPLATES["BITTI"].format(
-                participants=participant_count,
-                winner_list=winner_list
-            )
+    # Şart varsa şartlı template kullan
+    req_type = randy.get('requirement_type', 'none')
+    req_count = randy.get('required_message_count', 0)
+
+    if req_type != 'none' and req_count > 0:
+        period_text = get_period_text(req_type)
+        requirement = f"{period_text} {req_count} mesaj"
+        text = RANDY_TEMPLATES["BASLADI_SARTLI"].format(
+            message=randy['message'],
+            requirement=requirement,
+            channels_text=channels_text,
+            participants=participant_count,
+            winners=winner_count
+        )
+    else:
+        text = RANDY_TEMPLATES["BASLADI"].format(
+            message=randy['message'],
+            channels_text=channels_text,
+            participants=participant_count,
+            winners=winner_count
+        )
+
+    keyboard = [[
+        InlineKeyboardButton(
+            f"🎉 Katıl ({participant_count})",
+            callback_data=f"randy_join_{randy['id']}"
+        )
+    ]]
 
     # Orijinal Randy mesajını düzenle
     try:
@@ -572,7 +640,7 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=chat.id,
                 message_id=randy['message_id'],
                 caption=text,
-                reply_markup=None,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="HTML"
             )
         else:
@@ -580,16 +648,25 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=chat.id,
                 message_id=randy['message_id'],
                 text=text,
-                reply_markup=None,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="HTML"
             )
-        # /number komutunu sil
+
+        # Bildirim mesajı gönder
+        import asyncio
+        info_msg = await context.bot.send_message(
+            chat.id,
+            f"✅ Kazanan sayısı <b>{winner_count}</b> olarak güncellendi.",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(5)
         try:
-            await message.delete()
+            await info_msg.delete()
         except TelegramError:
             pass
-    except TelegramError:
-        await message.reply_text(text, parse_mode="HTML")
+
+    except TelegramError as e:
+        print(f"❌ Randy mesajı güncelleme hatası: {e}")
 
 
 # ============================================
