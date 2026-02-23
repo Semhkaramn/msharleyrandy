@@ -147,14 +147,55 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Admin ise ana menüyü göster
-    keyboard = [
-        [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
-        [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
-    ]
+    # Admin ise direkt Randy oluşturma menüsüne yönlendir
+    from services.randy_service import create_draft, get_user_admin_groups, register_group, update_group_admin
+    from config import ACTIVITY_GROUP_ID
+
+    # Taslak oluştur
+    await create_draft(user.id)
+
+    # Admin olduğu grupları getir
+    groups = await get_user_admin_groups(user.id, context.bot)
+
+    # ACTIVITY_GROUP_ID tanımlı ama gruplar boşsa, grubu kaydet
+    if not groups and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+        try:
+            chat_info = await context.bot.get_chat(ACTIVITY_GROUP_ID)
+            await register_group(ACTIVITY_GROUP_ID, chat_info.title)
+            await update_group_admin(ACTIVITY_GROUP_ID, user.id, True)
+
+            groups = [{
+                'group_id': ACTIVITY_GROUP_ID,
+                'title': chat_info.title or f"Grup {ACTIVITY_GROUP_ID}"
+            }]
+        except Exception as e:
+            print(f"❌ Grup bilgisi alma hatası: {e}")
+
+    if not groups:
+        await message.reply_text(
+            "❌ <b>Admin olduğunuz grup bulunamadı.</b>\n\n"
+            "Bu sorunu çözmek için:\n"
+            "1️⃣ Bot'u gruba ekleyin\n"
+            "2️⃣ Bot'a admin yetkisi verin\n"
+            "3️⃣ Grupta /start komutunu kullanın\n\n"
+            "💡 <i>Bu işlemler bot'un sizi grup admini olarak tanımasını sağlar.</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    keyboard = []
+    for group in groups:
+        keyboard.append([
+            InlineKeyboardButton(
+                group['title'] or f"Grup {group['group_id']}",
+                callback_data=f"randy_group_{group['group_id']}"
+            )
+        ])
+
+    keyboard.append([InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")])
 
     await message.reply_text(
-        MENU["ANA_MENU"],
+        MENU["RANDY_OLUSTUR_START"],
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
@@ -380,14 +421,55 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    keyboard = [
-        [InlineKeyboardButton(BUTTONS["YENI_RANDY"], callback_data="randy_create")],
-        [InlineKeyboardButton(BUTTONS["AKTIF_RANDYLER"], callback_data="randy_active")],
-        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="main_menu")],
-    ]
+    # Direkt Randy oluşturma menüsüne yönlendir
+    from services.randy_service import create_draft, get_user_admin_groups, register_group, update_group_admin
+    from config import ACTIVITY_GROUP_ID
+
+    # Taslak oluştur
+    await create_draft(user.id)
+
+    # Admin olduğu grupları getir
+    groups = await get_user_admin_groups(user.id, context.bot)
+
+    # ACTIVITY_GROUP_ID tanımlı ama gruplar boşsa, grubu kaydet
+    if not groups and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+        try:
+            chat_info = await context.bot.get_chat(ACTIVITY_GROUP_ID)
+            await register_group(ACTIVITY_GROUP_ID, chat_info.title)
+            await update_group_admin(ACTIVITY_GROUP_ID, user.id, True)
+
+            groups = [{
+                'group_id': ACTIVITY_GROUP_ID,
+                'title': chat_info.title or f"Grup {ACTIVITY_GROUP_ID}"
+            }]
+        except Exception as e:
+            print(f"❌ Grup bilgisi alma hatası: {e}")
+
+    if not groups:
+        await message.reply_text(
+            "❌ <b>Admin olduğunuz grup bulunamadı.</b>\n\n"
+            "Bu sorunu çözmek için:\n"
+            "1️⃣ Bot'u gruba ekleyin\n"
+            "2️⃣ Bot'a admin yetkisi verin\n"
+            "3️⃣ Grupta /start komutunu kullanın\n\n"
+            "💡 <i>Bu işlemler bot'un sizi grup admini olarak tanımasını sağlar.</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    keyboard = []
+    for group in groups:
+        keyboard.append([
+            InlineKeyboardButton(
+                group['title'] or f"Grup {group['group_id']}",
+                callback_data=f"randy_group_{group['group_id']}"
+            )
+        ])
+
+    keyboard.append([InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")])
 
     await message.reply_text(
-        MENU["RANDY_MENU"],
+        MENU["RANDY_OLUSTUR_START"],
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
