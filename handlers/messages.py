@@ -358,12 +358,6 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
     if not is_admin:
         return False  # Admin değil
 
-    # Admin'in reply mesajını sil
-    try:
-        await message.delete()
-    except TelegramError:
-        pass
-
     # Katılımcı sayısını al
     participant_count = await get_participant_count(randy['id'])
     winner_count = randy['winner_count']
