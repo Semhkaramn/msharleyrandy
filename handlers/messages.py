@@ -18,9 +18,11 @@ from services.roll_service import (
 )
 from services.randy_service import (
     track_post_randy_message, update_draft, get_draft,
-    add_channel_to_draft
+    add_channel_to_draft, get_draft_channels
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from templates import MENU, BUTTONS, get_period_text
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,6 +45,56 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ========== GRUP MESAJLARI ==========
     await handle_group_message(update, context)
+
+
+async def _show_setup_menu_from_message(message, user_id: int, group_id: int, context):
+    """Mesaj sonrası setup menüsünü göster"""
+    draft = await get_draft(user_id, group_id)
+
+    if not draft:
+        await message.reply_text("❌ Taslak bulunamadı. /randy yazarak tekrar başlayın.")
+        return
+
+    # Kanalları getir (grup bazlı)
+    channels = await get_draft_channels(user_id, group_id)
+
+    # Durumu göster
+    message_status = "✅" if draft.get('message') else "❌"
+
+    # Şart durumu
+    req_type = draft.get('requirement_type', 'none')
+    req_count = draft.get('required_message_count', 0)
+    if req_type != 'none' and req_count > 0:
+        req_status = f"✅ {get_period_text(req_type)} {req_count}"
+    else:
+        req_status = "➖"
+
+    winner_count = draft.get('winner_count', 1)
+    winner_status = f"✅ ({winner_count})" if winner_count else "➖"
+
+    media_status = "✅" if draft.get('media_file_id') else "➖"
+    pin_status = "✅" if draft.get('pin_message') else "❌"
+    channel_status = f"✅ ({len(channels)})" if channels else "➖"
+
+    keyboard = [
+        [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
+        [InlineKeyboardButton(f"{req_status} {BUTTONS['SART_AYARLA']}", callback_data="randy_requirement")],
+        [InlineKeyboardButton(f"{winner_status} {BUTTONS['KAZANAN_AYARLA']}", callback_data="randy_winners")],
+        [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
+        [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
+        [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
+        [
+            InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
+            InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")
+        ],
+        [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")],
+    ]
+
+    await message.reply_text(
+        MENU["RANDY_OLUSTUR"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
 
 
 async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -74,13 +126,8 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             await update_draft(user_id, group_id=group_id, title=title, message=msg)
             context.user_data.pop('waiting_for', None)
 
-            await message.reply_text(
-                f"✅ Randy mesajı ayarlandı!\n\n"
-                f"<b>Başlık:</b> {title}\n"
-                f"<b>Mesaj:</b> {msg}\n\n"
-                f"Diğer ayarları yapmak için /randy yazın.",
-                parse_mode="HTML"
-            )
+            # Menüye geri dön
+            await _show_setup_menu_from_message(message, user_id, group_id, context)
         return
 
     # ========== MESAJ SAYISI AYARLAMA ==========
@@ -95,14 +142,32 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             await update_draft(user_id, group_id=group_id, required_message_count=count)
             context.user_data.pop('waiting_for', None)
 
-            await message.reply_text(
-                f"✅ Mesaj şartı ayarlandı: <b>{count}</b> mesaj\n\n"
-                f"Diğer ayarları yapmak için /randy yazın.",
-                parse_mode="HTML"
-            )
+            # Menüye geri dön
+            await _show_setup_menu_from_message(message, user_id, group_id, context)
         except ValueError:
             await message.reply_text(
                 "❌ Geçerli bir sayı girin.\n\nÖrnek: 50",
+                parse_mode="HTML"
+            )
+        return
+
+    # ========== KAZANAN SAYISI AYARLAMA ==========
+    if waiting_for == 'randy_winner_count':
+        text = message.text or ""
+
+        try:
+            count = int(text.strip())
+            if count < 1:
+                raise ValueError()
+
+            await update_draft(user_id, group_id=group_id, winner_count=count)
+            context.user_data.pop('waiting_for', None)
+
+            # Menüye geri dön
+            await _show_setup_menu_from_message(message, user_id, group_id, context)
+        except ValueError:
+            await message.reply_text(
+                "❌ Geçerli bir sayı girin.\n\nÖrnek: 3",
                 parse_mode="HTML"
             )
         return
@@ -112,14 +177,10 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         text = message.text or ""
         text = text.strip()
 
-        # Geç yazıldıysa
-        if text.lower() == 'geç':
+        # Geç/Tamam yazıldıysa menüye dön
+        if text.lower() in ['geç', 'gec', 'tamam', 'bitti']:
             context.user_data.pop('waiting_for', None)
-            await message.reply_text(
-                "✅ Kanal ekleme atlandı.\n\n"
-                "Diğer ayarları yapmak için /randy yazın.",
-                parse_mode="HTML"
-            )
+            await _show_setup_menu_from_message(message, user_id, group_id, context)
             return
 
         # @ ile başlayan username
@@ -152,12 +213,12 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             if success:
                 await message.reply_text(
                     f"✅ Kanal eklendi: <b>{chat_info.title}</b> (@{username})\n\n"
-                    f"Başka kanal eklemek için username gönderin veya /randy yazarak devam edin.",
+                    f"Başka kanal eklemek için username gönderin veya 'tamam' yazın.",
                     parse_mode="HTML"
                 )
             else:
                 await message.reply_text(
-                    f"⚠️ {msg}\n\nBaşka bir kanal deneyin veya /randy yazarak devam edin.",
+                    f"⚠️ {msg}\n\nBaşka bir kanal deneyin veya 'tamam' yazın.",
                     parse_mode="HTML"
                 )
 
@@ -174,6 +235,36 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     # ========== MEDYA EKLEME ==========
+    if waiting_for == 'randy_media':
+        file_id = None
+        media_type = None
+
+        # Hangi tür medya gönderildiğini tespit et
+        if message.photo:
+            file_id = message.photo[-1].file_id
+            media_type = 'photo'
+        elif message.video:
+            file_id = message.video.file_id
+            media_type = 'video'
+        elif message.animation:
+            file_id = message.animation.file_id
+            media_type = 'animation'
+
+        if file_id and media_type:
+            await update_draft(user_id, group_id=group_id, media_file_id=file_id, media_type=media_type)
+            context.user_data.pop('waiting_for', None)
+
+            # Menüye geri dön
+            await _show_setup_menu_from_message(message, user_id, group_id, context)
+        else:
+            await message.reply_text(
+                "❌ Lütfen bir fotoğraf, video veya GIF gönderin.\n\n"
+                "Medya eklemek istemiyorsanız 'geç' yazın.",
+                parse_mode="HTML"
+            )
+        return
+
+    # Eski medya formatı için geriye uyumluluk
     if waiting_for.startswith('randy_media_'):
         media_type = waiting_for.replace('randy_media_', '')
         file_id = None
@@ -186,15 +277,11 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             file_id = message.animation.file_id
 
         if file_id:
-            await update_draft(user_id, group_id=group_id, media_file_id=file_id)
+            await update_draft(user_id, group_id=group_id, media_file_id=file_id, media_type=media_type)
             context.user_data.pop('waiting_for', None)
 
-            media_names = {'photo': 'Fotoğraf', 'video': 'Video', 'animation': 'GIF'}
-            await message.reply_text(
-                f"✅ {media_names.get(media_type, 'Medya')} eklendi!\n\n"
-                f"Diğer ayarları yapmak için /randy yazın.",
-                parse_mode="HTML"
-            )
+            # Menüye geri dön
+            await _show_setup_menu_from_message(message, user_id, group_id, context)
         else:
             media_names = {'photo': 'fotoğraf', 'video': 'video', 'animation': 'GIF'}
             await message.reply_text(
