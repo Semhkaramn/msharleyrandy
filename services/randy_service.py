@@ -380,6 +380,68 @@ async def end_randy(randy_id: int) -> Tuple[bool, List[Dict]]:
         return False, []
 
 
+async def end_randy_with_count(randy_id: int, winner_count: int) -> Tuple[bool, List[Dict]]:
+    """
+    Randy'yi belirtilen kazanan sayısıyla sonlandır
+
+    Args:
+        randy_id: Randy ID
+        winner_count: Kazanan sayısı
+
+    Returns:
+        tuple: (Başarılı mı, Kazananlar listesi)
+    """
+    try:
+        randy = await get_randy_by_id(randy_id)
+
+        if not randy:
+            return False, []
+
+        if randy['status'] != STATUS_ACTIVE:
+            return False, []
+
+        async with db.pool.acquire() as conn:
+            # Geçerli katılımcıları getir
+            participants = await conn.fetch("""
+                SELECT telegram_id, username, first_name
+                FROM randy_participants
+                WHERE randy_id = $1 AND (username IS NOT NULL OR first_name IS NOT NULL)
+            """, randy_id)
+
+            participants = [dict(p) for p in participants]
+
+            if len(participants) == 0:
+                # Hiç katılımcı yok
+                await conn.execute("""
+                    UPDATE randy SET status = $1, ended_at = NOW() WHERE id = $2
+                """, STATUS_ENDED, randy_id)
+                return True, []
+
+            # Kazanan sayısını katılımcı sayısıyla sınırla
+            actual_winner_count = min(winner_count, len(participants))
+
+            # Kazananları rastgele seç
+            winners = random.sample(participants, actual_winner_count)
+
+            # Kazananları kaydet
+            for winner in winners:
+                await conn.execute("""
+                    INSERT INTO randy_winners (randy_id, telegram_id, username, first_name)
+                    VALUES ($1, $2, $3, $4)
+                """, randy_id, winner['telegram_id'], winner.get('username'), winner.get('first_name'))
+
+            # Randy'yi sonlandır
+            await conn.execute("""
+                UPDATE randy SET status = $1, ended_at = NOW() WHERE id = $2
+            """, STATUS_ENDED, randy_id)
+
+            return True, winners
+
+    except Exception as e:
+        print(f"❌ Randy sonlandırma hatası (count): {e}")
+        return False, []
+
+
 async def track_post_randy_message(
     group_id: int,
     user_id: int,
