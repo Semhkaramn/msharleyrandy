@@ -51,10 +51,14 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
             pass
         return
 
+    # Katılımcı sayısını al
+    participant_count = await get_participant_count(randy['id'])
+    winner_count = randy['winner_count']
+
     # Randy'yi bitir (varsayılan kazanan sayısı ile)
     from templates import RANDY as RANDY_TEMPLATES, format_winner_list
 
-    success, winners = await end_randy_with_count(randy['id'], randy['winner_count'])
+    success, winners = await end_randy_with_count(randy['id'], winner_count)
 
     if not success:
         return
@@ -69,13 +73,21 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
 
     # Kazanan mesajı
     winner_list = format_winner_list(winners)
-    participant_count = await get_participant_count(randy['id'])
 
-    text = RANDY_TEMPLATES["BITTI"].format(
-        title=randy['title'],
-        participants=participant_count,
-        winner_list=winner_list
-    )
+    # Katılımcı sayısı kazanandan az mı?
+    if participant_count < winner_count:
+        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_count=winner_count,
+            winner_list=winner_list
+        )
+    else:
+        text = RANDY_TEMPLATES["BITTI"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_list=winner_list
+        )
 
     await context.bot.send_message(chat.id, text, parse_mode="HTML")
 
@@ -168,8 +180,8 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not draft:
             info_msg = await context.bot.send_message(
                 chat.id,
-                "❌ Bu grup için hazır Randy taslağı yok.\n\n"
-                "Önce özelden /start ile taslak oluşturun.",
+                "❌ Bu grup için hazır Randy ayarları yok.\n\n"
+                "Önce özelden /start ile ayarları yapın.",
                 parse_mode="HTML"
             )
             # 5 saniye sonra sil
@@ -199,15 +211,30 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     pass
             return
 
-        # Randy mesajını gönder
-        from templates import RANDY as RANDY_TEMPLATES
+        # Randy mesajını oluştur
+        from templates import RANDY as RANDY_TEMPLATES, get_period_text
 
-        text = RANDY_TEMPLATES["BASLADI"].format(
-            title=randy_data['title'],
-            message=randy_data['message'],
-            participants=0,
-            winners=randy_data['winner_count']
-        )
+        # Şart varsa şartlı template kullan
+        req_type = randy_data.get('requirement_type', 'none')
+        req_count = randy_data.get('required_message_count', 0)
+
+        if req_type != 'none' and req_count > 0:
+            period_text = get_period_text(req_type)
+            requirement = f"{period_text} {req_count} mesaj"
+            text = RANDY_TEMPLATES["BASLADI_SARTLI"].format(
+                title=randy_data['title'],
+                message=randy_data['message'],
+                requirement=requirement,
+                participants=0,
+                winners=randy_data['winner_count']
+            )
+        else:
+            text = RANDY_TEMPLATES["BASLADI"].format(
+                title=randy_data['title'],
+                message=randy_data['message'],
+                participants=0,
+                winners=randy_data['winner_count']
+            )
 
         keyboard = [[
             InlineKeyboardButton(
@@ -368,6 +395,9 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Katılımcı sayısını al
+    participant_count = await get_participant_count(randy['id'])
+
     # Randy'yi sonlandır ve kazananları seç
     from services.randy_service import end_randy_with_count
     from templates import RANDY as RANDY_TEMPLATES, format_winner_list
@@ -388,14 +418,20 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Kazanan mesajı
     winner_list = format_winner_list(winners)
 
-    from services.randy_service import get_participant_count
-    participant_count = await get_participant_count(randy['id'])
-
-    text = RANDY_TEMPLATES["BITTI"].format(
-        title=randy['title'],
-        participants=participant_count,
-        winner_list=winner_list
-    )
+    # Katılımcı sayısı kazanandan az mı?
+    if participant_count < winner_count:
+        text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_count=winner_count,
+            winner_list=winner_list
+        )
+    else:
+        text = RANDY_TEMPLATES["BITTI"].format(
+            title=randy['title'],
+            participants=participant_count,
+            winner_list=winner_list
+        )
 
     await message.reply_text(text, parse_mode="HTML")
 
