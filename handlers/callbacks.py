@@ -149,6 +149,7 @@ async def show_randy_menu(query):
 
 async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Randy oluşturmayı başlat - önce activity group admin kontrolü"""
+    from config import ACTIVITY_GROUP_ID
 
     # Activity group admin kontrolü
     is_admin = await is_activity_group_admin(context.bot, user_id)
@@ -156,7 +157,8 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
     if not is_admin:
         await query.edit_message_text(
             "❌ <b>Yetkiniz Yok</b>\n\n"
-            "Randy oluşturmak için ana gruptaki admin olmanız gerekiyor.",
+            "Randy oluşturmak için ana gruptaki admin olmanız gerekiyor.\n\n"
+            "💡 <i>Bot'u gruba ekleyip admin yaptıktan sonra grupta /start komutunu kullanın.</i>",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_menu")]
             ]),
@@ -167,12 +169,33 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
     # Taslak oluştur
     await create_draft(user_id)
 
-    # Admin olduğu grupları getir
-    groups = await get_user_admin_groups(user_id)
+    # Admin olduğu grupları getir (bot instance'ı ile)
+    groups = await get_user_admin_groups(user_id, context.bot)
+
+    # ACTIVITY_GROUP_ID tanımlı ama gruplar boşsa, grubu kaydet
+    if not groups and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+        try:
+            # Grup bilgisini Telegram'dan al
+            chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
+            from services.randy_service import register_group, update_group_admin
+            await register_group(ACTIVITY_GROUP_ID, chat.title)
+            await update_group_admin(ACTIVITY_GROUP_ID, user_id, True)
+
+            groups = [{
+                'group_id': ACTIVITY_GROUP_ID,
+                'title': chat.title or f"Grup {ACTIVITY_GROUP_ID}"
+            }]
+        except Exception as e:
+            print(f"❌ Grup bilgisi alma hatası: {e}")
 
     if not groups:
         await query.edit_message_text(
-            MENU["GRUP_BULUNAMADI"],
+            "❌ <b>Admin olduğunuz grup bulunamadı.</b>\n\n"
+            "Bu sorunu çözmek için:\n"
+            "1️⃣ Bot'u gruba ekleyin\n"
+            "2️⃣ Bot'a admin yetkisi verin\n"
+            "3️⃣ Grupta /start komutunu kullanın\n\n"
+            "💡 <i>Bu işlemler bot'un sizi grup admini olarak tanımasını sağlar.</i>",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_menu")]
             ]),
@@ -329,34 +352,19 @@ async def prompt_message_count(query, user_id: int, context: ContextTypes.DEFAUL
     )
 
 
-async def show_winner_count_menu(query):
-    """Kazanan sayısı menüsü"""
-    keyboard = [
-        [
-            InlineKeyboardButton("1", callback_data="randy_win_1"),
-            InlineKeyboardButton("2", callback_data="randy_win_2"),
-            InlineKeyboardButton("3", callback_data="randy_win_3"),
-        ],
-        [
-            InlineKeyboardButton("5", callback_data="randy_win_5"),
-            InlineKeyboardButton("10", callback_data="randy_win_10"),
-            InlineKeyboardButton("15", callback_data="randy_win_15"),
-        ],
-        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")],
-    ]
+async def show_winner_count_menu(query, context: ContextTypes.DEFAULT_TYPE):
+    """Kazanan sayısı - yazıyla girişprompt_winner_count(query, context)"""
+    context.user_data['waiting_for'] = 'randy_winner_count'
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")]]
 
     await query.edit_message_text(
-        MENU["KAZANAN_SAYISI"],
+        "🏆 <b>Kazanan Sayısı</b>\n\n"
+        "Kaç kişi kazanacak? Sayı yazın:\n\n"
+        "<i>Örnek: 3</i>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
-
-
-async def select_winner_count(query, user_id: int, count: int, context: ContextTypes.DEFAULT_TYPE):
-    """Kazanan sayısı seçildi"""
-    group_id = context.user_data.get('active_group_id') if context else None
-    await update_draft(user_id, group_id=group_id, winner_count=count)
-    await show_setup_menu(query, user_id, group_id)
 
 
 async def show_media_menu(query):
