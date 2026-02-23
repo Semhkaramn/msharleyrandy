@@ -39,11 +39,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Ana menü
     if data == "main_menu":
-        await show_main_menu(query)
+        await show_main_menu(query, context)
 
     # Randy menüsü
     elif data == "randy_menu":
-        await show_randy_menu(query)
+        await show_randy_menu(query, context)
 
     # Yeni Randy oluştur
     elif data == "randy_create":
@@ -125,33 +125,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_randy_join(query, user_id, randy_id, context)
 
 
-async def show_main_menu(query):
-    """Ana menüyü göster"""
-    keyboard = [
-        [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
-        [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
-    ]
-
-    await query.edit_message_text(
-        MENU["ANA_MENU"],
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
+async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
+    """Ana menüyü göster - Direkt Randy oluşturma menüsüne yönlendir"""
+    # Direkt randy_create'e yönlendir
+    await start_randy_creation(query, query.from_user.id, context)
 
 
-async def show_randy_menu(query):
-    """Randy menüsünü göster"""
-    keyboard = [
-        [InlineKeyboardButton(BUTTONS["YENI_RANDY"], callback_data="randy_create")],
-        [InlineKeyboardButton(BUTTONS["AKTIF_RANDYLER"], callback_data="randy_active")],
-        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="main_menu")],
-    ]
-
-    await query.edit_message_text(
-        MENU["RANDY_MENU"],
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
+async def show_randy_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
+    """Randy menüsünü göster - Direkt Randy oluşturma menüsüne yönlendir"""
+    # Direkt randy_create'e yönlendir
+    await start_randy_creation(query, query.from_user.id, context)
 
 
 async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
@@ -166,9 +149,6 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
             "❌ <b>Yetkiniz Yok</b>\n\n"
             "Randy oluşturmak için ana gruptaki admin olmanız gerekiyor.\n\n"
             "💡 <i>Bot'u gruba ekleyip admin yaptıktan sonra grupta /start komutunu kullanın.</i>",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_menu")]
-            ]),
             parse_mode="HTML"
         )
         return
@@ -203,9 +183,6 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
             "2️⃣ Bot'a admin yetkisi verin\n"
             "3️⃣ Grupta /start komutunu kullanın\n\n"
             "💡 <i>Bu işlemler bot'un sizi grup admini olarak tanımasını sağlar.</i>",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_menu")]
-            ]),
             parse_mode="HTML"
         )
         return
@@ -222,7 +199,7 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
     keyboard.append([InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")])
 
     await query.edit_message_text(
-        MENU["GRUP_SEC"],
+        MENU["RANDY_OLUSTUR_START"],
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
@@ -590,7 +567,7 @@ async def save_draft(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
         return
 
     keyboard = [
-        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="main_menu")],
+        [InlineKeyboardButton("🆕 Yeni Randy Oluştur", callback_data="randy_create")],
     ]
 
     await query.edit_message_text(
@@ -608,7 +585,7 @@ async def cancel_creation(query, user_id: int, context: ContextTypes.DEFAULT_TYP
     if context:
         context.user_data.pop('active_group_id', None)
         context.user_data.pop('waiting_for', None)
-    await show_randy_menu(query)
+    await show_randy_menu(query, context)
 
 
 async def go_back(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
@@ -623,7 +600,7 @@ async def go_back(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     if draft and draft.get('group_id'):
         await show_setup_menu(query, user_id, draft.get('group_id'))
     else:
-        await show_randy_menu(query)
+        await show_randy_menu(query, context)
 
 
 async def handle_randy_join(query, user_id: int, randy_id: int, context: ContextTypes.DEFAULT_TYPE):
