@@ -48,7 +48,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _show_setup_menu_from_message(message, user_id: int, group_id: int, context):
-    """Mesaj sonrası setup menüsünü göster"""
+    """Mesaj sonrası setup menüsünü göster - mümkünse mevcut mesajı düzenle"""
     draft = await get_draft(user_id, group_id)
 
     if not draft:
@@ -65,7 +65,7 @@ async def _show_setup_menu_from_message(message, user_id: int, group_id: int, co
     req_type = draft.get('requirement_type', 'none')
     req_count = draft.get('required_message_count', 0)
     if req_type != 'none' and req_count > 0:
-        req_status = f"✅ {get_period_text(req_type)} {req_count}"
+        req_status = f"✅ ({get_period_text(req_type)} {req_count})"
     else:
         req_status = "➖"
 
@@ -90,11 +90,37 @@ async def _show_setup_menu_from_message(message, user_id: int, group_id: int, co
         [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")],
     ]
 
-    await message.reply_text(
+    # Kayıtlı menü mesaj ID'si var mı kontrol et
+    menu_message_id = context.user_data.get('menu_message_id')
+    chat_id = message.chat.id
+
+    if menu_message_id:
+        try:
+            # Mevcut mesajı düzenle
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=menu_message_id,
+                text=MENU["RANDY_OLUSTUR"],
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+            # Kullanıcının gönderdiği mesajı sil
+            try:
+                await message.delete()
+            except TelegramError:
+                pass
+            return
+        except TelegramError:
+            # Mesaj düzenlenemiyorsa yeni mesaj gönder
+            pass
+
+    # Yeni mesaj gönder ve ID'sini kaydet
+    sent_msg = await message.reply_text(
         MENU["RANDY_OLUSTUR"],
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+    context.user_data['menu_message_id'] = sent_msg.message_id
 
 
 async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
