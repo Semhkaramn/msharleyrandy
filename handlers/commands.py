@@ -72,14 +72,12 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
         # Katılımcı sayısı kazanandan az mı?
         if participant_count < winner_count:
             text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_count=winner_count,
                 winner_list=winner_list
             )
         else:
             text = RANDY_TEMPLATES["BITTI"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_list=winner_list
             )
@@ -251,9 +249,9 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 activity_chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
                 if activity_chat.username:
-                    channels_list.append(f"@{activity_chat.username}")
-                else:
-                    channels_list.append(activity_chat.title or "Ana Grup")
+                    channels_list.append(f'<a href="https://t.me/{activity_chat.username}">{activity_chat.title or activity_chat.username}</a>')
+                elif activity_chat.title:
+                    channels_list.append(activity_chat.title)
             except:
                 pass
 
@@ -261,13 +259,14 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         randy_channels = await get_randy_channels(randy_data['id'])
         for ch in randy_channels:
             if ch.get('channel_username'):
-                channels_list.append(f"@{ch['channel_username']}")
+                title = ch.get('channel_title') or ch['channel_username']
+                channels_list.append(f'<a href="https://t.me/{ch["channel_username"]}">{title}</a>')
             elif ch.get('channel_title'):
                 channels_list.append(ch['channel_title'])
 
-        # Kanal metni oluştur
+        # Kanal metni oluştur (alt alta)
         if channels_list:
-            channels_text = "📢 <b>Zorunlu:</b> " + ", ".join(channels_list) + "\n\n"
+            channels_text = "📢 <b>Zorunlu:</b>\n" + "\n".join(channels_list) + "\n\n"
         else:
             channels_text = ""
 
@@ -279,7 +278,6 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             period_text = get_period_text(req_type)
             requirement = f"{period_text} {req_count} mesaj"
             text = RANDY_TEMPLATES["BASLADI_SARTLI"].format(
-                title=randy_data['title'],
                 message=randy_data['message'],
                 requirement=requirement,
                 channels_text=channels_text,
@@ -288,7 +286,6 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             text = RANDY_TEMPLATES["BASLADI"].format(
-                title=randy_data['title'],
                 message=randy_data['message'],
                 channels_text=channels_text,
                 participants=0,
@@ -476,14 +473,12 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Katılımcı sayısı kazanandan az mı?
         if participant_count < winner_count:
             text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_count=winner_count,
                 winner_list=winner_list
             )
         else:
             text = RANDY_TEMPLATES["BITTI"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_list=winner_list
             )
@@ -597,14 +592,12 @@ async def _finish_randy(context, chat_id: int, randy: dict):
 
         if participant_count < winner_count:
             text = RANDY_TEMPLATES["BITTI_KATILIMCI_AZ"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_count=winner_count,
                 winner_list=winner_list
             )
         else:
             text = RANDY_TEMPLATES["BITTI"].format(
-                title=randy['title'],
                 participants=participant_count,
                 winner_list=winner_list
             )
