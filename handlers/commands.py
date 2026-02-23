@@ -1,0 +1,448 @@
+"""
+📝 Komut Handler'ları
+Telegram bot komutlarını işler
+"""
+
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+from telegram.error import TelegramError
+
+from database import db
+from templates import MENU, STATS, BUTTONS, ERRORS
+from services.message_service import get_user_stats
+from services.randy_service import (
+    get_active_randy, start_randy, end_randy,
+    register_group, update_group_admin, get_user_admin_groups,
+    get_group_draft
+)
+from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
+
+
+# ============================================
+# /start - Bot Başlat
+# ============================================
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /start komutu
+    - Özel mesajda: Ana menüyü göster
+    - Grupta: Grubu kaydet
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+
+    if not user:
+        return
+
+    # Grupta /start
+    if chat.type in ['group', 'supergroup']:
+        # Grubu veritabanına kaydet
+        await register_group(chat.id, chat.title or "")
+
+        # Komutu göndereni admin olarak kaydet (admin kontrolü yapılacak)
+        try:
+            is_admin = await is_group_admin(context.bot, chat.id, user.id)
+            await update_group_admin(chat.id, user.id, is_admin)
+        except TelegramError:
+            pass
+
+        return
+
+    # Özel mesajda /start - Ana menüyü göster
+    keyboard = [
+        [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
+        [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
+    ]
+
+    await update.message.reply_text(
+        MENU["ANA_MENU"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+# ============================================
+# /randy - Randy Ayarları (Özel)
+# ============================================
+
+async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /randy komutu
+    - Özel mesajda: Randy menüsünü aç
+    - Grupta: Randy başlat (admin ise)
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Grupta /randy - Randy başlat
+    if chat.type in ['group', 'supergroup']:
+        # Anonim admin kontrolü
+        if can_anonymous_admin_use_commands(message):
+            is_admin = True
+        else:
+            is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+        if not is_admin:
+            return
+
+        # Grup için taslak var mı?
+        draft = await get_group_draft(chat.id)
+
+        if not draft:
+            await message.reply_text(
+                "❌ Bu grup için hazır Randy taslağı yok.\n\n"
+                "Önce özelden /start ile taslak oluşturun.",
+                parse_mode="HTML"
+            )
+            return
+
+        # Randy başlat
+        success, randy_data = await start_randy(chat.id, user.id)
+
+        if not success:
+            if randy_data and randy_data.get("error") == "already_active":
+                await message.reply_text(
+                    "⚠️ Bu grupta zaten aktif bir Randy var.",
+                    parse_mode="HTML"
+                )
+            else:
+                await message.reply_text(ERRORS["GENEL"])
+            return
+
+        # Randy mesajını gönder
+        from templates import RANDY as RANDY_TEMPLATES
+
+        text = RANDY_TEMPLATES["BASLADI"].format(
+            title=randy_data['title'],
+            message=randy_data['message'],
+            participants=0,
+            winners=randy_data['winner_count']
+        )
+
+        keyboard = [[
+            InlineKeyboardButton(
+                f"🎉 Katıl (0)",
+                callback_data=f"randy_join_{randy_data['id']}"
+            )
+        ]]
+
+        # Medya varsa medyalı gönder
+        if randy_data.get('media_file_id') and randy_data.get('media_type') != 'none':
+            media_type = randy_data['media_type']
+            file_id = randy_data['media_file_id']
+
+            try:
+                if media_type == 'photo':
+                    sent_msg = await context.bot.send_photo(
+                        chat.id,
+                        photo=file_id,
+                        caption=text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode="HTML"
+                    )
+                elif media_type == 'video':
+                    sent_msg = await context.bot.send_video(
+                        chat.id,
+                        video=file_id,
+                        caption=text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode="HTML"
+                    )
+                elif media_type == 'animation':
+                    sent_msg = await context.bot.send_animation(
+                        chat.id,
+                        animation=file_id,
+                        caption=text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode="HTML"
+                    )
+                else:
+                    sent_msg = await message.reply_text(
+                        text,
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode="HTML"
+                    )
+            except TelegramError:
+                sent_msg = await message.reply_text(
+                    text,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="HTML"
+                )
+        else:
+            sent_msg = await message.reply_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+
+        # Mesaj ID'sini kaydet
+        from services.randy_service import update_randy_message_id
+        await update_randy_message_id(randy_data['id'], sent_msg.message_id)
+
+        # Sabitleme
+        if randy_data.get('pin_message'):
+            try:
+                await context.bot.pin_chat_message(
+                    chat.id,
+                    sent_msg.message_id,
+                    disable_notification=True
+                )
+            except TelegramError:
+                pass
+
+        return
+
+    # Özel mesajda /randy - Randy menüsünü göster
+    keyboard = [
+        [InlineKeyboardButton(BUTTONS["YENI_RANDY"], callback_data="randy_create")],
+        [InlineKeyboardButton(BUTTONS["AKTIF_RANDYLER"], callback_data="randy_active")],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="main_menu")],
+    ]
+
+    await message.reply_text(
+        MENU["RANDY_MENU"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+# ============================================
+# /number X - Kazanan Sayısı (Grup)
+# ============================================
+
+async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /number X komutu - Randy kazanan sayısını ayarla ve bitir
+    Kullanım: /number 3 (3 kazanan seçer ve Randy'yi bitirir)
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    # Argüman kontrolü
+    if not context.args or len(context.args) < 1:
+        await message.reply_text(
+            "❌ Kullanım: /number X\n\nÖrnek: /number 3",
+            parse_mode="HTML"
+        )
+        return
+
+    try:
+        winner_count = int(context.args[0])
+        if winner_count < 1:
+            raise ValueError("Kazanan sayısı en az 1 olmalı")
+    except ValueError:
+        await message.reply_text(
+            "❌ Geçerli bir sayı girin.\n\nÖrnek: /number 3",
+            parse_mode="HTML"
+        )
+        return
+
+    # Aktif Randy var mı?
+    randy = await get_active_randy(chat.id)
+
+    if not randy:
+        await message.reply_text(
+            "❌ Bu grupta aktif Randy yok.",
+            parse_mode="HTML"
+        )
+        return
+
+    # Randy'yi sonlandır ve kazananları seç
+    from services.randy_service import end_randy_with_count
+    from templates import RANDY as RANDY_TEMPLATES, format_winner_list
+
+    success, winners = await end_randy_with_count(randy['id'], winner_count)
+
+    if not success:
+        await message.reply_text(ERRORS["GENEL"])
+        return
+
+    if not winners:
+        await message.reply_text(
+            RANDY_TEMPLATES["KAZANAN_YOK"],
+            parse_mode="HTML"
+        )
+        return
+
+    # Kazanan mesajı
+    winner_list = format_winner_list(winners)
+
+    from services.randy_service import get_participant_count
+    participant_count = await get_participant_count(randy['id'])
+
+    text = RANDY_TEMPLATES["BITTI"].format(
+        title=randy['title'],
+        participants=participant_count,
+        winner_list=winner_list
+    )
+
+    await message.reply_text(text, parse_mode="HTML")
+
+
+# ============================================
+# .ben / !ben / /ben - Kullanıcı İstatistikleri
+# ============================================
+
+async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    .ben, !ben, /ben komutu - Kullanıcının mesaj istatistiklerini gösterir
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Sistem hesapları için çalışmaz
+    if is_system_user(user.id):
+        return
+
+    # Anonim admin kontrolü
+    if message.sender_chat:
+        await message.reply_text(
+            "👤 <b>Anonim Admin</b>\n\n"
+            "Anonim olarak mesaj gönderdiğiniz için istatistiklerinizi göremiyorum.\n\n"
+            "💡 İstatistiklerinizi görmek için kendi hesabınızdan bu komutu kullanın.",
+            parse_mode="HTML"
+        )
+        return
+
+    # Kullanıcı istatistiklerini getir
+    stats = await get_user_stats(user.id, chat.id)
+
+    if not stats:
+        name = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+        await message.reply_text(
+            STATS["KAYIT_YOK"],
+            parse_mode="HTML"
+        )
+        return
+
+    name = user.first_name or "Kullanıcı"
+
+    text = STATS["ME"].format(
+        name=name,
+        daily=stats['daily'],
+        weekly=stats['weekly'],
+        monthly=stats['monthly'],
+        total=stats['total']
+    )
+
+    await message.reply_text(text, parse_mode="HTML")
+
+
+# ============================================
+# .günlük - Günlük Sıralama (Admin)
+# ============================================
+
+async def gunluk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Günlük mesaj sıralaması (sadece adminler)"""
+    await _leaderboard_command(update, context, 'daily')
+
+
+async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Haftalık mesaj sıralaması (sadece adminler)"""
+    await _leaderboard_command(update, context, 'weekly')
+
+
+async def aylik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Aylık mesaj sıralaması (sadece adminler)"""
+    await _leaderboard_command(update, context, 'monthly')
+
+
+async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str):
+    """Leaderboard komutu helper"""
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    # Veritabanından sıralama al
+    async with db.pool.acquire() as conn:
+        if period == 'daily':
+            field = 'daily_count'
+            title = '📊 <b>Günlük Mesaj Sıralaması</b>'
+            period_text = 'Bugünkü'
+        elif period == 'weekly':
+            field = 'weekly_count'
+            title = '📊 <b>Haftalık Mesaj Sıralaması</b>'
+            period_text = 'Bu hafta'
+        else:
+            field = 'monthly_count'
+            title = '📅 <b>Aylık Mesaj Sıralaması</b>'
+            period_text = 'Bu ay'
+
+        users = await conn.fetch(f"""
+            SELECT telegram_id, username, first_name, last_name, {field} as count
+            FROM telegram_users
+            WHERE group_id = $1 AND {field} > 0
+            ORDER BY {field} DESC
+            LIMIT 10
+        """, chat.id)
+
+    if not users:
+        no_data = f"{title}\n\n⚠️ Henüz mesaj atan kullanıcı yok."
+        await message.reply_text(no_data, parse_mode="HTML")
+        return
+
+    medals = ['🥇', '🥈', '🥉']
+    lines = [title, ""]
+
+    for i, u in enumerate(users):
+        medal = medals[i] if i < 3 else f"{i + 1}."
+
+        if u['username']:
+            name = f"@{u['username']}"
+        elif u['first_name']:
+            name = u['first_name']
+            if u['last_name']:
+                name += f" {u['last_name']}"
+        else:
+            name = f"Kullanıcı {str(u['telegram_id'])[-4:]}"
+
+        lines.append(f"{medal} {name} — <b>{u['count']}</b> mesaj")
+
+    lines.append(f"\n💬 {period_text} en aktif {len(users)} kullanıcı")
+
+    await message.reply_text("\n".join(lines), parse_mode="HTML")
