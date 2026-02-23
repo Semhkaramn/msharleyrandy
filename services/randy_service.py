@@ -452,7 +452,7 @@ async def get_randy_by_message_id(group_id: int, message_id: int) -> Optional[Di
 
 async def start_randy(group_id: int, creator_id: int, message_id: int = None) -> Tuple[bool, Optional[Dict]]:
     """
-    Randy başlat (taslaktan)
+    Randy başlat (taslaktan) - Taslak silinmez, ayarlar kalıcıdır
 
     Args:
         group_id: Grup ID
@@ -494,17 +494,20 @@ async def start_randy(group_id: int, creator_id: int, message_id: int = None) ->
                 draft.get('pin_message', False), STATUS_ACTIVE, message_id
             )
 
-            # Taslaktaki kanalları Randy'ye taşı
-            await conn.execute("""
-                UPDATE randy_channels
-                SET randy_id = $1, randy_draft_id = NULL
-                WHERE randy_draft_id = $2
-            """, randy_id, draft['id'])
-
-            # Taslağı sil
-            await conn.execute("""
-                DELETE FROM randy_drafts WHERE id = $1
+            # Taslaktaki kanalları Randy'ye KOPYALA (taşıma yerine)
+            draft_channels = await conn.fetch("""
+                SELECT channel_id, channel_username, channel_title
+                FROM randy_channels
+                WHERE randy_draft_id = $1
             """, draft['id'])
+
+            for ch in draft_channels:
+                await conn.execute("""
+                    INSERT INTO randy_channels (randy_id, channel_id, channel_username, channel_title)
+                    VALUES ($1, $2, $3, $4)
+                """, randy_id, ch['channel_id'], ch['channel_username'], ch['channel_title'])
+
+            # NOT: Taslak silinmiyor - ayarlar kalıcı
 
             return True, {
                 "id": randy_id,
@@ -730,6 +733,7 @@ async def end_randy(randy_id: int) -> Tuple[bool, List[Dict]]:
 async def end_randy_with_count(randy_id: int, winner_count: int) -> Tuple[bool, List[Dict]]:
     """
     Randy'yi belirtilen kazanan sayısıyla sonlandır
+    Katılımcı sayısı kazanandan az olsa bile çalışır
 
     Args:
         randy_id: Randy ID
@@ -757,11 +761,13 @@ async def end_randy_with_count(randy_id: int, winner_count: int) -> Tuple[bool, 
 
             participants = [dict(p) for p in participants]
 
+            # Randy'yi sonlandır
+            await conn.execute("""
+                UPDATE randy SET status = $1, ended_at = NOW() WHERE id = $2
+            """, STATUS_ENDED, randy_id)
+
             if len(participants) == 0:
                 # Hiç katılımcı yok
-                await conn.execute("""
-                    UPDATE randy SET status = $1, ended_at = NOW() WHERE id = $2
-                """, STATUS_ENDED, randy_id)
                 return True, []
 
             # Kazanan sayısını katılımcı sayısıyla sınırla
@@ -776,11 +782,6 @@ async def end_randy_with_count(randy_id: int, winner_count: int) -> Tuple[bool, 
                     INSERT INTO randy_winners (randy_id, telegram_id, username, first_name)
                     VALUES ($1, $2, $3, $4)
                 """, randy_id, winner['telegram_id'], winner.get('username'), winner.get('first_name'))
-
-            # Randy'yi sonlandır
-            await conn.execute("""
-                UPDATE randy SET status = $1, ended_at = NOW() WHERE id = $2
-            """, STATUS_ENDED, randy_id)
 
             return True, winners
 
