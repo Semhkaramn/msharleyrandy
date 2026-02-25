@@ -254,13 +254,27 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await _handle_randy_reply_end(update, context, message.reply_to_message)
             return
 
-        # Grup için ayarlar var mı?
+        # Sadece ACTIVITY_GROUP_ID'de çalışır
+        from config import ACTIVITY_GROUP_ID
+
+        if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0 and chat.id != ACTIVITY_GROUP_ID:
+            # Bu grup activity group değil, sessizce çık
+            return
+
+        # Activity group için ayarlar var mı?
+        # Önce chat.id ile dene, yoksa ACTIVITY_GROUP_ID ile dene
         draft = await get_group_draft(chat.id)
 
-        if not draft or not draft.get('message'):
+        if not draft and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+            draft = await get_group_draft(ACTIVITY_GROUP_ID)
+
+        # Draft var mı ve içerik (mesaj veya medya) var mı kontrol et
+        has_content = draft and (draft.get('message') or (draft.get('media_file_id') and draft.get('media_type') != 'none'))
+
+        if not has_content:
             info_msg = await context.bot.send_message(
                 chat.id,
-                "❌ Bu grup için Randy ayarları yapılmamış.\n\n"
+                "❌ Randy ayarları yapılmamış.\n\n"
                 "Önce özelden /start ile mesaj ayarlayın.",
                 parse_mode="HTML"
             )
