@@ -12,7 +12,7 @@ from templates import (
     format_winner_list, get_period_text
 )
 from services.randy_service import (
-    create_draft, get_draft, update_draft, delete_draft,
+    get_draft, update_draft,
     get_user_admin_groups, join_randy, get_participant_count,
     get_randy_by_id, end_randy,
     add_channel_to_draft, remove_channel_from_draft,
@@ -138,7 +138,7 @@ async def show_randy_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
 
 
 async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Randy oluşturmayı başlat - önce activity group admin kontrolü"""
+    """Randy ayarlarını düzenle - önce activity group admin kontrolü"""
     from config import ACTIVITY_GROUP_ID
 
     # Activity group admin kontrolü
@@ -147,14 +147,11 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
     if not is_admin:
         await query.edit_message_text(
             "❌ <b>Yetkiniz Yok</b>\n\n"
-            "Randy oluşturmak için ana gruptaki admin olmanız gerekiyor.\n\n"
+            "Randy ayarları için ana gruptaki admin olmanız gerekiyor.\n\n"
             "💡 <i>Bot'u gruba ekleyip admin yaptıktan sonra grupta /start komutunu kullanın.</i>",
             parse_mode="HTML"
         )
         return
-
-    # Taslak oluştur
-    await create_draft(user_id)
 
     # Admin olduğu grupları getir (bot instance'ı ile)
     groups = await get_user_admin_groups(user_id, context.bot)
@@ -187,6 +184,20 @@ async def start_randy_creation(query, user_id: int, context: ContextTypes.DEFAUL
         )
         return
 
+    # Tek grup varsa direkt ayarlara git
+    if len(groups) == 1:
+        group = groups[0]
+        group_id = group['group_id']
+
+        # Grup için ayarları getir veya oluştur
+        await get_or_create_group_draft(user_id, group_id)
+        context.user_data['active_group_id'] = group_id
+
+        # Ayar menüsünü göster
+        await show_setup_menu(query, user_id, group_id)
+        return
+
+    # Birden fazla grup varsa seçim menüsü göster
     keyboard = []
     for group in groups:
         keyboard.append([
@@ -222,6 +233,64 @@ async def select_group(query, user_id: int, group_id: int, context: ContextTypes
     context.user_data['active_group_id'] = group_id
 
     await show_setup_menu(query, user_id, group_id)
+
+
+async def show_setup_menu_message(message, user_id: int, group_id: int, context):
+    """Randy ayar menüsünü mesaj olarak göster (tek grup için)"""
+    draft = await get_draft(user_id, group_id)
+
+    if not draft:
+        # Yeni ayar oluştur
+        draft = await get_or_create_group_draft(user_id, group_id)
+
+    if not draft:
+        await message.reply_text("❌ Ayarlar oluşturulamadı. Lütfen tekrar deneyin.")
+        return
+
+    # Kanalları getir
+    channels = await get_draft_channels(user_id, group_id)
+
+    # Durumu göster
+    message_status = "✅" if draft.get('message') else "❌"
+
+    # Şart durumu
+    req_type = draft.get('requirement_type', 'none')
+    req_count = draft.get('required_message_count', 0)
+    if req_type != 'none' and req_count > 0:
+        period_text = get_period_text(req_type)
+        req_status = f"✅ ({period_text} {req_count})"
+    else:
+        req_status = "➖"
+
+    winner_count = draft.get('winner_count', 1)
+    winner_status = f"({winner_count})"
+
+    media_status = "✅" if draft.get('media_file_id') else "➖"
+    pin_status = "✅" if draft.get('pin_message') else "❌"
+    channel_status = f"✅ ({len(channels)})" if channels else "➖"
+
+    keyboard = [
+        [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
+        [InlineKeyboardButton(f"{req_status} {BUTTONS['SART_AYARLA']}", callback_data="randy_requirement")],
+        [InlineKeyboardButton(f"{BUTTONS['KAZANAN_AYARLA']} {winner_status}", callback_data="randy_winners")],
+        [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
+        [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
+        [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
+        [
+            InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
+            InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")
+        ],
+        [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")],
+    ]
+
+    sent_msg = await message.reply_text(
+        MENU["RANDY_OLUSTUR"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+    # Menü mesaj ID'sini kaydet
+    context.user_data['menu_message_id'] = sent_msg.message_id
 
 
 async def show_setup_menu(query, user_id: int, group_id: int = None):
@@ -578,14 +647,18 @@ async def save_draft(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cancel_creation(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Oluşturmayı iptal et"""
-    group_id = context.user_data.get('active_group_id') if context else None
-    await delete_draft(user_id, group_id)
+    """Menüden çık (ayarlar silinmez, kalıcıdır)"""
     # Context'i temizle
     if context:
         context.user_data.pop('active_group_id', None)
         context.user_data.pop('waiting_for', None)
-    await show_randy_menu(query, context)
+
+    await query.edit_message_text(
+        "✅ <b>Çıkıldı</b>\n\n"
+        "Ayarlarınız kaydedildi. Tekrar düzenlemek için /start veya /randy yazabilirsiniz.\n\n"
+        "Grupta /randy yazarak çekilişi başlatabilirsiniz.",
+        parse_mode="HTML"
+    )
 
 
 async def go_back(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
