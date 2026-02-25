@@ -398,14 +398,12 @@ async def get_randy_channels(randy_id: int) -> List[Dict]:
 # ============================================
 
 async def get_group_draft(group_id: int) -> Optional[Dict[str, Any]]:
-    """Grup için hazır taslak var mı kontrol et"""
+    """Grup için sabit ayarları getir"""
     try:
         async with db.pool.acquire() as conn:
             draft = await conn.fetchrow("""
                 SELECT * FROM randy_drafts
                 WHERE group_id = $1
-                AND title IS NOT NULL
-                AND message IS NOT NULL
                 ORDER BY updated_at DESC
                 LIMIT 1
             """, group_id)
@@ -415,7 +413,7 @@ async def get_group_draft(group_id: int) -> Optional[Dict[str, Any]]:
             return None
 
     except Exception as e:
-        print(f"❌ Grup taslağı getirme hatası: {e}")
+        print(f"❌ Grup ayarları getirme hatası: {e}")
         return None
 
 
@@ -480,6 +478,15 @@ async def start_randy(group_id: int, creator_id: int, message_id: int = None) ->
                     group_id, creator_id, title, message, media_type, media_file_id,
                     requirement_type, required_message_count, winner_count,
                     channel_ids, pin_message, status, message_id, started_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+                RETURNING id
+            """,
+                group_id, creator_id, 'RANDY', draft['message'],
+                draft.get('media_type', 'none'), draft.get('media_file_id'),
+                draft.get('requirement_type', 'none'), draft.get('required_message_count', 0),
+                draft.get('winner_count', 1), draft.get('channel_ids'),
+                draft.get('pin_message', False), STATUS_ACTIVE, message_id
+            )n_message, status, message_id, started_at
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
                 RETURNING id
             """,
