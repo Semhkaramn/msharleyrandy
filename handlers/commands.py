@@ -149,12 +149,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Admin ise direkt Randy oluşturma menüsüne yönlendir
-    from services.randy_service import create_draft, get_user_admin_groups, register_group, update_group_admin
+    # Admin ise direkt Randy ayar menüsüne yönlendir
+    from services.randy_service import get_or_create_group_draft, get_user_admin_groups, register_group, update_group_admin
     from config import ACTIVITY_GROUP_ID
-
-    # Taslak oluştur
-    await create_draft(user.id)
 
     # Admin olduğu grupları getir
     groups = await get_user_admin_groups(user.id, context.bot)
@@ -185,6 +182,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Tek grup varsa direkt ayarlara git
+    if len(groups) == 1:
+        group = groups[0]
+        group_id = group['group_id']
+
+        # Grup için ayarları getir veya oluştur
+        await get_or_create_group_draft(user.id, group_id)
+        context.user_data['active_group_id'] = group_id
+
+        # Ayar menüsünü göster
+        from handlers.callbacks import show_setup_menu_message
+        await show_setup_menu_message(message, user.id, group_id, context)
+        return
+
+    # Birden fazla grup varsa seçim menüsü göster
     keyboard = []
     for group in groups:
         keyboard.append([
@@ -242,14 +254,14 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await _handle_randy_reply_end(update, context, message.reply_to_message)
             return
 
-        # Grup için taslak var mı?
+        # Grup için ayarlar var mı?
         draft = await get_group_draft(chat.id)
 
-        if not draft:
+        if not draft or not draft.get('message'):
             info_msg = await context.bot.send_message(
                 chat.id,
-                "❌ Bu grup için hazır Randy ayarları yok.\n\n"
-                "Önce özelden /start ile ayarları yapın.",
+                "❌ Bu grup için Randy ayarları yapılmamış.\n\n"
+                "Önce özelden /start ile mesaj ayarlayın.",
                 parse_mode="HTML"
             )
             # 5 saniye sonra sil
@@ -423,12 +435,9 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Direkt Randy oluşturma menüsüne yönlendir
-    from services.randy_service import create_draft, get_user_admin_groups, register_group, update_group_admin
+    # Direkt Randy ayar menüsüne yönlendir
+    from services.randy_service import get_or_create_group_draft, get_user_admin_groups, register_group, update_group_admin
     from config import ACTIVITY_GROUP_ID
-
-    # Taslak oluştur
-    await create_draft(user.id)
 
     # Admin olduğu grupları getir
     groups = await get_user_admin_groups(user.id, context.bot)
@@ -459,6 +468,21 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # Tek grup varsa direkt ayarlara git
+    if len(groups) == 1:
+        group = groups[0]
+        group_id = group['group_id']
+
+        # Grup için ayarları getir veya oluştur
+        await get_or_create_group_draft(user.id, group_id)
+        context.user_data['active_group_id'] = group_id
+
+        # Ayar menüsünü göster
+        from handlers.callbacks import show_setup_menu_message
+        await show_setup_menu_message(message, user.id, group_id, context)
+        return
+
+    # Birden fazla grup varsa seçim menüsü göster
     keyboard = []
     for group in groups:
         keyboard.append([
