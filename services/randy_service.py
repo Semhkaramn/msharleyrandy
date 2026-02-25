@@ -457,8 +457,13 @@ async def start_randy(group_id: int, creator_id: int, message_id: int = None) ->
         tuple: (Başarılı mı, Randy bilgileri)
     """
     try:
-        # Grup için taslak bul
+        from config import ACTIVITY_GROUP_ID
+
+        # Grup için taslak bul (önce group_id, sonra ACTIVITY_GROUP_ID dene)
         draft = await get_group_draft(group_id)
+
+        if not draft and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+            draft = await get_group_draft(ACTIVITY_GROUP_ID)
 
         if not draft:
             return False, None
