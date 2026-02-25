@@ -486,15 +486,6 @@ async def start_randy(group_id: int, creator_id: int, message_id: int = None) ->
                 draft.get('requirement_type', 'none'), draft.get('required_message_count', 0),
                 draft.get('winner_count', 1), draft.get('channel_ids'),
                 draft.get('pin_message', False), STATUS_ACTIVE, message_id
-            )n_message, status, message_id, started_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
-                RETURNING id
-            """,
-                group_id, creator_id, draft['title'], draft['message'],
-                draft.get('media_type', 'none'), draft.get('media_file_id'),
-                draft.get('requirement_type', 'none'), draft.get('required_message_count', 0),
-                draft.get('winner_count', 1), draft.get('channel_ids'),
-                draft.get('pin_message', False), STATUS_ACTIVE, message_id
             )
 
             # Taslaktaki kanalları Randy'ye KOPYALA (taşıma yerine)
