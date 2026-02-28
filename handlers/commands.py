@@ -17,6 +17,10 @@ from services.randy_service import (
     update_randy_winner_count, update_draft_winner_count, get_randy_channels,
     get_or_create_group_draft
 )
+from services.tagging_service import (
+    start_etiket_tagging, start_naber_tagging, stop_tagging,
+    is_tagging_active, get_tagging_type
+)
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
 
@@ -976,3 +980,228 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
     lines.append(f"\n💬 {period_text} en aktif {len(users)} kullanıcı")
 
     await message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+# ============================================
+# /etiket - Toplu Etiketleme (5'erli)
+# ============================================
+
+async def etiket_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /etiket [mesaj] komutu
+    Gruptaki kayıtlı kullanıcıları 5'erli gruplar halinde etiketler
+    Premium emoji destekli
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    # Zaten aktif etiketleme var mı?
+    if is_tagging_active(chat.id):
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "⚠️ Zaten aktif bir etiketleme işlemi var.\n"
+            "Durdurmak için /dur yazın.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(5)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+        return
+
+    # Mesajı al (komuttan sonraki kısım)
+    if context.args:
+        tag_message = " ".join(context.args)
+    else:
+        tag_message = "🎉 Selamlar!"
+
+    # Etiketlemeyi başlat
+    success = await start_etiket_tagging(
+        chat.id,
+        tag_message,
+        context.bot,
+        message
+    )
+
+    if not success:
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "❌ Etiketleme başlatılamadı.\n"
+            "Kayıtlı kullanıcı yok veya bir hata oluştu.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(5)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+
+
+# ============================================
+# /naber - Tek Tek Rastgele Mesajlarla Etiketleme
+# ============================================
+
+async def naber_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /naber komutu
+    Gruptaki kayıtlı kullanıcıları tek tek rastgele mesajlarla etiketler
+    Premium emoji destekli
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    # Zaten aktif etiketleme var mı?
+    if is_tagging_active(chat.id):
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "⚠️ Zaten aktif bir etiketleme işlemi var.\n"
+            "Durdurmak için /dur yazın.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(5)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+        return
+
+    # Naber etiketlemeyi başlat
+    success = await start_naber_tagging(
+        chat.id,
+        context.bot,
+        message
+    )
+
+    if not success:
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "❌ Naber etiketlemesi başlatılamadı.\n"
+            "Kayıtlı kullanıcı yok veya bir hata oluştu.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(5)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+
+
+# ============================================
+# /dur - Etiketlemeyi Durdur
+# ============================================
+
+async def dur_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /dur komutu
+    Aktif etiketleme işlemini durdurur (/etiket veya /naber)
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    # Komutu sil
+    try:
+        await message.delete()
+    except TelegramError:
+        pass
+
+    # Aktif etiketleme var mı?
+    tagging_type = get_tagging_type(chat.id)
+
+    if not tagging_type:
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "❌ Aktif etiketleme işlemi yok.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(3)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+        return
+
+    # Etiketlemeyi durdur
+    stopped = stop_tagging(chat.id)
+
+    if stopped:
+        type_text = "Etiketleme" if tagging_type == "etiket" else "Naber"
+        info_msg = await context.bot.send_message(
+            chat.id,
+            f"🛑 {type_text} işlemi durduruldu.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(3)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+    else:
+        info_msg = await context.bot.send_message(
+            chat.id,
+            "❌ Durdurma işlemi başarısız.",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(3)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
