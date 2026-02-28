@@ -9,6 +9,9 @@ Komutlar:
 - .günlük, .haftalık, .aylık - Sıralamalar (grup - admin)
 - roll X - Roll başlat (grup - admin)
 - liste - Roll listesi (grup - admin)
+- /etiket [mesaj] - 5'erli toplu etiketleme (grup - admin)
+- /naber - Tek tek rastgele mesajlarla etiketleme (grup - admin)
+- /dur - Aktif etiketlemeyi durdur (grup - admin)
 """
 
 import asyncio
@@ -33,7 +36,10 @@ from handlers.commands import (
     gunluk_command,
     haftalik_command,
     aylik_command,
-    bitir_command
+    bitir_command,
+    etiket_command,
+    naber_command,
+    dur_command
 )
 from handlers.messages import handle_message
 from handlers.callbacks import handle_callback
@@ -91,6 +97,15 @@ def main():
 
     # /bitir - Randy'yi bitir (grup - admin)
     application.add_handler(CommandHandler("bitir", bitir_command))
+
+    # /etiket - Toplu etiketleme (grup - admin)
+    application.add_handler(CommandHandler("etiket", etiket_command))
+
+    # /naber - Tek tek rastgele mesajlarla etiketleme (grup - admin)
+    application.add_handler(CommandHandler("naber", naber_command))
+
+    # /dur - Etiketlemeyi durdur (grup - admin)
+    application.add_handler(CommandHandler("dur", dur_command))
 
     # .ben, !ben, /ben - Kullanıcı istatistikleri
     application.add_handler(CommandHandler("ben", ben_command))
