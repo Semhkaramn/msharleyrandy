@@ -9,6 +9,7 @@ import asyncio
 import random
 from typing import List, Dict, Any, Optional
 from database import db
+from telegram.error import RetryAfter, TelegramError
 
 
 # Aktif etiketleme işlemleri (grup bazlı)
@@ -69,16 +70,23 @@ async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
 def format_user_mention(user: Dict[str, Any]) -> str:
     """
     Kullanıcıyı mention formatında döndür
+    Önce @username dener (daha güvenilir), yoksa tg://user formatı
 
     Args:
         user: Kullanıcı dict'i
 
     Returns:
-        str: HTML mention formatı
+        str: Mention formatı
     """
     telegram_id = user['telegram_id']
-    first_name = user.get('first_name') or user.get('username') or f"User{str(telegram_id)[-4:]}"
+    username = user.get('username')
+    first_name = user.get('first_name') or f"User{str(telegram_id)[-4:]}"
 
+    # Username varsa @username kullan (daha güvenilir, her zaman çalışır)
+    if username:
+        return f'@{username}'
+
+    # Username yoksa tg://user formatı kullan
     return f'<a href="tg://user?id={telegram_id}">{first_name}</a>'
 
 
@@ -179,11 +187,25 @@ async def start_etiket_tagging(
                         text,
                         parse_mode="HTML"
                     )
-                except Exception as e:
+                except RetryAfter as e:
+                    # Flood control - bekle ve tekrar dene
+                    wait_time = e.retry_after + 2
+                    print(f"⏳ Flood control, {wait_time} saniye bekleniyor...")
+                    await asyncio.sleep(wait_time)
+                    # Tekrar dene
+                    try:
+                        await bot.send_message(
+                            group_id,
+                            text,
+                            parse_mode="HTML"
+                        )
+                    except Exception:
+                        pass
+                except TelegramError as e:
                     print(f"❌ Etiket mesaj gönderme hatası: {e}")
 
-                # Flood önleme - mesajlar arası bekleme
-                await asyncio.sleep(1.5)
+                # Flood önleme - mesajlar arası bekleme (artırıldı)
+                await asyncio.sleep(4)
 
             # Bittiğinde session'ı temizle
             active_tagging_sessions.pop(group_id, None)
@@ -261,11 +283,25 @@ async def start_naber_tagging(
                         text,
                         parse_mode="HTML"
                     )
-                except Exception as e:
+                except RetryAfter as e:
+                    # Flood control - bekle ve tekrar dene
+                    wait_time = e.retry_after + 2
+                    print(f"⏳ Flood control, {wait_time} saniye bekleniyor...")
+                    await asyncio.sleep(wait_time)
+                    # Tekrar dene
+                    try:
+                        await bot.send_message(
+                            group_id,
+                            text,
+                            parse_mode="HTML"
+                        )
+                    except Exception:
+                        pass
+                except TelegramError as e:
                     print(f"❌ Naber mesaj gönderme hatası: {e}")
 
-                # Flood önleme - mesajlar arası bekleme (biraz daha uzun)
-                await asyncio.sleep(2)
+                # Flood önleme - mesajlar arası bekleme (artırıldı)
+                await asyncio.sleep(4)
 
             # Bittiğinde session'ı temizle
             active_tagging_sessions.pop(group_id, None)
