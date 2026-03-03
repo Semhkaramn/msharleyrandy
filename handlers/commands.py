@@ -765,11 +765,14 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         ])
 
-        await message.reply_text(
+        sent_msg = await message.reply_text(
             STATS["BOT_BASLAT"].format(mention=mention),
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
+
+        # Mesaj ID'sini kaydet (silme için)
+        context.user_data[f'bot_start_msg_{chat.id}_{user.id}'] = sent_msg.message_id
         return
 
     # Tüm istatistikleri getir
@@ -818,9 +821,29 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_name = target_user.first_name or "Kullanıcı"
         target_username = target_user.username
 
-    # @username ile kullanım
-    elif context.args and len(context.args) > 0:
-        username_arg = context.args[0].lstrip('@')
+    # @username ile kullanım - hem context.args hem de mesaj metninden parse et
+    else:
+        username_arg = None
+
+        # Önce context.args'ı dene (CommandHandler ile)
+        if context.args and len(context.args) > 0:
+            username_arg = context.args[0].lstrip('@')
+        else:
+            # Regex ile yakalandıysa mesaj metninden parse et
+            text = message.text or ""
+            import re
+            match = re.search(r'^[.!/]bilgi\s+@?(\w+)', text, re.IGNORECASE)
+            if match:
+                username_arg = match.group(1)
+
+        if not username_arg:
+            await message.reply_text(
+                "❌ <b>Kullanım:</b>\n\n"
+                "• Birine reply yaparak: <code>.bilgi</code>\n"
+                "• Username ile: <code>.bilgi @username</code>",
+                parse_mode="HTML"
+            )
+            return
 
         # Veritabanından kullanıcıyı bul
         try:
@@ -848,14 +871,6 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"❌ Kullanıcı arama hatası: {e}")
             await message.reply_text("❌ Bir hata oluştu.", parse_mode="HTML")
             return
-    else:
-        await message.reply_text(
-            "❌ <b>Kullanım:</b>\n\n"
-            "• Birine reply yaparak: <code>.bilgi</code>\n"
-            "• Username ile: <code>.bilgi @username</code>",
-            parse_mode="HTML"
-        )
-        return
 
     if not target_id:
         return
@@ -878,12 +893,12 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def _format_user_card(name: str, username: str, stats: dict) -> str:
     """İstatistik kartını formatla"""
     # Username satırı
-    username_line = f"🔗 @{username}\n" if username else ""
+    username_line = f"║ 🔗 @{username}\n" if username else ""
 
     # Kazanma oranı
     if stats['randy_participated'] > 0:
         win_rate = (stats['randy_won'] / stats['randy_participated']) * 100
-        win_rate_line = f"📊 Oran: <b>%{win_rate:.1f}</b>\n"
+        win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
     else:
         win_rate_line = ""
 
