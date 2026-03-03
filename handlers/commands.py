@@ -9,7 +9,7 @@ from telegram.error import TelegramError
 
 from database import db
 from templates import MENU, STATS, BUTTONS, ERRORS
-from services.message_service import get_user_stats
+from services.message_service import get_user_stats, get_full_user_stats, is_user_registered
 from services.randy_service import (
     get_active_randy, start_randy, end_randy,
     register_group, update_group_admin, get_user_admin_groups,
@@ -175,21 +175,13 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user or not message:
         return
 
-    # Özel mesajda /randy - Ana menüye yönlendir
+    # Özel mesajda /randy çalışmaz
     if chat.type == 'private':
-        is_admin = await is_activity_group_admin(context.bot, user.id)
-
-        if not is_admin:
-            await message.reply_text(
-                "❌ <b>Yetkiniz Yok</b>\n\n"
-                "Bu botu kullanmak için ana gruptaki admin olmanız gerekiyor.",
-                parse_mode="HTML"
-            )
-            return
-
-        # Ana menüyü göster
-        from handlers.callbacks import show_main_menu_message
-        await show_main_menu_message(message, context)
+        await message.reply_text(
+            "❌ <b>Bu komut sadece grupta çalışır.</b>\n\n"
+            "💡 Randy ayarları için /start yazın.",
+            parse_mode="HTML"
+        )
         return
 
     # Grupta /randy - Randy başlat
@@ -719,7 +711,8 @@ async def _finish_randy(context, chat_id: int, randy: dict):
 
 async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    .ben, !ben, /ben komutu - Kullanıcının mesaj istatistiklerini gösterir
+    .ben, !ben, /ben komutu - Kullanıcının istatistik kartını gösterir
+    Bot başlatılmamışsa yönlendirme butonu gösterir
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -746,28 +739,165 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Kullanıcı istatistiklerini getir
-    stats = await get_user_stats(user.id, chat.id)
+    # Kullanıcı kayıtlı mı kontrol et
+    is_registered = await is_user_registered(user.id, chat.id)
 
-    if not stats:
-        name = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+    if not is_registered:
+        # Bot başlatma mesajı gönder
+        mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+
+        # Bot username'ini al
+        bot_info = await context.bot.get_me()
+        bot_username = bot_info.username
+
+        keyboard = [[
+            InlineKeyboardButton(
+                "🚀 Botu Başlat",
+                url=f"https://t.me/{bot_username}?start=from_group"
+            )
+        ]]
+
+        # Callback ile silme için özel buton ekle
+        keyboard.append([
+            InlineKeyboardButton(
+                "✅ Başlattım",
+                callback_data=f"check_started_{user.id}"
+            )
+        ])
+
         await message.reply_text(
-            STATS["KAYIT_YOK"],
+            STATS["BOT_BASLAT"].format(mention=mention),
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
         return
 
-    name = user.first_name or "Kullanıcı"
+    # Tüm istatistikleri getir
+    stats = await get_full_user_stats(user.id, chat.id)
 
-    text = STATS["ME"].format(
-        name=name,
-        daily=stats['daily'],
-        weekly=stats['weekly'],
-        monthly=stats['monthly'],
-        total=stats['total']
-    )
+    if not stats:
+        await message.reply_text(STATS["KAYIT_YOK"], parse_mode="HTML")
+        return
 
+    # İstatistik kartını oluştur
+    text = _format_user_card(user.first_name, user.username, stats)
     await message.reply_text(text, parse_mode="HTML")
+
+
+# ============================================
+# .bilgi / /bilgi - Kullanıcı Bilgisi (Admin)
+# ============================================
+
+async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    .bilgi, /bilgi komutu - Hedef kullanıcının istatistik kartını gösterir
+    Kullanım:
+    - Reply ile: .bilgi (reply)
+    - Username ile: .bilgi @username
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    target_user = None
+    target_id = None
+    target_name = None
+    target_username = None
+
+    # Reply ile kullanım
+    if message.reply_to_message and message.reply_to_message.from_user:
+        target_user = message.reply_to_message.from_user
+        target_id = target_user.id
+        target_name = target_user.first_name or "Kullanıcı"
+        target_username = target_user.username
+
+    # @username ile kullanım
+    elif context.args and len(context.args) > 0:
+        username_arg = context.args[0].lstrip('@')
+
+        # Veritabanından kullanıcıyı bul
+        try:
+            from database import db
+            async with db.pool.acquire() as conn:
+                user_data = await conn.fetchrow("""
+                    SELECT telegram_id, first_name, username
+                    FROM telegram_users
+                    WHERE group_id = $1 AND LOWER(username) = LOWER($2)
+                    LIMIT 1
+                """, chat.id, username_arg)
+
+                if user_data:
+                    target_id = user_data['telegram_id']
+                    target_name = user_data['first_name'] or "Kullanıcı"
+                    target_username = user_data['username']
+                else:
+                    await message.reply_text(
+                        f"❌ @{username_arg} kullanıcısı bulunamadı.\n\n"
+                        "💡 Kullanıcı grupta mesaj atmış olmalı.",
+                        parse_mode="HTML"
+                    )
+                    return
+        except Exception as e:
+            print(f"❌ Kullanıcı arama hatası: {e}")
+            await message.reply_text("❌ Bir hata oluştu.", parse_mode="HTML")
+            return
+    else:
+        await message.reply_text(
+            "❌ <b>Kullanım:</b>\n\n"
+            "• Birine reply yaparak: <code>.bilgi</code>\n"
+            "• Username ile: <code>.bilgi @username</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    if not target_id:
+        return
+
+    # Tüm istatistikleri getir
+    stats = await get_full_user_stats(target_id, chat.id)
+
+    if not stats or (stats['total'] == 0 and stats['randy_participated'] == 0):
+        await message.reply_text(
+            f"📭 <b>{target_name}</b> için kayıt bulunamadı.",
+            parse_mode="HTML"
+        )
+        return
+
+    # İstatistik kartını oluştur
+    text = _format_user_card(target_name, target_username, stats)
+    await message.reply_text(text, parse_mode="HTML")
+
+
+def _format_user_card(name: str, username: str, stats: dict) -> str:
+    """İstatistik kartını formatla"""
+    # Username satırı
+    username_line = f"🔗 @{username}\n" if username else ""
+
+    # Kazanma oranı
+    if stats['randy_participated'] > 0:
+        win_rate = (stats['randy_won'] / stats['randy_participated']) * 100
+        win_rate_line = f"📊 Oran: <b>%{win_rate:.1f}</b>\n"
+    else:
+        win_rate_line = ""
+
+    return STATS["USER_CARD"].format(
+        name=name,
+        username_line=username_line,
+        daily=stats.get('daily', 0),
+        weekly=stats.get('weekly', 0),
+        monthly=stats.get('monthly', 0),
+        total=stats.get('total', 0),
+        randy_participated=stats.get('randy_participated', 0),
+        randy_won=stats.get('randy_won', 0),
+        win_rate_line=win_rate_line
+    )
 
 
 # ============================================
