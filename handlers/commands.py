@@ -787,7 +787,7 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             # Grupta bilgi ver - tıklanabilir link ile bota yönlendir (silinmez)
             await message.reply_text(
-                f"📬 <a href='https://t.me/{bot_username}'>{user.first_name}</a>, istatistiklerin özelden gönderildi!",
+                f"📬 {user.first_name}, istatistiklerin <a href='https://t.me/{bot_username}'>özelden</a> gönderildi!",
                 parse_mode="HTML",
                 disable_web_page_preview=True
             )
