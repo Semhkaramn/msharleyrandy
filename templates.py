@@ -8,11 +8,19 @@ Tüm bot mesajları burada merkezi olarak tutulur
 # ============================================
 
 MENU = {
-    "ANA_MENU": "🎰 <b>Randy & Roll Bot</b>\n\nMerhaba! Ne yapmak istersiniz?",
+    "ANA_MENU": (
+        "🎰 <b>Randy & Roll Bot</b>\n\n"
+        "Merhaba! Ne yapmak istersiniz?\n\n"
+        "Aşağıdaki butonlardan birini seçin:"
+    ),
 
-    "RANDY_MENU": "🎲 <b>Randy Yönetimi</b>\n\nBir işlem seçin:",
+    "RANDY_MENU": (
+        "🎲 <b>Randy Yönetimi</b>\n\n"
+        "Randy (çekiliş) ayarlarını buradan yapabilirsiniz.\n"
+        "Ayarlar kalıcıdır - bir kez ayarlayın, sürekli kullanın."
+    ),
 
-    "RANDY_OLUSTUR": "🆕 <b>Yeni Randy Oluştur</b>\n\nAşağıdaki adımları takip edin:",
+    "RANDY_OLUSTUR": "🆕 <b>Randy Ayarları</b>\n\nAşağıdaki ayarları yapabilirsiniz:",
 
     "RANDY_OLUSTUR_START": "🆕 <b>Yeni Randy Oluştur</b>\n\nAşağıdaki adımları takip edin:\n\n📍 Randy'nin açılacağı grubu seçin:",
 
@@ -20,25 +28,74 @@ MENU = {
 
     "GRUP_BULUNAMADI": "❌ Admin olduğunuz grup bulunamadı.\n\nBotu gruba ekleyip admin yapın.",
 
-    "MESAJ_AYARLA": "✏️ <b>Randy Mesajı</b>\n\nRandy mesajını yazın:\n\n<i>Şu anda mesaj gönderin:</i>",
+    "MESAJ_AYARLA": "✏️ <b>Randy Mesajı</b>\n\n{current_value}Randy mesajını yazın:\n\n<i>Şu anda mesaj gönderin:</i>",
 
-    "SART_SEC": "📋 <b>Katılım Şartı</b>\n\nKatılım için gerekli şartı seçin:",
+    "SART_SEC": "📋 <b>Katılım Şartı</b>\n\n{current_value}Katılım için gerekli şartı seçin:",
 
-    "MESAJ_SAYISI_GIR": "🔢 <b>Mesaj Sayısı</b>\n\nGerekli mesaj sayısını girin:\n\n<i>Örnek: 50</i>",
+    "MESAJ_SAYISI_GIR": "🔢 <b>Mesaj Sayısı</b>\n\n{current_value}Gerekli mesaj sayısını girin:\n\n<i>Örnek: 50</i>",
 
     "KANAL_EKLE": "📢 <b>Zorunlu Kanallar</b>\n\nKatılım için üye olunması gereken kanal ID'lerini girin.\n\n<i>Virgülle ayırın. Örnek:</i>\n<code>-1001234567890,-1009876543210</code>\n\n<i>Boş bırakmak için 'geç' yazın.</i>",
 
-    "KAZANAN_SAYISI": "🏆 <b>Kazanan Sayısı</b>\n\nKaç kişi kazanacak?",
+    "KAZANAN_SAYISI": "🏆 <b>Kazanan Sayısı</b>\n\n{current_value}Kaç kişi kazanacak? Sayı yazın:\n\n<i>Örnek: 3</i>",
 
     "MEDYA_SEC": "🖼️ <b>Medya Seçimi</b>\n\nRandy mesajına medya eklemek ister misiniz?",
 
-    "MEDYA_GONDER": "📤 <b>Medya Gönder</b>\n\nFotoğraf, video veya GIF gönderin:",
+    "MEDYA_GONDER": "📤 <b>Medya Ekle</b>\n\n{current_value}Fotoğraf, video veya GIF gönderin.\n\n<i>Medya eklemek istemiyorsanız 'Geri' butonuna tıklayın.</i>",
 
     "ONIZLEME": "👁️ <b>Randy Önizleme</b>\n\n{preview}\n\n<b>Ayarlar:</b>\n• Grup: {group}\n• Şart: {requirement}\n• Kazanan: {winners} kişi\n• Medya: {media}\n• Sabitle: {pin}",
 
     "RANDY_KAYDEDILDI": "✅ Randy taslağı kaydedildi!\n\nGrupta <code>/randy</code> yazarak başlatabilirsiniz.",
 
     "SABITLE_SEC": "📌 <b>Mesaj Sabitleme</b>\n\nRandy mesajı sabitlensin mi?",
+
+    # Roll Menüsü
+    "ROLL_MENU": (
+        "🎯 <b>Roll Yönetimi</b>\n\n"
+        "Roll sistemi, kullanıcıların aktiflik takibini yapar.\n"
+        "Belirli süre içinde mesaj yazmayanlar listeden çıkarılır.\n\n"
+        "<b>📝 Kullanılabilir Komutlar:</b>\n\n"
+        "• <code>roll X</code> - Roll başlat (X dakika)\n"
+        "• <code>roll adım</code> - Adım kaydet\n"
+        "• <code>roll mola</code> - Mola başlat\n"
+        "• <code>roll devam</code> - Moladan devam et\n"
+        "• <code>roll kilit</code> - Yeni kullanıcı girişini kapat\n"
+        "• <code>roll aç</code> - Kilidi aç\n"
+        "• <code>roll bitir</code> - Roll'u sonlandır\n"
+        "• <code>liste</code> - Mevcut listeyi göster\n\n"
+        "<b>⚙️ Nasıl Çalışır:</b>\n"
+        "1. <code>roll 2</code> yazarak başlatın (2 dk kuralı)\n"
+        "2. Kullanıcılar mesaj attıkça listeye eklenir\n"
+        "3. X dakika yazmayanlar otomatik silinir\n"
+        "4. <code>roll adım</code> ile mevcut adımı kaydedin\n"
+        "5. <code>roll devam</code> ile yeni adıma geçin\n"
+        "6. <code>roll bitir</code> ile sonlandırın"
+    ),
+
+    # GPT Menüsü
+    "GPT_MENU": (
+        "🤖 <b>GPT Harley Ayarları</b>\n\n"
+        "Harley'nin GPT ile sohbet etmesini açıp kapatabilirsiniz.\n\n"
+        "<b>Açık olduğunda:</b>\n"
+        "• Mesajda 'harley' yazınca cevap verir\n"
+        "• Bot mesajına reply yapınca cevap verir\n\n"
+        "<b>Harley'nin Karakteri:</b>\n"
+        "• Cilveli ve şakacı\n"
+        "• Kara mizah yapabilir\n"
+        "• Kısa ve öz cevaplar verir\n\n"
+        "Bir gruba tıklayarak durumu değiştirin:"
+    ),
+
+    # İstatistikler Menüsü
+    "STATS_MENU": (
+        "📊 <b>İstatistikler</b>\n\n"
+        "Grup istatistiklerini görüntüleyin.\n\n"
+        "<b>📝 Kullanılabilir Komutlar (Grupta):</b>\n\n"
+        "• <code>.ben</code> - Kendi istatistikleriniz\n"
+        "• <code>.günlük</code> - Günlük sıralama (Admin)\n"
+        "• <code>.haftalık</code> - Haftalık sıralama (Admin)\n"
+        "• <code>.aylık</code> - Aylık sıralama (Admin)\n\n"
+        "<i>Bu komutları grupta kullanabilirsiniz.</i>"
+    ),
 }
 
 # ============================================
@@ -133,6 +190,7 @@ BUTTONS = {
     # Ana Menü
     "RANDY_YONETIMI": "🎲 Randy Yönetimi",
     "ROLL_YONETIMI": "🎯 Roll Yönetimi",
+    "GPT_AYARLARI": "🤖 GPT Harley",
     "ISTATISTIKLER": "📊 İstatistikler",
     "AYARLAR": "⚙️ Ayarlar",
 
@@ -140,6 +198,7 @@ BUTTONS = {
     "YENI_RANDY": "🆕 Yeni Randy Oluştur",
     "AKTIF_RANDYLER": "📋 Aktif Randy'ler",
     "GECMIS": "📜 Geçmiş",
+    "RANDY_AYARLARI": "⚙️ Randy Ayarları",
 
     # Randy Oluşturma
     "MESAJ_AYARLA": "✏️ Mesajı Ayarla",
@@ -167,7 +226,8 @@ BUTTONS = {
 
     # Genel
     "GERI": "◀️ Geri",
-    "IPTAL": "❌ İptal",
+    "ANA_MENU": "🏠 Ana Menü",
+    "IPTAL": "❌ Kapat",
     "EVET": "✅ Evet",
     "HAYIR": "❌ Hayır",
     "GEC": "⏭️ Geç",
@@ -260,3 +320,14 @@ def get_period_text(period: str) -> str:
         "post_randy": "Randy sonrası"
     }
     return periods.get(period, period)
+
+
+def get_media_type_text(media_type: str) -> str:
+    """Medya tipi metnini döndür"""
+    types = {
+        "none": "Yok",
+        "photo": "Fotoğraf",
+        "video": "Video",
+        "animation": "GIF"
+    }
+    return types.get(media_type, "Yok")
