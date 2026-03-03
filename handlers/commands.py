@@ -770,6 +770,10 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[f'bot_start_msg_{chat.id}_{user.id}'] = sent_msg.message_id
         return
 
+    # Bot username'ini al
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username
+
     # Tüm istatistikleri getir
     stats = await get_full_user_stats(user.id, chat.id)
 
@@ -781,33 +785,33 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 STATS["KAYIT_YOK"],
                 parse_mode="HTML"
             )
-            # Grupta bilgi ver ve sil
-            info_msg = await message.reply_text(
-                f"📬 {user.first_name}, istatistiklerin özelden gönderildi!",
-                parse_mode="HTML"
+            # Grupta bilgi ver - tıklanabilir link ile bota yönlendir (silinmez)
+            await message.reply_text(
+                f"📬 <a href='https://t.me/{bot_username}'>{user.first_name}</a>, istatistiklerin özelden gönderildi!",
+                parse_mode="HTML",
+                disable_web_page_preview=True
             )
-            import asyncio
-            await asyncio.sleep(3)
-            try:
-                await info_msg.delete()
-            except TelegramError:
-                pass
         except TelegramError:
             # Özelden gönderilemezse botu başlatmasını iste
             mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
-            bot_info = await context.bot.get_me()
-            bot_username = bot_info.username
             keyboard = [[
                 InlineKeyboardButton(
                     "🚀 Botu Başlat",
                     url=f"https://t.me/{bot_username}?start=from_group"
                 )
             ]]
-            await message.reply_text(
+            keyboard.append([
+                InlineKeyboardButton(
+                    "✅ Başlattım",
+                    callback_data=f"check_started_{user.id}"
+                )
+            ])
+            sent_msg = await message.reply_text(
                 f"👋 {mention}, istatistiklerini özelden göndermem için önce botu başlatman gerekiyor!",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="HTML"
             )
+            context.user_data[f'bot_start_msg_{chat.id}_{user.id}'] = sent_msg.message_id
         return
 
     # İstatistik kartını oluştur
@@ -820,33 +824,33 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text,
             parse_mode="HTML"
         )
-        # Grupta bilgi ver ve sil
-        info_msg = await message.reply_text(
-            f"📬 {user.first_name}, istatistiklerin özelden gönderildi!",
-            parse_mode="HTML"
+        # Grupta bilgi ver - tıklanabilir link ile bota yönlendir (silinmez)
+        await message.reply_text(
+            f"📬 <a href='https://t.me/{bot_username}'>{user.first_name}</a>, istatistiklerin özelden gönderildi!",
+            parse_mode="HTML",
+            disable_web_page_preview=True
         )
-        import asyncio
-        await asyncio.sleep(3)
-        try:
-            await info_msg.delete()
-        except TelegramError:
-            pass
     except TelegramError:
         # Özelden gönderilemezse botu başlatmasını iste
         mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
-        bot_info = await context.bot.get_me()
-        bot_username = bot_info.username
         keyboard = [[
             InlineKeyboardButton(
                 "🚀 Botu Başlat",
                 url=f"https://t.me/{bot_username}?start=from_group"
             )
         ]]
-        await message.reply_text(
+        keyboard.append([
+            InlineKeyboardButton(
+                "✅ Başlattım",
+                callback_data=f"check_started_{user.id}"
+            )
+        ])
+        sent_msg = await message.reply_text(
             f"👋 {mention}, istatistiklerini özelden göndermem için önce botu başlatman gerekiyor!",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
+        context.user_data[f'bot_start_msg_{chat.id}_{user.id}'] = sent_msg.message_id
 
 
 # ============================================
