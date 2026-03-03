@@ -568,11 +568,14 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
         is_bot = user.is_bot if hasattr(user, 'is_bot') else False
 
         if not is_bot:
-            # Adminler de dahil herkes roll listesine eklenebilir
-            await track_user_message(
-                chat.id, user_id,
-                username, first_name
-            )
+            # Admin kontrolü - adminler roll listesine eklenmez
+            is_admin = await is_group_admin(context.bot, chat.id, user_id)
+
+            if not is_admin:
+                await track_user_message(
+                    chat.id, user_id,
+                    username, first_name
+                )
 
     # 3. Randy sonrası mesaj takibi
     await track_post_randy_message(
