@@ -180,6 +180,33 @@ STATS = {
     "AYLIK": "🗓️ <b>{name}</b> bu ay <b>{count}</b> mesaj yazdı.",
 
     "KAYIT_YOK": "📭 Henüz mesaj istatistiğiniz yok. Grupta mesaj yazın!",
+
+    # Gelişmiş istatistik kartı
+    "USER_CARD": (
+        "┏━━━━━━━━━━━━━━━━━━━━━┓\n"
+        "┃  📊 <b>İSTATİSTİK KARTI</b>  ┃\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        "👤 <b>{name}</b>\n"
+        "{username_line}"
+        "\n"
+        "━━━━ 💬 <b>MESAJ</b> ━━━━\n"
+        "📅 Bugün: <b>{daily}</b>\n"
+        "📆 Bu Hafta: <b>{weekly}</b>\n"
+        "🗓️ Bu Ay: <b>{monthly}</b>\n"
+        "📈 Toplam: <b>{total}</b>\n"
+        "\n"
+        "━━━━ 🎲 <b>RANDY</b> ━━━━\n"
+        "🎫 Katılım: <b>{randy_participated}</b>\n"
+        "🏆 Kazanma: <b>{randy_won}</b>\n"
+        "{win_rate_line}"
+    ),
+
+    # Bot başlatma mesajı
+    "BOT_BASLAT": (
+        "👋 Hey {mention}!\n\n"
+        "📊 İstatistiklerini görmek için önce botu başlatman gerekiyor.\n\n"
+        "👇 Aşağıdaki butona tıkla:"
+    ),
 }
 
 # ============================================
