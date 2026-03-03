@@ -153,80 +153,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Admin ise direkt Randy ayar menüsüne yönlendir
-    from services.randy_service import get_or_create_group_draft, get_user_admin_groups, register_group, update_group_admin
-    from config import ACTIVITY_GROUP_ID
-
-    # Admin olduğu grupları getir
-    groups = await get_user_admin_groups(user.id, context.bot)
-
-    # ACTIVITY_GROUP_ID tanımlı ama gruplar boşsa, grubu kaydet
-    if not groups and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
-        try:
-            chat_info = await context.bot.get_chat(ACTIVITY_GROUP_ID)
-            await register_group(ACTIVITY_GROUP_ID, chat_info.title)
-            await update_group_admin(ACTIVITY_GROUP_ID, user.id, True)
-
-            groups = [{
-                'group_id': ACTIVITY_GROUP_ID,
-                'title': chat_info.title or f"Grup {ACTIVITY_GROUP_ID}"
-            }]
-        except Exception as e:
-            print(f"❌ Grup bilgisi alma hatası: {e}")
-
-    if not groups:
-        await message.reply_text(
-            "❌ <b>Admin olduğunuz grup bulunamadı.</b>\n\n"
-            "Bu sorunu çözmek için:\n"
-            "1️⃣ Bot'u gruba ekleyin\n"
-            "2️⃣ Bot'a admin yetkisi verin\n"
-            "3️⃣ Grupta /start komutunu kullanın\n\n"
-            "💡 <i>Bu işlemler bot'un sizi grup admini olarak tanımasını sağlar.</i>",
-            parse_mode="HTML"
-        )
-        return
-
-    # Tek grup varsa direkt ayarlara git
-    if len(groups) == 1:
-        group = groups[0]
-        group_id = group['group_id']
-
-        # Grup için ayarları getir veya oluştur
-        await get_or_create_group_draft(user.id, group_id)
-        context.user_data['active_group_id'] = group_id
-
-        # Ayar menüsünü göster
-        from handlers.callbacks import show_setup_menu_message
-        await show_setup_menu_message(message, user.id, group_id, context)
-        return
-
-    # Birden fazla grup varsa seçim menüsü göster
-    keyboard = []
-    for group in groups:
-        keyboard.append([
-            InlineKeyboardButton(
-                group['title'] or f"Grup {group['group_id']}",
-                callback_data=f"randy_group_{group['group_id']}"
-            )
-        ])
-
-    keyboard.append([InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")])
-
-    await message.reply_text(
-        MENU["RANDY_OLUSTUR_START"],
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
+    # Admin ise ANA MENÜ göster
+    from handlers.callbacks import show_main_menu_message
+    await show_main_menu_message(message, context)
 
 
 # ============================================
-# /randy - Randy Ayarları (Özel)
+# /randy - Grupta Randy Başlat
 # ============================================
 
 async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     /randy komutu
-    - Özel mesajda: Randy menüsünü aç
+    - Özel mesajda: Ana menüye yönlendir (artık özel komut yok)
     - Grupta: Randy başlat (admin ise) - komut silinir
     """
     chat = update.effective_chat
@@ -234,6 +173,23 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
 
     if not user or not message:
+        return
+
+    # Özel mesajda /randy - Ana menüye yönlendir
+    if chat.type == 'private':
+        is_admin = await is_activity_group_admin(context.bot, user.id)
+
+        if not is_admin:
+            await message.reply_text(
+                "❌ <b>Yetkiniz Yok</b>\n\n"
+                "Bu botu kullanmak için ana gruptaki admin olmanız gerekiyor.",
+                parse_mode="HTML"
+            )
+            return
+
+        # Ana menüyü göster
+        from handlers.callbacks import show_main_menu_message
+        await show_main_menu_message(message, context)
         return
 
     # Grupta /randy - Randy başlat
@@ -440,83 +396,6 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
         return
-
-    # Özel mesajda /randy - Randy menüsünü göster
-    # Önce activity group admin kontrolü
-    is_admin = await is_activity_group_admin(context.bot, user.id)
-
-    if not is_admin:
-        await message.reply_text(
-            "❌ <b>Yetkiniz Yok</b>\n\n"
-            "Randy ayarları yapmak için ana gruptaki admin olmanız gerekiyor.",
-            parse_mode="HTML"
-        )
-        return
-
-    # Direkt Randy ayar menüsüne yönlendir
-    from services.randy_service import get_or_create_group_draft, get_user_admin_groups, register_group, update_group_admin
-    from config import ACTIVITY_GROUP_ID
-
-    # Admin olduğu grupları getir
-    groups = await get_user_admin_groups(user.id, context.bot)
-
-    # ACTIVITY_GROUP_ID tanımlı ama gruplar boşsa, grubu kaydet
-    if not groups and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
-        try:
-            chat_info = await context.bot.get_chat(ACTIVITY_GROUP_ID)
-            await register_group(ACTIVITY_GROUP_ID, chat_info.title)
-            await update_group_admin(ACTIVITY_GROUP_ID, user.id, True)
-
-            groups = [{
-                'group_id': ACTIVITY_GROUP_ID,
-                'title': chat_info.title or f"Grup {ACTIVITY_GROUP_ID}"
-            }]
-        except Exception as e:
-            print(f"❌ Grup bilgisi alma hatası: {e}")
-
-    if not groups:
-        await message.reply_text(
-            "❌ <b>Admin olduğunuz grup bulunamadı.</b>\n\n"
-            "Bu sorunu çözmek için:\n"
-            "1️⃣ Bot'u gruba ekleyin\n"
-            "2️⃣ Bot'a admin yetkisi verin\n"
-            "3️⃣ Grupta /start komutunu kullanın\n\n"
-            "💡 <i>Bu işlemler bot'un sizi grup admini olarak tanımasını sağlar.</i>",
-            parse_mode="HTML"
-        )
-        return
-
-    # Tek grup varsa direkt ayarlara git
-    if len(groups) == 1:
-        group = groups[0]
-        group_id = group['group_id']
-
-        # Grup için ayarları getir veya oluştur
-        await get_or_create_group_draft(user.id, group_id)
-        context.user_data['active_group_id'] = group_id
-
-        # Ayar menüsünü göster
-        from handlers.callbacks import show_setup_menu_message
-        await show_setup_menu_message(message, user.id, group_id, context)
-        return
-
-    # Birden fazla grup varsa seçim menüsü göster
-    keyboard = []
-    for group in groups:
-        keyboard.append([
-            InlineKeyboardButton(
-                group['title'] or f"Grup {group['group_id']}",
-                callback_data=f"randy_group_{group['group_id']}"
-            )
-        ])
-
-    keyboard.append([InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")])
-
-    await message.reply_text(
-        MENU["RANDY_OLUSTUR_START"],
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
 
 
 # ============================================
