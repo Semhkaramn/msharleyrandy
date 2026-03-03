@@ -21,7 +21,10 @@ from services.randy_service import (
     add_channel_to_draft, get_draft_channels,
     get_randy_by_message_id, get_participant_count, end_randy_with_count
 )
+from services.chat_control_service import close_chat, open_chat
+from services.gpt_service import get_gpt_response, is_gpt_enabled, is_harley_mention
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
+from config import BOT_USERNAME
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from templates import MENU, BUTTONS, get_period_text, RANDY as RANDY_TEMPLATES, format_winner_list
 
@@ -440,6 +443,67 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Anonim admin kontrolü (GroupAnonymousBot - 1087968824)
     is_anonymous = message.sender_chat is not None and user and user.id == 1087968824
+
+    # ========== İYİ GECELER / GÜNAYDIN HARLEY KOMUTLARI (Admin) ==========
+
+    # "iyi geceler harley" veya "günaydın harley" kontrolü
+    if lower_text in ['iyi geceler harley', 'iyi geceler harely', 'iyigeceler harley']:
+        # Admin kontrolü
+        if is_anonymous:
+            is_admin = can_anonymous_admin_use_commands(message)
+        else:
+            is_admin = await is_group_admin(context.bot, chat.id, user.id) if user else False
+
+        if is_admin:
+            success, msg = await close_chat(context.bot, chat.id)
+            await context.bot.send_message(chat.id, msg, parse_mode="HTML")
+        return
+
+    if lower_text in ['günaydın harley', 'gunaydin harley', 'günaydın harely', 'gunaydin harely']:
+        # Admin kontrolü
+        if is_anonymous:
+            is_admin = can_anonymous_admin_use_commands(message)
+        else:
+            is_admin = await is_group_admin(context.bot, chat.id, user.id) if user else False
+
+        if is_admin:
+            success, msg = await open_chat(context.bot, chat.id)
+            await context.bot.send_message(chat.id, msg, parse_mode="HTML")
+        return
+
+    # ========== GPT HARLEY SOHBET ==========
+    # Harley'den bahsediliyorsa veya bot mesajına reply yapılıyorsa GPT ile cevap ver
+
+    should_respond_gpt = False
+
+    # 1. Harley'den bahsediliyor mu?
+    if is_harley_mention(text):
+        should_respond_gpt = True
+
+    # 2. Bot mesajına reply yapılıyor mu?
+    if message.reply_to_message:
+        reply_from = message.reply_to_message.from_user
+        if reply_from and reply_from.is_bot:
+            # Kendi botumuz mu kontrol et
+            bot_info = await context.bot.get_me()
+            if reply_from.id == bot_info.id:
+                should_respond_gpt = True
+
+    if should_respond_gpt and text:
+        # GPT bu grup için açık mı?
+        gpt_enabled = await is_gpt_enabled(chat.id)
+
+        if gpt_enabled:
+            # Kullanıcı adını al
+            user_name = user.first_name if user else "Kullanıcı"
+
+            # GPT'den cevap al
+            gpt_response = await get_gpt_response(text, user_name)
+
+            if gpt_response:
+                await message.reply_text(gpt_response)
+
+            # GPT cevabı verdiyse mesaj sayma vs. devam etsin ama return etmesin
 
     # ========== ROLL KOMUTLARI (Admin) ==========
 
