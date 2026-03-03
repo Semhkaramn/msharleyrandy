@@ -74,7 +74,7 @@ async def _show_setup_menu_from_message(message, user_id: int, group_id: int, co
         req_status = "➖"
 
     winner_count = draft.get('winner_count', 1)
-    winner_status = f"✅ ({winner_count})" if winner_count else "➖"
+    winner_status = f"({winner_count})"
 
     media_status = "✅" if draft.get('media_file_id') else "➖"
     pin_status = "✅" if draft.get('pin_message') else "❌"
@@ -83,7 +83,7 @@ async def _show_setup_menu_from_message(message, user_id: int, group_id: int, co
     keyboard = [
         [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
         [InlineKeyboardButton(f"{req_status} {BUTTONS['SART_AYARLA']}", callback_data="randy_requirement")],
-        [InlineKeyboardButton(f"{winner_status} {BUTTONS['KAZANAN_AYARLA']}", callback_data="randy_winners")],
+        [InlineKeyboardButton(f"{BUTTONS['KAZANAN_AYARLA']} {winner_status}", callback_data="randy_winners")],
         [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
         [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
         [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
@@ -91,7 +91,7 @@ async def _show_setup_menu_from_message(message, user_id: int, group_id: int, co
             InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
             InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")
         ],
-        [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="randy_cancel")],
+        [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
     ]
 
     # Kayıtlı menü mesaj ID'si var mı kontrol et
