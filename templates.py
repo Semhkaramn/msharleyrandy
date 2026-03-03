@@ -98,9 +98,9 @@ MENU = {
         "• Mesajda 'harley' yazınca cevap verir\n"
         "• Bot mesajına reply yapınca cevap verir\n\n"
         "<b>Harley'nin Karakteri:</b>\n"
-        "• Cilveli ve şakacı\n"
-        "• Kara mizah yapabilir\n"
-        "• Kısa ve öz cevaplar verir\n\n"
+        "• Tatlı, cilveli ve sevecen bir kız 💕\n"
+        "• Cana yakın ve samimi\n"
+        "• Kısa ve tatlı cevaplar verir\n\n"
         "Bir gruba tıklayarak durumu değiştirin:"
     ),
 
