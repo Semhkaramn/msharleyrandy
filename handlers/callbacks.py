@@ -39,6 +39,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['menu_message_id'] = query.message.message_id
 
     # ============================================
+    # MENÜ KAPAT
+    # ============================================
+    if data == "close_menu":
+        await close_menu(query, context)
+        return
+
+    # ============================================
     # ANA MENÜ
     # ============================================
     if data == "main_menu":
@@ -139,6 +146,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================
 # ANA MENÜ FONKSİYONLARI
 # ============================================
+
+async def close_menu(query, context: ContextTypes.DEFAULT_TYPE):
+    """Menüyü kapat ve mesajı sil"""
+    try:
+        await query.message.delete()
+    except TelegramError:
+        # Silinemezse sadece düzenle
+        try:
+            await query.edit_message_text(
+                "✅ Menü kapatıldı.",
+                reply_markup=None,
+                parse_mode="HTML"
+            )
+        except TelegramError:
+            pass
+
+    # Context'i temizle
+    context.user_data.pop('menu_message_id', None)
+    context.user_data.pop('active_group_id', None)
+    context.user_data.pop('waiting_for', None)
+
 
 async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
     """Ana menüyü göster"""
