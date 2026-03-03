@@ -933,12 +933,21 @@ async def handle_check_started(query, user_id: int, target_user_id: int, context
         await query.answer("Bu buton sana ait değil!", show_alert=True)
         return
 
-    # Mesajı sil
+    # Kullanıcı botu başlatmış mı kontrol et
     try:
-        await query.message.delete()
+        # Bot'a mesaj göndermeyi dene
+        await context.bot.send_chat_action(user_id, "typing")
+
+        # Mesajı sil
+        try:
+            await query.message.delete()
+        except TelegramError:
+            pass
+
         await query.answer("✅ Harika! Artık .ben komutunu kullanabilirsin.", show_alert=True)
     except TelegramError:
-        await query.answer("✅ Tamam!", show_alert=True)
+        # Kullanıcı botu henüz başlatmamış
+        await query.answer("❌ Önce yukarıdaki 'Botu Başlat' butonuna tıkla!", show_alert=True)
 
 
 # ============================================
