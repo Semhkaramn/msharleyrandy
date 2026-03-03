@@ -56,7 +56,8 @@ async def close_chat(bot, chat_id: int) -> tuple[bool, str]:
     try:
         await bot.set_chat_permissions(
             chat_id=chat_id,
-            permissions=NIGHT_PERMISSIONS
+            permissions=NIGHT_PERMISSIONS,
+            use_independent_chat_permissions=True  # İzinleri bağımsız olarak ayarla
         )
         logger.info(f"🌙 Chat kapatıldı: {chat_id}")
         return True, "İyi geceler Harley ailesi 🌙\nChat kapalı"
@@ -73,7 +74,8 @@ async def open_chat(bot, chat_id: int) -> tuple[bool, str]:
     try:
         await bot.set_chat_permissions(
             chat_id=chat_id,
-            permissions=MORNING_PERMISSIONS
+            permissions=MORNING_PERMISSIONS,
+            use_independent_chat_permissions=True  # İzinleri bağımsız olarak ayarla
         )
         logger.info(f"☀️ Chat açıldı: {chat_id}")
         return True, "Günaydın Harley ailesi ☀️\nChat aktif"
