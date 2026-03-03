@@ -17,28 +17,28 @@ from telegram.error import RetryAfter, TelegramError
 active_tagging_sessions: Dict[int, Dict[str, Any]] = {}
 
 
-# /naber için rastgele cümleler - Premium emojilerle
+# /naber için rastgele cümleler - Harley'in cilveli tarzıyla
 NABER_MESSAGES = [
-    "Naber? 🔥",
-    "Nasılsın? ✨",
-    "Ne yapıyorsun? 💫",
-    "Selam! 🌟",
-    "Hey! 💎",
-    "Naber dostum? 🎯",
-    "Nasıl gidiyor? 🚀",
-    "Ne var ne yok? 💥",
-    "Selam canım! 💖",
-    "Heyy! 🌈",
-    "Naber kanka? 🔱",
-    "Nasılsın bakalım? ⚡",
-    "Eee naber? 🎭",
-    "Ne haber? 🎪",
-    "Selamlar! 🎨",
-    "Hey dostum! 🏆",
-    "Naber kardeşim? 👑",
-    "Nasılsın güzelim? 💝",
-    "Ne yapıyosun? 🎬",
-    "Selam aşkım! 💕",
+    "Nabersin canım? 💕",
+    "Nasılsın tatlım? 🥰",
+    "Seni özledim! ✨",
+    "Selam güzelim! 💖",
+    "Heyy, naptın? 💋",
+    "Naber aşkım? 💝",
+    "Nasıl gidiyor? 🌸",
+    "Ne var ne yok? 💫",
+    "Merak ettim seni! 💗",
+    "Hadi konuş benimle! 🥺",
+    "Neredesin? 💕",
+    "Sana bir şey sorucam! ✨",
+    "Gel buraya! 💖",
+    "Bak bak kim gelmiş! 🥰",
+    "Naber güzel insan? 💝",
+    "Seni arıyordum! 💋",
+    "Aa sen miydin? 😍",
+    "Canım benim! 💕",
+    "Nasılsın bakalım? 🌷",
+    "Özlettin kendini! 💗",
 ]
 
 
