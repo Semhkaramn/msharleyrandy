@@ -175,13 +175,8 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user or not message:
         return
 
-    # Özel mesajda /randy çalışmaz
+    # Özel mesajda /randy çalışmaz - sessiz kal
     if chat.type == 'private':
-        await message.reply_text(
-            "❌ <b>Bu komut sadece grupta çalışır.</b>\n\n"
-            "💡 Randy ayarları için /start yazın.",
-            parse_mode="HTML"
-        )
         return
 
     # Grupta /randy - Randy başlat
