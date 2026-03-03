@@ -98,6 +98,9 @@ async def is_gpt_enabled(group_id: int) -> bool:
 
     # Veritabanından kontrol et
     try:
+        # Önce tabloyu oluştur (yoksa)
+        await _ensure_gpt_settings_table()
+
         if db.pool:
             async with db.pool.acquire() as conn:
                 result = await conn.fetchval("""
