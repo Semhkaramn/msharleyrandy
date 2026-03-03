@@ -8,6 +8,8 @@ import httpx
 import logging
 from typing import Optional
 
+from database import db
+
 logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -66,28 +68,93 @@ async def get_gpt_response(user_message: str, user_name: str = "Kullanıcı") ->
         return None
 
 
-# ========== GRUP GPT AYARLARI (In-Memory Cache) ==========
-# Gerçek projede database'e kaydedilmeli
-_gpt_enabled_groups: set[int] = set()
+# ========== GRUP GPT AYARLARI (Veritabanı + Cache) ==========
+
+# In-memory cache (hızlı erişim için)
+_gpt_enabled_cache: dict[int, bool] = {}
+
+
+async def _ensure_gpt_settings_table():
+    """GPT ayarları tablosunu oluştur (yoksa)"""
+    try:
+        if db.pool:
+            async with db.pool.acquire() as conn:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS gpt_settings (
+                        group_id BIGINT PRIMARY KEY,
+                        is_enabled BOOLEAN DEFAULT FALSE,
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+    except Exception as e:
+        logger.error(f"❌ GPT ayar tablosu oluşturma hatası: {e}")
 
 
 async def is_gpt_enabled(group_id: int) -> bool:
     """Grup için GPT özelliği açık mı?"""
-    return group_id in _gpt_enabled_groups
+    # Önce cache'e bak
+    if group_id in _gpt_enabled_cache:
+        return _gpt_enabled_cache[group_id]
+
+    # Veritabanından kontrol et
+    try:
+        if db.pool:
+            async with db.pool.acquire() as conn:
+                result = await conn.fetchval("""
+                    SELECT is_enabled FROM gpt_settings WHERE group_id = $1
+                """, group_id)
+
+                is_enabled = result if result is not None else False
+                _gpt_enabled_cache[group_id] = is_enabled
+                return is_enabled
+    except Exception as e:
+        logger.error(f"❌ GPT durumu kontrol hatası: {e}")
+
+    return False
 
 
 async def enable_gpt(group_id: int) -> bool:
     """Grup için GPT'yi aç"""
-    _gpt_enabled_groups.add(group_id)
-    logger.info(f"✅ GPT açıldı: {group_id}")
-    return True
+    try:
+        await _ensure_gpt_settings_table()
+
+        if db.pool:
+            async with db.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO gpt_settings (group_id, is_enabled, updated_at)
+                    VALUES ($1, TRUE, NOW())
+                    ON CONFLICT (group_id)
+                    DO UPDATE SET is_enabled = TRUE, updated_at = NOW()
+                """, group_id)
+
+        _gpt_enabled_cache[group_id] = True
+        logger.info(f"✅ GPT açıldı: {group_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ GPT açma hatası: {e}")
+        return False
 
 
 async def disable_gpt(group_id: int) -> bool:
     """Grup için GPT'yi kapat"""
-    _gpt_enabled_groups.discard(group_id)
-    logger.info(f"❌ GPT kapatıldı: {group_id}")
-    return True
+    try:
+        await _ensure_gpt_settings_table()
+
+        if db.pool:
+            async with db.pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO gpt_settings (group_id, is_enabled, updated_at)
+                    VALUES ($1, FALSE, NOW())
+                    ON CONFLICT (group_id)
+                    DO UPDATE SET is_enabled = FALSE, updated_at = NOW()
+                """, group_id)
+
+        _gpt_enabled_cache[group_id] = False
+        logger.info(f"❌ GPT kapatıldı: {group_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ GPT kapatma hatası: {e}")
+        return False
 
 
 def is_harley_mention(text: str) -> bool:
