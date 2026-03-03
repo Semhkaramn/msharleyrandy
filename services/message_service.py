@@ -247,3 +247,99 @@ def _should_reset_monthly(last_reset: datetime, now: datetime) -> bool:
     now_tr = _get_tr_time(now)
 
     return (last_reset_tr.year, last_reset_tr.month) < (now_tr.year, now_tr.month)
+
+
+async def get_user_randy_stats(telegram_id: int) -> Dict[str, Any]:
+    """
+    Kullanıcının Randy istatistiklerini getir
+
+    Args:
+        telegram_id: Telegram kullanıcı ID
+
+    Returns:
+        dict: Randy istatistikleri
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            # Katıldığı Randy sayısı (gerçek katılımlar - username veya first_name dolu)
+            participated = await conn.fetchval("""
+                SELECT COUNT(*) FROM randy_participants
+                WHERE telegram_id = $1 AND (username IS NOT NULL OR first_name IS NOT NULL)
+            """, telegram_id)
+
+            # Kazandığı Randy sayısı
+            won = await conn.fetchval("""
+                SELECT COUNT(*) FROM randy_winners
+                WHERE telegram_id = $1
+            """, telegram_id)
+
+            return {
+                "participated": participated or 0,
+                "won": won or 0
+            }
+    except Exception as e:
+        print(f"❌ Randy istatistik hatası: {e}")
+        return {"participated": 0, "won": 0}
+
+
+async def get_full_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Kullanıcının tüm istatistiklerini getir (mesaj + randy)
+
+    Args:
+        telegram_id: Telegram kullanıcı ID
+        group_id: Grup ID
+
+    Returns:
+        dict: Tüm istatistikler veya None
+    """
+    # Mesaj istatistikleri
+    message_stats = await get_user_stats(telegram_id, group_id)
+
+    # Randy istatistikleri
+    randy_stats = await get_user_randy_stats(telegram_id)
+
+    if not message_stats:
+        # Kullanıcı kayıtlı değil ama Randy istatistikleri olabilir
+        return {
+            "username": None,
+            "first_name": None,
+            "last_name": None,
+            "total": 0,
+            "daily": 0,
+            "weekly": 0,
+            "monthly": 0,
+            "last_message_at": None,
+            "randy_participated": randy_stats["participated"],
+            "randy_won": randy_stats["won"]
+        }
+
+    return {
+        **message_stats,
+        "randy_participated": randy_stats["participated"],
+        "randy_won": randy_stats["won"]
+    }
+
+
+async def is_user_registered(telegram_id: int, group_id: int) -> bool:
+    """
+    Kullanıcı veritabanında kayıtlı mı?
+
+    Args:
+        telegram_id: Telegram kullanıcı ID
+        group_id: Grup ID
+
+    Returns:
+        bool: Kayıtlı ise True
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            exists = await conn.fetchval("""
+                SELECT 1 FROM telegram_users
+                WHERE telegram_id = $1 AND group_id = $2
+                LIMIT 1
+            """, telegram_id, group_id)
+            return exists is not None
+    except Exception as e:
+        print(f"❌ Kullanıcı kontrol hatası: {e}")
+        return False
