@@ -52,10 +52,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_main_menu(query, context)
 
     # ============================================
-    # RANDY MENÜSÜ
+    # RANDY MENÜSÜ - Direkt ayarlara git
     # ============================================
     elif data == "randy_menu":
-        await show_randy_menu(query, user_id, context)
+        await start_randy_settings(query, user_id, context)
 
     elif data == "randy_settings":
         await start_randy_settings(query, user_id, context)
@@ -141,6 +141,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================
     elif data == "stats_menu":
         await show_stats_menu(query, context)
+
+    # ============================================
+    # BOT BAŞLATMA KONTROLÜ (.ben için)
+    # ============================================
+    elif data.startswith("check_started_"):
+        target_user_id = int(data.replace("check_started_", ""))
+        await handle_check_started(query, user_id, target_user_id, context)
 
 
 # ============================================
@@ -367,10 +374,7 @@ async def show_randy_settings_menu(query, user_id: int, group_id: int, context: 
         [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
         [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
         [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
-        [
-            InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
-            InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")
-        ],
+        [InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview")],
         [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
     ]
 
@@ -421,10 +425,7 @@ async def show_setup_menu_message(message, user_id: int, group_id: int, context)
         [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
         [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
         [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
-        [
-            InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
-            InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")
-        ],
+        [InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview")],
         [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
     ]
 
@@ -734,7 +735,6 @@ async def show_preview(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     text += f"\n• Kanallar: {channel_info}"
 
     keyboard = [
-        [InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")],
         [InlineKeyboardButton(BUTTONS["GERI"], callback_data="randy_back")],
     ]
 
@@ -921,6 +921,24 @@ async def show_stats_menu(query, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+
+
+async def handle_check_started(query, user_id: int, target_user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Bot başlatma kontrolü - .ben komutu için
+    Sadece hedef kullanıcı tıklarsa mesajı siler
+    """
+    # Sadece hedef kullanıcı tıklayabilir
+    if user_id != target_user_id:
+        await query.answer("Bu buton sana ait değil!", show_alert=True)
+        return
+
+    # Mesajı sil
+    try:
+        await query.message.delete()
+        await query.answer("✅ Harika! Artık .ben komutunu kullanabilirsin.", show_alert=True)
+    except TelegramError:
+        await query.answer("✅ Tamam!", show_alert=True)
 
 
 # ============================================
