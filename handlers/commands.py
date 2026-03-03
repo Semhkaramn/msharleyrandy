@@ -1009,7 +1009,7 @@ async def etiket_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     /etiket [mesaj] komutu
     Gruptaki kayıtlı kullanıcıları 5'erli gruplar halinde etiketler
-    Premium emoji destekli
+    Premium emoji destekli - kullanıcının gönderdiği premium emojiyi kullanır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -1048,17 +1048,23 @@ async def etiket_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Mesajı al (komuttan sonraki kısım)
+    # Premium emoji desteği için orijinal metni ve entity'leri al
+    original_text = message.text or ""
+    message_entities = message.entities or []
+
     if context.args:
         tag_message = " ".join(context.args)
     else:
         tag_message = "🎉 Selamlar!"
 
-    # Etiketlemeyi başlat
+    # Etiketlemeyi başlat - premium emoji desteği ile
     success = await start_etiket_tagging(
         chat.id,
         tag_message,
         context.bot,
-        message
+        message,
+        custom_emoji_text=original_text,
+        message_entities=message_entities
     )
 
     if not success:
