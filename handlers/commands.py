@@ -774,12 +774,79 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stats = await get_full_user_stats(user.id, chat.id)
 
     if not stats:
-        await message.reply_text(STATS["KAYIT_YOK"], parse_mode="HTML")
+        # Özelden gönder
+        try:
+            await context.bot.send_message(
+                user.id,
+                STATS["KAYIT_YOK"],
+                parse_mode="HTML"
+            )
+            # Grupta bilgi ver ve sil
+            info_msg = await message.reply_text(
+                f"📬 {user.first_name}, istatistiklerin özelden gönderildi!",
+                parse_mode="HTML"
+            )
+            import asyncio
+            await asyncio.sleep(3)
+            try:
+                await info_msg.delete()
+            except TelegramError:
+                pass
+        except TelegramError:
+            # Özelden gönderilemezse botu başlatmasını iste
+            mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+            bot_info = await context.bot.get_me()
+            bot_username = bot_info.username
+            keyboard = [[
+                InlineKeyboardButton(
+                    "🚀 Botu Başlat",
+                    url=f"https://t.me/{bot_username}?start=from_group"
+                )
+            ]]
+            await message.reply_text(
+                f"👋 {mention}, istatistiklerini özelden göndermem için önce botu başlatman gerekiyor!",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
         return
 
     # İstatistik kartını oluştur
     text = _format_user_card(user.first_name, user.username, stats)
-    await message.reply_text(text, parse_mode="HTML")
+
+    # Özelden gönder
+    try:
+        await context.bot.send_message(
+            user.id,
+            text,
+            parse_mode="HTML"
+        )
+        # Grupta bilgi ver ve sil
+        info_msg = await message.reply_text(
+            f"📬 {user.first_name}, istatistiklerin özelden gönderildi!",
+            parse_mode="HTML"
+        )
+        import asyncio
+        await asyncio.sleep(3)
+        try:
+            await info_msg.delete()
+        except TelegramError:
+            pass
+    except TelegramError:
+        # Özelden gönderilemezse botu başlatmasını iste
+        mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+        bot_info = await context.bot.get_me()
+        bot_username = bot_info.username
+        keyboard = [[
+            InlineKeyboardButton(
+                "🚀 Botu Başlat",
+                url=f"https://t.me/{bot_username}?start=from_group"
+            )
+        ]]
+        await message.reply_text(
+            f"👋 {mention}, istatistiklerini özelden göndermem için önce botu başlatman gerekiyor!",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
 
 
 # ============================================
