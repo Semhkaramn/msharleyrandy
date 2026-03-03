@@ -127,16 +127,21 @@ async def start_etiket_tagging(
     group_id: int,
     message: str,
     bot,
-    initial_message
+    initial_message,
+    custom_emoji_text: str = None,
+    message_entities: list = None
 ) -> bool:
     """
     /etiket komutu - 5'erli mention etiketleme başlat
+    Premium emoji destekli
 
     Args:
         group_id: Grup ID
         message: Etiketleme mesajı
         bot: Telegram bot instance
         initial_message: İlk mesaj objesi (silmek için)
+        custom_emoji_text: Kullanıcının gönderdiği orijinal metin (premium emoji için)
+        message_entities: Mesajdaki entity'ler (custom_emoji için)
 
     Returns:
         bool: Başlatıldı mı
@@ -158,6 +163,21 @@ async def start_etiket_tagging(
         'task': None
     }
 
+    # Premium emoji var mı kontrol et
+    has_custom_emoji = False
+    emoji_prefix = ""
+
+    if message_entities:
+        for entity in message_entities:
+            if entity.type == "custom_emoji":
+                has_custom_emoji = True
+                # Custom emoji'nin text'ini al
+                if custom_emoji_text:
+                    start = entity.offset
+                    end = entity.offset + entity.length
+                    emoji_prefix = custom_emoji_text[start:end] + " "
+                break
+
     async def tagging_task():
         try:
             # İlk komutu sil
@@ -178,8 +198,11 @@ async def start_etiket_tagging(
                 batch = users[i:i + batch_size]
                 mentions = [format_user_mention(u) for u in batch]
 
-                # Premium emojilerle mesaj oluştur
-                text = f"💎 {message}\n\n" + " ".join(mentions)
+                # Premium emoji varsa onu kullan, yoksa varsayılan
+                if has_custom_emoji and emoji_prefix:
+                    text = f"{emoji_prefix}{message}\n\n" + " ".join(mentions)
+                else:
+                    text = f"💎 {message}\n\n" + " ".join(mentions)
 
                 try:
                     await bot.send_message(
