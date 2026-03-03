@@ -127,6 +127,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_roll_menu(query, context)
 
     # ============================================
+    # ETİKET MENÜSÜ
+    # ============================================
+    elif data == "etiket_menu":
+        await show_etiket_menu(query, context)
+
+    # ============================================
     # GPT MENÜSÜ
     # ============================================
     elif data == "gpt_menu":
@@ -180,6 +186,7 @@ async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
     keyboard = [
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
         [InlineKeyboardButton(BUTTONS["ROLL_YONETIMI"], callback_data="roll_menu")],
+        [InlineKeyboardButton(BUTTONS["ETIKET_YONETIMI"], callback_data="etiket_menu")],
         [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
         [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
         [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="close_menu")],
@@ -197,6 +204,7 @@ async def show_main_menu_message(message, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
         [InlineKeyboardButton(BUTTONS["ROLL_YONETIMI"], callback_data="roll_menu")],
+        [InlineKeyboardButton(BUTTONS["ETIKET_YONETIMI"], callback_data="etiket_menu")],
         [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
         [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
         [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="close_menu")],
@@ -810,6 +818,23 @@ async def show_roll_menu(query, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(
         MENU["ROLL_MENU"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+# ============================================
+# ETİKET MENÜ FONKSİYONLARI
+# ============================================
+
+async def show_etiket_menu(query, context: ContextTypes.DEFAULT_TYPE):
+    """Etiket menüsünü göster - komutlar ve açıklamalar"""
+    keyboard = [
+        [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
+    ]
+
+    await query.edit_message_text(
+        MENU["ETIKET_MENU"],
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
