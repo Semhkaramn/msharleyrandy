@@ -19,6 +19,7 @@ from services.randy_service import (
     get_draft_channels, clear_draft_channels,
     get_or_create_group_draft
 )
+from services.gpt_service import is_gpt_enabled, enable_gpt, disable_gpt
 from utils.admin_check import is_group_admin, is_activity_group_admin
 
 
@@ -123,6 +124,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("randy_join_"):
         randy_id = int(data.replace("randy_join_", ""))
         await handle_randy_join(query, user_id, randy_id, context)
+
+    # GPT Ayarları
+    elif data == "gpt_settings":
+        await show_gpt_settings(query, user_id, context)
+
+    elif data.startswith("gpt_toggle_"):
+        group_id = int(data.replace("gpt_toggle_", ""))
+        await toggle_gpt_for_group(query, user_id, group_id, context)
 
 
 async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
@@ -269,6 +278,10 @@ async def show_setup_menu_message(message, user_id: int, group_id: int, context)
     pin_status = "✅" if draft.get('pin_message') else "❌"
     channel_status = f"✅ ({len(channels)})" if channels else "➖"
 
+    # GPT durumunu kontrol et
+    gpt_on = await is_gpt_enabled(group_id)
+    gpt_status = "✅" if gpt_on else "❌"
+
     keyboard = [
         [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
         [InlineKeyboardButton(f"{req_status} {BUTTONS['SART_AYARLA']}", callback_data="randy_requirement")],
@@ -276,6 +289,7 @@ async def show_setup_menu_message(message, user_id: int, group_id: int, context)
         [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
         [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
         [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
+        [InlineKeyboardButton(f"{gpt_status} 🤖 GPT Harley", callback_data="gpt_settings")],
         [
             InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
             InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")
@@ -331,6 +345,10 @@ async def show_setup_menu(query, user_id: int, group_id: int = None):
     if draft.get('creator_id') and draft['creator_id'] != user_id:
         creator_info = "\n\n<i>📝 Bu taslak başka bir admin tarafından oluşturuldu.</i>"
 
+    # GPT durumunu kontrol et
+    gpt_on = await is_gpt_enabled(group_id)
+    gpt_status = "✅" if gpt_on else "❌"
+
     keyboard = [
         [InlineKeyboardButton(f"{message_status} {BUTTONS['MESAJ_AYARLA']}", callback_data="randy_message")],
         [InlineKeyboardButton(f"{req_status} {BUTTONS['SART_AYARLA']}", callback_data="randy_requirement")],
@@ -338,6 +356,7 @@ async def show_setup_menu(query, user_id: int, group_id: int = None):
         [InlineKeyboardButton(f"{media_status} {BUTTONS['MEDYA_EKLE']}", callback_data="randy_media")],
         [InlineKeyboardButton(f"{channel_status} {BUTTONS['KANAL_EKLE']}", callback_data="randy_channels")],
         [InlineKeyboardButton(f"{pin_status} {BUTTONS['SABITLE']}", callback_data="randy_pin")],
+        [InlineKeyboardButton(f"{gpt_status} 🤖 GPT Harley", callback_data="gpt_settings")],
         [
             InlineKeyboardButton(BUTTONS["ONIZLE"], callback_data="randy_preview"),
             InlineKeyboardButton(BUTTONS["KAYDET"], callback_data="randy_save")
@@ -808,3 +827,91 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
 
     else:
         await query.answer(ERRORS["GENEL"], show_alert=True)
+
+
+async def show_gpt_settings(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """GPT ayarları menüsünü göster"""
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        await query.edit_message_text(
+            "❌ <b>Yetkiniz Yok</b>\n\n"
+            "GPT ayarları için ana gruptaki admin olmanız gerekiyor.",
+            parse_mode="HTML"
+        )
+        return
+
+    # Admin olduğu grupları getir
+    groups = await get_user_admin_groups(user_id, context.bot)
+
+    # ACTIVITY_GROUP_ID tanımlı ama gruplar boşsa ekle
+    if not groups and ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+        try:
+            chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
+            groups = [{'group_id': ACTIVITY_GROUP_ID, 'title': chat.title}]
+        except:
+            pass
+
+    if not groups:
+        await query.edit_message_text(
+            "❌ Admin olduğunuz grup bulunamadı.",
+            parse_mode="HTML"
+        )
+        return
+
+    keyboard = []
+
+    for group in groups:
+        group_id = group['group_id']
+        title = group.get('title') or f"Grup {group_id}"
+
+        # GPT durumunu kontrol et
+        gpt_on = await is_gpt_enabled(group_id)
+        status = "✅ Açık" if gpt_on else "❌ Kapalı"
+
+        keyboard.append([
+            InlineKeyboardButton(
+                f"{title} - {status}",
+                callback_data=f"gpt_toggle_{group_id}"
+            )
+        ])
+
+    keyboard.append([InlineKeyboardButton("◀️ Geri", callback_data="main_menu")])
+
+    await query.edit_message_text(
+        "🤖 <b>GPT Harley Ayarları</b>\n\n"
+        "Harley'nin GPT ile sohbet etmesini açıp kapatabilirsiniz.\n\n"
+        "Açık olduğunda:\n"
+        "• Mesajda 'harley' yazınca cevap verir\n"
+        "• Bot mesajına reply yapınca cevap verir\n\n"
+        "Bir gruba tıklayarak durumu değiştirin:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def toggle_gpt_for_group(query, user_id: int, group_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Grup için GPT'yi aç/kapat"""
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        await query.answer("❌ Yetkiniz yok!", show_alert=True)
+        return
+
+    # Mevcut durumu kontrol et ve toggle et
+    gpt_on = await is_gpt_enabled(group_id)
+
+    if gpt_on:
+        await disable_gpt(group_id)
+        await query.answer("❌ GPT kapatıldı!", show_alert=True)
+    else:
+        await enable_gpt(group_id)
+        await query.answer("✅ GPT açıldı!", show_alert=True)
+
+    # Menüyü yenile
+    await show_gpt_settings(query, user_id, context)
