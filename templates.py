@@ -90,10 +90,14 @@ MENU = {
         "📊 <b>İstatistikler</b>\n\n"
         "Grup istatistiklerini görüntüleyin.\n\n"
         "<b>📝 Kullanılabilir Komutlar (Grupta):</b>\n\n"
-        "• <code>.ben</code> - Kendi istatistikleriniz\n"
-        "• <code>.günlük</code> - Günlük sıralama (Admin)\n"
-        "• <code>.haftalık</code> - Haftalık sıralama (Admin)\n"
-        "• <code>.aylık</code> - Aylık sıralama (Admin)\n\n"
+        "<b>Herkes:</b>\n"
+        "• <code>.ben</code> - Kendi istatistikleriniz\n\n"
+        "<b>Adminler:</b>\n"
+        "• <code>.bilgi</code> (reply) - Birinin istatistikleri\n"
+        "• <code>.bilgi @username</code> - Kullanıcı istatistikleri\n"
+        "• <code>.günlük</code> - Günlük sıralama\n"
+        "• <code>.haftalık</code> - Haftalık sıralama\n"
+        "• <code>.aylık</code> - Aylık sıralama\n\n"
         "<i>Bu komutları grupta kullanabilirsiniz.</i>"
     ),
 }
@@ -183,29 +187,32 @@ STATS = {
 
     # Gelişmiş istatistik kartı
     "USER_CARD": (
-        "┏━━━━━━━━━━━━━━━━━━━━━┓\n"
-        "┃  📊 <b>İSTATİSTİK KARTI</b>  ┃\n"
-        "┗━━━━━━━━━━━━━━━━━━━━━┛\n\n"
-        "👤 <b>{name}</b>\n"
+        "╔══════════════════════╗\n"
+        "║  📊 <b>İSTATİSTİK KARTI</b>  ║\n"
+        "╠══════════════════════╣\n"
+        "║ 👤 <b>{name}</b>\n"
         "{username_line}"
-        "\n"
-        "━━━━ 💬 <b>MESAJ</b> ━━━━\n"
-        "📅 Bugün: <b>{daily}</b>\n"
-        "📆 Bu Hafta: <b>{weekly}</b>\n"
-        "🗓️ Bu Ay: <b>{monthly}</b>\n"
-        "📈 Toplam: <b>{total}</b>\n"
-        "\n"
-        "━━━━ 🎲 <b>RANDY</b> ━━━━\n"
-        "🎫 Katılım: <b>{randy_participated}</b>\n"
-        "🏆 Kazanma: <b>{randy_won}</b>\n"
+        "╠══════════════════════╣\n"
+        "║ 💬 <b>MESAJ İSTATİSTİKLERİ</b>\n"
+        "╟──────────────────────╢\n"
+        "║ 📅 Bugün      ➜ <b>{daily}</b>\n"
+        "║ 📆 Bu Hafta   ➜ <b>{weekly}</b>\n"
+        "║ 🗓 Bu Ay      ➜ <b>{monthly}</b>\n"
+        "║ 📈 Toplam     ➜ <b>{total}</b>\n"
+        "╠══════════════════════╣\n"
+        "║ 🎲 <b>RANDY İSTATİSTİKLERİ</b>\n"
+        "╟──────────────────────╢\n"
+        "║ 🎫 Katılım    ➜ <b>{randy_participated}</b>\n"
+        "║ 🏆 Kazanma    ➜ <b>{randy_won}</b>\n"
         "{win_rate_line}"
+        "╚══════════════════════╝"
     ),
 
     # Bot başlatma mesajı
     "BOT_BASLAT": (
         "👋 Hey {mention}!\n\n"
         "📊 İstatistiklerini görmek için önce botu başlatman gerekiyor.\n\n"
-        "👇 Aşağıdaki butona tıkla:"
+        "👇 Aşağıdaki butona tıkla ve ardından <b>\"Başlattım\"</b> butonuna bas:"
     ),
 }
 
