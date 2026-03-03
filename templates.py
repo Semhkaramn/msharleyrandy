@@ -71,6 +71,25 @@ MENU = {
         "6. <code>roll bitir</code> ile sonlandırın"
     ),
 
+    # Etiket Menüsü
+    "ETIKET_MENU": (
+        "🏷️ <b>Etiket Yönetimi</b>\n\n"
+        "Gruptaki kullanıcıları toplu olarak etiketleyin.\n\n"
+        "<b>📝 Kullanılabilir Komutlar (Grupta):</b>\n\n"
+        "• <code>/etiket</code> - Varsayılan mesajla etiketle\n"
+        "• <code>/etiket [mesaj]</code> - Özel mesajla etiketle\n"
+        "• <code>/etiket [emoji] [mesaj]</code> - Premium emoji ile etiketle\n"
+        "• <code>/naber</code> - Rastgele mesajlarla tek tek etiketle\n"
+        "• <code>/dur</code> - Aktif etiketlemeyi durdur\n\n"
+        "<b>⚙️ Nasıl Çalışır:</b>\n"
+        "• Kullanıcılar 5'erli gruplar halinde etiketlenir\n"
+        "• Premium emoji kullanmak için mesajın başına ekleyin\n"
+        "• Örnek: <code>/etiket 💎 Merhaba!</code>\n\n"
+        "<b>💎 Premium Emoji Desteği:</b>\n"
+        "Premium hesabınızla özel emoji kullanabilirsiniz.\n"
+        "Bot, gönderdiğiniz premium emojiyi otomatik algılar."
+    ),
+
     # GPT Menüsü
     "GPT_MENU": (
         "🤖 <b>GPT Harley Ayarları</b>\n\n"
@@ -224,6 +243,7 @@ BUTTONS = {
     # Ana Menü
     "RANDY_YONETIMI": "🎲 Randy Yönetimi",
     "ROLL_YONETIMI": "🎯 Roll Yönetimi",
+    "ETIKET_YONETIMI": "🏷️ Etiket Yönetimi",
     "GPT_AYARLARI": "🤖 GPT Harley",
     "ISTATISTIKLER": "📊 İstatistikler",
     "AYARLAR": "⚙️ Ayarlar",
