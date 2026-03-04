@@ -793,6 +793,14 @@ async def handle_roll_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 def _format_steps(steps: list, session_info: dict = None) -> str:
     """Adımları formatla - roll durumu ve başlama saati ile"""
+    from datetime import datetime, timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+
     lines = []
 
     # Session bilgisi varsa başlangıçta göster
@@ -814,11 +822,11 @@ def _format_steps(steps: list, session_info: dict = None) -> str:
 
         lines.append(f"📊 <b>Roll Durumu:</b> {status_text}")
 
-        # Başlama saati
+        # Başlama saati - düzgün timezone dönüşümü
         if created_at:
-            # UTC+3 (Türkiye saati) için 3 saat ekle
-            from datetime import timedelta
-            local_time = created_at + timedelta(hours=3)
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            local_time = created_at.astimezone(TR_TZ)
             time_str = local_time.strftime("%d.%m.%Y %H:%M")
             lines.append(f"🕐 <b>Başlama Saati:</b> {time_str}")
 
@@ -841,10 +849,11 @@ def _format_steps(steps: list, session_info: dict = None) -> str:
         marker = "🔴 " if is_active else ""
         header = f"{marker}📍 Adım {step_num}"
 
-        # Adım başlama saatini ekle
+        # Adım başlama saatini ekle - düzgün timezone dönüşümü
         if step_created_at:
-            from datetime import timedelta
-            local_time = step_created_at + timedelta(hours=3)
+            if step_created_at.tzinfo is None:
+                step_created_at = step_created_at.replace(tzinfo=timezone.utc)
+            local_time = step_created_at.astimezone(TR_TZ)
             step_time_str = local_time.strftime("%H:%M")
             header += f" ({step_time_str})"
 
