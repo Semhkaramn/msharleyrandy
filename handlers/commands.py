@@ -1023,27 +1023,55 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     # Veritabanından sıralama al
+    # Türkiye saat dilimini al
+    from datetime import datetime, timedelta
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+    now_utc = datetime.utcnow()
+    from datetime import timezone
+    now_utc = now_utc.replace(tzinfo=timezone.utc)
+    now_tr = now_utc.astimezone(TR_TZ)
+
     async with db.pool.acquire() as conn:
         if period == 'daily':
             field = 'daily_count'
+            reset_field = 'last_daily_reset'
             title = '📊 <b>Günlük Mesaj Sıralaması</b>'
             period_text = 'Bugünkü'
+            # Bugünün başlangıcı (Türkiye saati 00:00) - UTC'ye çevir
+            today_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
+            period_start = today_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
         elif period == 'weekly':
             field = 'weekly_count'
+            reset_field = 'last_weekly_reset'
             title = '📊 <b>Haftalık Mesaj Sıralaması</b>'
             period_text = 'Bu hafta'
+            # Bu haftanın Pazartesi günü 00:00 (Türkiye saati) - UTC'ye çevir
+            days_since_monday = now_tr.weekday()
+            monday_tr = (now_tr - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+            period_start = monday_tr.astimezone(timezone.utc).replace(tzinfo=None)
         else:
             field = 'monthly_count'
+            reset_field = 'last_monthly_reset'
             title = '📅 <b>Aylık Mesaj Sıralaması</b>'
             period_text = 'Bu ay'
+            # Bu ayın 1'i 00:00 (Türkiye saati) - UTC'ye çevir
+            month_start_tr = now_tr.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            period_start = month_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
 
+        # Sadece bu dönemde mesaj atmış kullanıcıları getir
+        # last_X_reset tarihi period_start'tan sonra veya eşit olmalı
         users = await conn.fetch(f"""
             SELECT telegram_id, username, first_name, last_name, {field} as count
             FROM telegram_users
-            WHERE group_id = $1 AND {field} > 0
+            WHERE group_id = $1 AND {field} > 0 AND {reset_field} >= $2
             ORDER BY {field} DESC
             LIMIT 10
-        """, chat.id)
+        """, chat.id, period_start)
 
     if not users:
         no_data = f"{title}\n\n⚠️ Henüz mesaj atan kullanıcı yok."
