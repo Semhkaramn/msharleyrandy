@@ -10,6 +10,29 @@ from typing import Optional
 
 from database import db
 
+
+def turkish_lower(text: str) -> str:
+    """
+    Türkçe karakterleri düzgün küçük harfe çevirir.
+    Python'un .lower() fonksiyonu Türkçe İ/I harflerini yanlış çevirir.
+    """
+    if not text:
+        return ""
+    # Türkçe karakter dönüşümleri
+    tr_map = {
+        'İ': 'i',
+        'I': 'ı',
+        'Ğ': 'ğ',
+        'Ü': 'ü',
+        'Ş': 'ş',
+        'Ö': 'ö',
+        'Ç': 'ç',
+    }
+    result = text
+    for upper, lower in tr_map.items():
+        result = result.replace(upper, lower)
+    return result.lower()
+
 logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -191,7 +214,7 @@ def is_harley_mention(text: str) -> bool:
     if not text:
         return False
 
-    lower = text.lower().strip()
+    lower = turkish_lower(text.strip())
 
     # Bu komutlar GPT'yi tetiklememeli
     excluded_commands = [
