@@ -5,6 +5,29 @@ Grup mesajlarını işler - Roll sistemi ve mesaj sayma
 """
 
 from telegram import Update
+
+
+def turkish_lower(text: str) -> str:
+    """
+    Türkçe karakterleri düzgün küçük harfe çevirir.
+    Python'un .lower() fonksiyonu Türkçe İ/I harflerini yanlış çevirir.
+    """
+    if not text:
+        return ""
+    # Türkçe karakter dönüşümleri
+    tr_map = {
+        'İ': 'i',
+        'I': 'ı',
+        'Ğ': 'ğ',
+        'Ü': 'ü',
+        'Ş': 'ş',
+        'Ö': 'ö',
+        'Ç': 'ç',
+    }
+    result = text
+    for upper, lower in tr_map.items():
+        result = result.replace(upper, lower)
+    return result.lower()
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
@@ -435,7 +458,7 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # ========== SİSTEM HESABI KONTROLÜ ==========
     text = message.text or ""
-    lower_text = text.strip().lower() if text else ""
+    lower_text = turkish_lower(text.strip()) if text else ""
 
     # Telegram servis hesabı (777000) - bağlı kanal mesajları
     if user and user.id in IGNORED_USER_IDS:
