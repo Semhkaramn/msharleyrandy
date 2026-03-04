@@ -129,6 +129,7 @@ async def track_message(
 async def get_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[str, Any]]:
     """
     Kullanıcının mesaj istatistiklerini getir
+    Reset kontrolü yaparak dönemlerin geçerliliğini kontrol eder
 
     Args:
         telegram_id: Telegram kullanıcı ID
@@ -142,7 +143,7 @@ async def get_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[str, 
             user = await conn.fetchrow("""
                 SELECT username, first_name, last_name,
                        message_count, daily_count, weekly_count, monthly_count,
-                       last_message_at
+                       last_message_at, last_daily_reset, last_weekly_reset, last_monthly_reset
                 FROM telegram_users
                 WHERE telegram_id = $1 AND group_id = $2
             """, telegram_id, group_id)
@@ -150,14 +151,34 @@ async def get_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[str, 
             if not user:
                 return None
 
+            # Şu anki zamanı al
+            now = datetime.utcnow()
+
+            # Reset kontrolü yap - dönem geçmişse count 0 olmalı
+            daily_count = user['daily_count']
+            weekly_count = user['weekly_count']
+            monthly_count = user['monthly_count']
+
+            # Günlük reset kontrolü
+            if user['last_daily_reset'] and _should_reset_daily(user['last_daily_reset'], now):
+                daily_count = 0
+
+            # Haftalık reset kontrolü
+            if user['last_weekly_reset'] and _should_reset_weekly(user['last_weekly_reset'], now):
+                weekly_count = 0
+
+            # Aylık reset kontrolü
+            if user['last_monthly_reset'] and _should_reset_monthly(user['last_monthly_reset'], now):
+                monthly_count = 0
+
             return {
                 "username": user['username'],
                 "first_name": user['first_name'],
                 "last_name": user['last_name'],
                 "total": user['message_count'],
-                "daily": user['daily_count'],
-                "weekly": user['weekly_count'],
-                "monthly": user['monthly_count'],
+                "daily": daily_count,
+                "weekly": weekly_count,
+                "monthly": monthly_count,
                 "last_message_at": user['last_message_at']
             }
 
