@@ -130,7 +130,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ETİKET MENÜSÜ
     # ============================================
     elif data == "etiket_menu":
-        await show_etiket_menu(query, context)
+        await show_etiket_menu(query, user_id, context)
+
+    elif data == "auto_tag_menu":
+        await show_auto_tag_menu(query, user_id, context)
+
+    elif data == "auto_tag_toggle":
+        await toggle_auto_tag_setting(query, user_id, context)
+
+    elif data.startswith("auto_tag_interval_"):
+        interval = int(data.replace("auto_tag_interval_", ""))
+        await set_auto_tag_interval(query, user_id, interval, context)
 
     # ============================================
     # GPT MENÜSÜ
@@ -827,9 +837,20 @@ async def show_roll_menu(query, context: ContextTypes.DEFAULT_TYPE):
 # ETİKET MENÜ FONKSİYONLARI
 # ============================================
 
-async def show_etiket_menu(query, context: ContextTypes.DEFAULT_TYPE):
-    """Etiket menüsünü göster - komutlar ve açıklamalar"""
+async def show_etiket_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Etiket menüsünü göster - komutlar ve açıklamalar + otomatik etiket butonu"""
+    from services.tagging_service import get_auto_tag_settings
+    from config import ACTIVITY_GROUP_ID
+
+    # Otomatik etiket durumunu kontrol et
+    auto_tag_status = "❌ Kapalı"
+    if ACTIVITY_GROUP_ID:
+        settings = await get_auto_tag_settings(ACTIVITY_GROUP_ID)
+        if settings and settings.get('enabled'):
+            auto_tag_status = "✅ Açık"
+
     keyboard = [
+        [InlineKeyboardButton(f"🤖 Otomatik Etiket ({auto_tag_status})", callback_data="auto_tag_menu")],
         [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
     ]
 
@@ -838,6 +859,150 @@ async def show_etiket_menu(query, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+
+
+async def show_auto_tag_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Otomatik etiket ayarları menüsü"""
+    from services.tagging_service import get_auto_tag_settings
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="etiket_menu")]]
+        await query.edit_message_text(
+            "❌ <b>Yetkiniz Yok</b>\n\n"
+            "Otomatik etiket ayarları için ana gruptaki admin olmanız gerekiyor.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    if not ACTIVITY_GROUP_ID:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="etiket_menu")]]
+        await query.edit_message_text(
+            "❌ <b>Grup Tanımlı Değil</b>\n\n"
+            "ACTIVITY_GROUP_ID ayarlanmamış.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    # Mevcut ayarları getir
+    settings = await get_auto_tag_settings(ACTIVITY_GROUP_ID)
+
+    if settings:
+        status = "✅ Açık" if settings.get('enabled') else "❌ Kapalı"
+        interval = settings.get('interval_minutes', 60)
+        tag_type = settings.get('tag_type', 'naber')
+    else:
+        status = "❌ Kapalı"
+        interval = 60
+        tag_type = "naber"
+
+    # Durum butonu
+    toggle_text = "🔴 Kapat" if settings and settings.get('enabled') else "🟢 Aç"
+
+    keyboard = [
+        [InlineKeyboardButton(f"{toggle_text}", callback_data="auto_tag_toggle")],
+        [
+            InlineKeyboardButton("30dk" + (" ✓" if interval == 30 else ""), callback_data="auto_tag_interval_30"),
+            InlineKeyboardButton("1 saat" + (" ✓" if interval == 60 else ""), callback_data="auto_tag_interval_60"),
+        ],
+        [
+            InlineKeyboardButton("2 saat" + (" ✓" if interval == 120 else ""), callback_data="auto_tag_interval_120"),
+            InlineKeyboardButton("3 saat" + (" ✓" if interval == 180 else ""), callback_data="auto_tag_interval_180"),
+        ],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="etiket_menu")],
+    ]
+
+    text = MENU["AUTO_TAG_MENU"].format(
+        status=status,
+        interval=interval,
+        tag_type=tag_type.upper()
+    )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def toggle_auto_tag_setting(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Otomatik etiketi aç/kapat"""
+    from services.tagging_service import (
+        get_auto_tag_settings, set_auto_tag_settings,
+        start_auto_tagging, stop_auto_tagging
+    )
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        await query.answer("❌ Yetkiniz yok!", show_alert=True)
+        return
+
+    if not ACTIVITY_GROUP_ID:
+        await query.answer("❌ Grup tanımlı değil!", show_alert=True)
+        return
+
+    # Mevcut ayarları getir
+    settings = await get_auto_tag_settings(ACTIVITY_GROUP_ID)
+
+    if settings and settings.get('enabled'):
+        # Kapat
+        await set_auto_tag_settings(ACTIVITY_GROUP_ID, enabled=False)
+        stop_auto_tagging(ACTIVITY_GROUP_ID)
+        await query.answer("🔴 Otomatik etiket kapatıldı!", show_alert=True)
+    else:
+        # Aç
+        interval = settings.get('interval_minutes', 60) if settings else 60
+        await set_auto_tag_settings(ACTIVITY_GROUP_ID, enabled=True, interval_minutes=interval)
+        await start_auto_tagging(ACTIVITY_GROUP_ID, context.bot, interval)
+        await query.answer("🟢 Otomatik etiket açıldı!", show_alert=True)
+
+    # Menüyü yenile
+    await show_auto_tag_menu(query, user_id, context)
+
+
+async def set_auto_tag_interval(query, user_id: int, interval: int, context: ContextTypes.DEFAULT_TYPE):
+    """Otomatik etiket aralığını ayarla"""
+    from services.tagging_service import (
+        get_auto_tag_settings, set_auto_tag_settings,
+        start_auto_tagging, stop_auto_tagging, is_auto_tagging_active
+    )
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        await query.answer("❌ Yetkiniz yok!", show_alert=True)
+        return
+
+    if not ACTIVITY_GROUP_ID:
+        await query.answer("❌ Grup tanımlı değil!", show_alert=True)
+        return
+
+    # Mevcut ayarları getir
+    settings = await get_auto_tag_settings(ACTIVITY_GROUP_ID)
+    enabled = settings.get('enabled', False) if settings else False
+
+    # Yeni aralığı kaydet
+    await set_auto_tag_settings(ACTIVITY_GROUP_ID, enabled=enabled, interval_minutes=interval)
+
+    # Eğer aktifse, görevi yeniden başlat
+    if enabled and is_auto_tagging_active(ACTIVITY_GROUP_ID):
+        stop_auto_tagging(ACTIVITY_GROUP_ID)
+        await start_auto_tagging(ACTIVITY_GROUP_ID, context.bot, interval)
+
+    await query.answer(f"✅ Aralık {interval} dakika olarak ayarlandı!", show_alert=True)
+
+    # Menüyü yenile
+    await show_auto_tag_menu(query, user_id, context)
 
 
 # ============================================
