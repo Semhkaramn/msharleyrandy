@@ -60,9 +60,30 @@ logging.getLogger("telegram.ext").setLevel(logging.WARNING)
 
 
 async def post_init(application: Application) -> None:
-    """Bot başladığında veritabanı bağlantısını kur"""
+    """Bot başladığında veritabanı bağlantısını kur ve otomatik görevleri başlat"""
     await db.connect()
+
+    # Otomatik etiket görevlerini yeniden başlat
+    await _restart_auto_tagging_tasks(application.bot)
+
     logger.info("✅ Bot başlatıldı!")
+
+
+async def _restart_auto_tagging_tasks(bot):
+    """Bot restart olduğunda aktif otomatik etiket görevlerini yeniden başlat"""
+    from services.tagging_service import get_auto_tag_settings, start_auto_tagging
+    from config import ACTIVITY_GROUP_ID
+
+    try:
+        if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+            settings = await get_auto_tag_settings(ACTIVITY_GROUP_ID)
+
+            if settings and settings.get('enabled'):
+                interval = settings.get('interval_minutes', 60)
+                await start_auto_tagging(ACTIVITY_GROUP_ID, bot, interval)
+                logger.info(f"🤖 Otomatik etiket görevi yeniden başlatıldı (Aralık: {interval} dk)")
+    except Exception as e:
+        logger.error(f"❌ Otomatik etiket yeniden başlatma hatası: {e}")
 
 
 async def post_shutdown(application: Application) -> None:
