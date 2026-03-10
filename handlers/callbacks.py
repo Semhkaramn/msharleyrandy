@@ -894,11 +894,11 @@ async def show_auto_tag_menu(query, user_id: int, context: ContextTypes.DEFAULT_
 
     if settings:
         status = "✅ Açık" if settings.get('enabled') else "❌ Kapalı"
-        interval = settings.get('interval_minutes', 60)
+        interval = settings.get('interval_minutes', 10)
         tag_type = settings.get('tag_type', 'naber')
     else:
         status = "❌ Kapalı"
-        interval = 60
+        interval = 10
         tag_type = "naber"
 
     # Durum butonu
@@ -907,12 +907,14 @@ async def show_auto_tag_menu(query, user_id: int, context: ContextTypes.DEFAULT_
     keyboard = [
         [InlineKeyboardButton(f"{toggle_text}", callback_data="auto_tag_toggle")],
         [
-            InlineKeyboardButton("30dk" + (" ✓" if interval == 30 else ""), callback_data="auto_tag_interval_30"),
-            InlineKeyboardButton("1 saat" + (" ✓" if interval == 60 else ""), callback_data="auto_tag_interval_60"),
+            InlineKeyboardButton("5dk" + (" ✓" if interval == 5 else ""), callback_data="auto_tag_interval_5"),
+            InlineKeyboardButton("7dk" + (" ✓" if interval == 7 else ""), callback_data="auto_tag_interval_7"),
+            InlineKeyboardButton("10dk" + (" ✓" if interval == 10 else ""), callback_data="auto_tag_interval_10"),
         ],
         [
-            InlineKeyboardButton("2 saat" + (" ✓" if interval == 120 else ""), callback_data="auto_tag_interval_120"),
-            InlineKeyboardButton("3 saat" + (" ✓" if interval == 180 else ""), callback_data="auto_tag_interval_180"),
+            InlineKeyboardButton("15dk" + (" ✓" if interval == 15 else ""), callback_data="auto_tag_interval_15"),
+            InlineKeyboardButton("20dk" + (" ✓" if interval == 20 else ""), callback_data="auto_tag_interval_20"),
+            InlineKeyboardButton("30dk" + (" ✓" if interval == 30 else ""), callback_data="auto_tag_interval_30"),
         ],
         [InlineKeyboardButton(BUTTONS["GERI"], callback_data="etiket_menu")],
     ]
@@ -959,7 +961,7 @@ async def toggle_auto_tag_setting(query, user_id: int, context: ContextTypes.DEF
         await query.answer("🔴 Otomatik etiket kapatıldı!", show_alert=True)
     else:
         # Aç
-        interval = settings.get('interval_minutes', 60) if settings else 60
+        interval = settings.get('interval_minutes', 10) if settings else 10
         await set_auto_tag_settings(ACTIVITY_GROUP_ID, enabled=True, interval_minutes=interval)
         await start_auto_tagging(ACTIVITY_GROUP_ID, context.bot, interval)
         await query.answer("🟢 Otomatik etiket açıldı!", show_alert=True)
