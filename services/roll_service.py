@@ -370,8 +370,9 @@ async def save_step(group_id: int) -> Tuple[bool, str, int]:
             if not step:
                 return False, "adim_yok", 0
 
-            # Önce inaktif kullanıcıları temizle
-            if session['status'] in [STATUS_ACTIVE, STATUS_LOCKED, STATUS_LOCKED_BREAK]:
+            # Önce inaktif kullanıcıları temizle (MOLA durumlarında temizlik YAPILMAZ!)
+            # LOCKED_BREAK = mola + kilit, kullanıcılar mesaj yazamaz, silinmemeli
+            if session['status'] in [STATUS_ACTIVE, STATUS_LOCKED]:
                 await clean_inactive_users(group_id)
 
             # Kullanıcı sayısını kontrol et
@@ -554,8 +555,9 @@ async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str,
             if not session:
                 return "stopped", [], {}
 
-            # Aktif durumlarda temizlik yap
-            if session['status'] in [STATUS_ACTIVE, STATUS_LOCKED, STATUS_LOCKED_BREAK]:
+            # Aktif durumlarda temizlik yap (MOLA durumlarında temizlik YAPILMAZ!)
+            # LOCKED_BREAK = mola + kilit, kullanıcılar mesaj yazamaz, silinmemeli
+            if session['status'] in [STATUS_ACTIVE, STATUS_LOCKED]:
                 await clean_inactive_users(group_id)
 
             # Adımları getir
