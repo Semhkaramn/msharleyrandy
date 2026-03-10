@@ -87,7 +87,24 @@ MENU = {
         "• Örnek: <code>/etiket 💎 Merhaba!</code>\n\n"
         "<b>💎 Premium Emoji Desteği:</b>\n"
         "Premium hesabınızla özel emoji kullanabilirsiniz.\n"
-        "Bot, gönderdiğiniz premium emojiyi otomatik algılar."
+        "Bot, gönderdiğiniz premium emojiyi otomatik algılar.\n\n"
+        "<b>🤖 Otomatik Etiket:</b>\n"
+        "Aşağıdaki butonlardan otomatik etiket ayarlarını yapabilirsiniz."
+    ),
+
+    # Otomatik Etiket Menüsü
+    "AUTO_TAG_MENU": (
+        "🤖 <b>Otomatik Etiket Ayarları</b>\n\n"
+        "Bot, belirlediğiniz aralıklarla otomatik olarak "
+        "rastgele kullanıcıları etiketler.\n\n"
+        "<b>Mevcut Ayarlar:</b>\n"
+        "• Durum: {status}\n"
+        "• Aralık: {interval} dakika\n"
+        "• Tip: {tag_type}\n\n"
+        "<b>📌 Not:</b>\n"
+        "• Her seferinde 3-7 rastgele kullanıcı etiketlenir\n"
+        "• Etiketleme aralığı ±10 dakika rastgele değişir\n"
+        "• Manuel etiketleme sırasında otomatik etiket duraklar"
     ),
 
     # GPT Menüsü
@@ -277,6 +294,15 @@ BUTTONS = {
     "FOTOGRAF": "📷 Fotoğraf",
     "VIDEO": "🎬 Video",
     "GIF": "🎞️ GIF",
+
+    # Otomatik Etiket
+    "AUTO_TAG_ON": "🟢 Otomatik Etiket Aç",
+    "AUTO_TAG_OFF": "🔴 Otomatik Etiket Kapat",
+    "AUTO_TAG_INTERVAL": "⏱️ Aralık Ayarla",
+    "AUTO_TAG_30": "30 Dakika",
+    "AUTO_TAG_60": "1 Saat",
+    "AUTO_TAG_120": "2 Saat",
+    "AUTO_TAG_180": "3 Saat",
 
     # Genel
     "GERI": "◀️ Geri",
