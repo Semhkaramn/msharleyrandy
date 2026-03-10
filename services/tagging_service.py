@@ -584,7 +584,7 @@ async def get_auto_tag_settings(group_id: int) -> Optional[Dict[str, Any]]:
 async def set_auto_tag_settings(
     group_id: int,
     enabled: bool,
-    interval_minutes: int = 60,
+    interval_minutes: int = 10,
     tag_type: str = "naber"
 ) -> bool:
     """
@@ -593,7 +593,7 @@ async def set_auto_tag_settings(
     Args:
         group_id: Grup ID
         enabled: Aktif mi
-        interval_minutes: Kaç dakikada bir (varsayılan 60)
+        interval_minutes: Kaç dakikada bir (varsayılan 10)
         tag_type: Etiket tipi ("naber" veya "etiket")
     """
     try:
@@ -627,14 +627,14 @@ async def toggle_auto_tag(group_id: int) -> tuple[bool, bool]:
     success = await set_auto_tag_settings(
         group_id,
         enabled=new_state,
-        interval_minutes=settings['interval_minutes'] if settings else 60,
+        interval_minutes=settings['interval_minutes'] if settings else 10,
         tag_type=settings['tag_type'] if settings else "naber"
     )
 
     return success, new_state
 
 
-async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 60):
+async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
     """
     Otomatik etiketleme görevini başlat
 
@@ -668,49 +668,41 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 60):
                     total_users = len(users)
 
                     if users:
-                        # Rastgele 3-7 kullanıcı seç (herkesi değil)
-                        sample_size = min(random.randint(3, 7), len(users))
-                        selected_users = random.sample(users, sample_size)
+                        # Sadece 1 kullanıcı seç (rastgele)
+                        selected_user = random.choice(users)
 
                         tag_count += 1
-                        print(f"🏷️ Otomatik Etiket #{tag_count} | Grup: {group_id} | {sample_size}/{total_users} kullanıcı")
+                        print(f"🏷️ Otomatik Etiket #{tag_count} | Grup: {group_id} | 1/{total_users} kullanıcı")
 
-                        # Her kullanıcıya rastgele mesaj gönder
-                        sent_count = 0
-                        for user in selected_users:
-                            mention = format_user_mention(user)
-                            random_msg = random.choice(NABER_MESSAGES)
+                        # Seçilen kullanıcıya rastgele mesaj gönder
+                        mention = format_user_mention(selected_user)
+                        random_msg = random.choice(NABER_MESSAGES)
 
-                            try:
-                                await bot.send_message(
-                                    group_id,
-                                    f"{mention} {random_msg}",
-                                    parse_mode="HTML"
-                                )
-                                sent_count += 1
-                            except BadRequest as e:
-                                # Kullanıcı bulunamadı veya engellenmiş
-                                if "user not found" in str(e).lower() or "blocked" in str(e).lower():
-                                    await remove_user_from_db(group_id, user['telegram_id'])
-                                    print(f"🗑️ Kullanıcı silindi (erişilemez): {user['telegram_id']}")
-                                else:
-                                    print(f"❌ Otomatik etiket hatası: {e}")
-                            except TelegramError as e:
+                        try:
+                            await bot.send_message(
+                                group_id,
+                                f"{mention} {random_msg}",
+                                parse_mode="HTML"
+                            )
+                            print(f"✅ Otomatik Etiket #{tag_count} tamamlandı")
+                        except BadRequest as e:
+                            # Kullanıcı bulunamadı veya engellenmiş
+                            if "user not found" in str(e).lower() or "blocked" in str(e).lower():
+                                await remove_user_from_db(group_id, selected_user['telegram_id'])
+                                print(f"🗑️ Kullanıcı silindi (erişilemez): {selected_user['telegram_id']}")
+                            else:
                                 print(f"❌ Otomatik etiket hatası: {e}")
-
-                            # Mesajlar arası bekleme
-                            await asyncio.sleep(random.randint(3, 6))
-
-                        print(f"✅ Otomatik Etiket #{tag_count} tamamlandı: {sent_count}/{sample_size} gönderildi")
+                        except TelegramError as e:
+                            print(f"❌ Otomatik etiket hatası: {e}")
                     else:
                         print(f"⚠️ Otomatik etiket: Grup {group_id}'de kullanıcı yok")
                 else:
                     print(f"⏸️ Manuel etiketleme aktif, otomatik etiket bekliyor...")
 
                 # Sonraki etiketleme için bekle
-                # interval_minutes'a rastgele ±10 dakika ekle (daha doğal görünsün)
-                wait_minutes = interval_minutes + random.randint(-10, 10)
-                wait_minutes = max(15, wait_minutes)  # Minimum 15 dakika
+                # interval_minutes'a rastgele ±2 dakika ekle (daha doğal görünsün)
+                wait_minutes = interval_minutes + random.randint(-2, 2)
+                wait_minutes = max(3, wait_minutes)  # Minimum 3 dakika
 
                 print(f"⏰ Sonraki otomatik etiket: {wait_minutes} dakika sonra")
                 await asyncio.sleep(wait_minutes * 60)
