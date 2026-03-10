@@ -96,14 +96,14 @@ MENU = {
     "AUTO_TAG_MENU": (
         "🤖 <b>Otomatik Etiket Ayarları</b>\n\n"
         "Bot, belirlediğiniz aralıklarla otomatik olarak "
-        "rastgele kullanıcıları etiketler.\n\n"
+        "rastgele 1 kullanıcıyı etiketler.\n\n"
         "<b>Mevcut Ayarlar:</b>\n"
         "• Durum: {status}\n"
         "• Aralık: {interval} dakika\n"
         "• Tip: {tag_type}\n\n"
         "<b>📌 Not:</b>\n"
-        "• Her seferinde 3-7 rastgele kullanıcı etiketlenir\n"
-        "• Etiketleme aralığı ±10 dakika rastgele değişir\n"
+        "• Her seferinde 1 rastgele kullanıcı etiketlenir\n"
+        "• Etiketleme aralığı ±2 dakika rastgele değişir\n"
         "• Manuel etiketleme sırasında otomatik etiket duraklar"
     ),
 
