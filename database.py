@@ -206,6 +206,21 @@ class Database:
                 )
             """)
 
+            # Otomatik Etiket Ayarları
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS auto_tag_settings (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT UNIQUE NOT NULL,
+                    enabled BOOLEAN DEFAULT FALSE,
+                    interval_minutes INT DEFAULT 60,
+                    tag_type TEXT DEFAULT 'naber',
+                    start_hour INT DEFAULT 9,
+                    end_hour INT DEFAULT 23,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+
             # İndeksler
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram ON telegram_users(telegram_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_group ON telegram_users(group_id)")
@@ -214,6 +229,7 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_roll_group ON roll_sessions(group_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_channels_draft ON randy_channels(randy_draft_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_channels_randy ON randy_channels(randy_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_auto_tag_group ON auto_tag_settings(group_id)")
 
             print("✅ Tablolar oluşturuldu")
 
