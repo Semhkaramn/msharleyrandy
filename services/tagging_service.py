@@ -3,22 +3,29 @@
 Kullanıcıları mention ile etiketler
 - /etiket: 5'erli grup halinde etiketleme
 - /naber: Tek tek rastgele cümlelerle etiketleme
+- Otomatik etiketleme: Ayarlanabilir aralıklarla otomatik etiket
 """
 
 import asyncio
 import random
 from typing import List, Dict, Any, Optional
 from database import db
-from telegram.error import RetryAfter, TelegramError
+from telegram import Bot
+from telegram.error import RetryAfter, TelegramError, BadRequest
 
 
 # Aktif etiketleme işlemleri (grup bazlı)
 # {group_id: {"type": "etiket"|"naber", "active": True, "task": asyncio.Task}}
 active_tagging_sessions: Dict[int, Dict[str, Any]] = {}
 
+# Otomatik etiketleme görevleri (grup bazlı)
+# {group_id: {"active": True, "task": asyncio.Task, "interval": int}}
+auto_tagging_tasks: Dict[int, Dict[str, Any]] = {}
 
-# /naber için rastgele cümleler - Harley'in cilveli tarzıyla
+
+# /naber için rastgele cümleler - Harley'in cilveli tarzıyla (GENİŞLETİLMİŞ)
 NABER_MESSAGES = [
+    # Klasik selamlaşmalar
     "Nabersin canım? 💕",
     "Nasılsın tatlım? 🥰",
     "Seni özledim! ✨",
@@ -39,7 +46,165 @@ NABER_MESSAGES = [
     "Canım benim! 💕",
     "Nasılsın bakalım? 🌷",
     "Özlettin kendini! 💗",
+
+    # Merak uyandıran mesajlar
+    "Sana bir şey söyleyeceğim... 🤫",
+    "Dur bir dakika, seninle konuşmam lazım! 👀",
+    "Bir sır vereyim mi? 🤭",
+    "Biliyor musun ne oldu? 😱",
+    "Tahmin et ne düşünüyorum! 🧐",
+    "Sana bir haberim var... 📢",
+    "Duydun mu son gelişmeleri? 👂",
+    "Bir dakika, dur! Önemli bir şey var! ⚡",
+    "Psst, buraya bak! 🔍",
+    "Hey, sana bir şey göstereceğim! 🎁",
+    "Acil konuşmamız lazım! 🚨",
+    "Bunu duyunca şok olacaksın! 💥",
+    "Bir şey fark ettim de... 🤔",
+    "Sen niye sessizsin? Merak ettim! 🧐",
+    "Bir sorun mu var? Anlat bakalım! 💭",
+
+    # Eğlenceli & şakacı
+    "Uyan artık uyku tulumu! 😴",
+    "Neredesin lan? Kaybolmuşsun! 🔎",
+    "Yaşıyor musun yoksa? 👻",
+    "Alo? Biri var mı orada? 📞",
+    "Houston, cevap ver! 🚀",
+    "Dünya'ya dön artık! 🌍",
+    "Uzaylılar mı kaçırdı seni? 👽",
+    "Hibernasyondan çık! 🐻",
+    "Kış uykusuna mı yattın? ❄️",
+    "Ninja mısın görünmüyorsun? 🥷",
+    "Hayalet misin nesin? 👻",
+    "Sessiz film mi çekiyoruz? 🎬",
+    "Parmakların yoruldu mu? ⌨️",
+    "Klavyen bozuldu mu? 🔧",
+    "İnternet mi kesildi? 📶",
+
+    # İlgi çekici sorular
+    "Bugün ne yaptın? Anlatsana! 📖",
+    "Hayatında neler oluyor? 🎭",
+    "Ne düşünüyorsun şu an? 💭",
+    "Canın ne istiyor? 🎯",
+    "Planların ne bu akşam? 🌙",
+    "Hafta sonu ne yapıyorsun? 📅",
+    "En son ne zaman güldün? 😊",
+    "Favorin hangisi, söyle! 🏆",
+    "Bir dilek hakkın olsa? ⭐",
+    "Rüyanda ne gördün? 🌈",
+
+    # Motivasyon & pozitif
+    "Günaydın güneşim! ☀️",
+    "Bugün senin günün! 🎉",
+    "Gülümse biraz! 😊",
+    "Sen harikasın biliyor musun? 💎",
+    "Kendine iyi bak! 🌺",
+    "Mutlu ol yeter! 🦋",
+    "Her şey güzel olacak! 🌟",
+    "Sen başarırsın! 💪",
+    "İnanıyorum sana! ⭐",
+    "Parlıyorsun! ✨",
+
+    # Samimi & sevecen
+    "Canımsın sen ya! 💝",
+    "Seni seviyorum biliyorsun! 💕",
+    "Çok tatlısın! 🍭",
+    "Gel sarılalım! 🤗",
+    "Öpüyorum yanağından! 😘",
+    "Seninle konuşmak güzel! 💬",
+    "Varlığın bile yeter! 🌸",
+    "Gözlerime bak! 👁️",
+    "Kalbimdesin! ❤️",
+    "Unutulmaz birisin! 💫",
+
+    # Meraklı & sorgulayan
+    "Neden cevap vermiyorsun? 🤨",
+    "Beni göremiyor musun? 👋",
+    "Hey, buradayım! 🙋",
+    "Yoksa kızdın mı bana? 😢",
+    "Ne oldu, sorun mu var? 😟",
+    "Niye kaçıyorsun? 🏃",
+    "Saklama benden! 🙈",
+    "Dürüst ol hadi! 🎯",
+    "Söyle bakalım ne var? 👂",
+    "İtiraf zamanı! 🔔",
+
+    # Oyuncu & eğlenceli
+    "Oyun oynayalım mı? 🎮",
+    "Sıkıldın mı? Gel eğlenelim! 🎪",
+    "Dans edelim mi? 💃",
+    "Şarkı söyleyelim! 🎤",
+    "Film izleyelim mi? 🎬",
+    "Kahve içelim! ☕",
+    "Dedikodu yapalım mı? 🤭",
+    "Sohbet edelim! 💬",
+    "Maceraya çıkalım! 🗺️",
+    "Parti zamanı! 🎊",
+
+    # Dikkat çekici
+    "⚠️ ACİL ÇAĞRI! ⚠️",
+    "🔥 SICAK HABER 🔥",
+    "💥 BOM! Burdayım! 💥",
+    "🚨 ALARM! Yaz hadi! 🚨",
+    "📣 DUYURU VAR! 📣",
+    "🎺 TAN TAN TAAAAN! 🎺",
+    "⚡ Elektrik çarpsın! ⚡",
+    "🌪️ Fırtına gibi geldim! 🌪️",
+    "💣 Patladım! Cevap ver! 💣",
+    "🎯 Hedeftesin! 🎯",
 ]
+
+
+async def check_user_in_group(bot: Bot, group_id: int, user_id: int) -> bool:
+    """
+    Kullanıcının hala grupta olup olmadığını kontrol et
+
+    Args:
+        bot: Telegram bot instance
+        group_id: Grup ID
+        user_id: Kullanıcı ID
+
+    Returns:
+        bool: Grupta ise True, değilse False
+    """
+    try:
+        member = await bot.get_chat_member(group_id, user_id)
+        # left, kicked, banned durumları grupta olmadığını gösterir
+        if member.status in ['left', 'kicked', 'banned']:
+            return False
+        return True
+    except BadRequest as e:
+        # Kullanıcı bulunamadı veya erişim yok
+        if "user not found" in str(e).lower() or "user_not_participant" in str(e).lower():
+            return False
+        return False
+    except TelegramError:
+        # Diğer hatalar - güvenli tarafta kal, kullanıcıyı etiketleme
+        return False
+
+
+async def remove_user_from_db(group_id: int, user_id: int) -> bool:
+    """
+    Kullanıcıyı veritabanından sil
+
+    Args:
+        group_id: Grup ID
+        user_id: Kullanıcı ID
+
+    Returns:
+        bool: Başarılı ise True
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute("""
+                DELETE FROM telegram_users
+                WHERE group_id = $1 AND telegram_id = $2
+            """, group_id, user_id)
+            print(f"🗑️ Kullanıcı silindi: {user_id} (Grup: {group_id})")
+            return True
+    except Exception as e:
+        print(f"❌ Kullanıcı silme hatası: {e}")
+        return False
 
 
 async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
@@ -65,6 +230,37 @@ async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"❌ Kullanıcı listesi getirme hatası: {e}")
         return []
+
+
+async def get_active_group_users(bot: Bot, group_id: int) -> List[Dict[str, Any]]:
+    """
+    Gruptaki AKTİF kullanıcıları getir (grupta olanlar)
+    Grupta olmayanları veritabanından siler
+
+    Args:
+        bot: Telegram bot instance
+        group_id: Telegram grup ID
+
+    Returns:
+        List[Dict]: Aktif kullanıcı listesi
+    """
+    all_users = await get_group_users(group_id)
+    active_users = []
+
+    for user in all_users:
+        user_id = user['telegram_id']
+
+        # Kullanıcının grupta olup olmadığını kontrol et
+        is_in_group = await check_user_in_group(bot, group_id, user_id)
+
+        if is_in_group:
+            active_users.append(user)
+        else:
+            # Grupta değilse veritabanından sil
+            await remove_user_from_db(group_id, user_id)
+            print(f"👋 Grupta olmayan kullanıcı silindi: {user_id}")
+
+    return active_users
 
 
 def format_user_mention(user: Dict[str, Any]) -> str:
@@ -134,6 +330,7 @@ async def start_etiket_tagging(
     """
     /etiket komutu - 5'erli mention etiketleme başlat
     Premium emoji destekli
+    Grupta olmayan kullanıcıları otomatik siler
 
     Args:
         group_id: Grup ID
@@ -150,8 +347,8 @@ async def start_etiket_tagging(
     if is_tagging_active(group_id):
         return False
 
-    # Kullanıcıları getir
-    users = await get_group_users(group_id)
+    # Aktif kullanıcıları getir (grupta olmayanları siler)
+    users = await get_active_group_users(bot, group_id)
 
     if not users:
         return False
@@ -254,6 +451,7 @@ async def start_naber_tagging(
 ) -> bool:
     """
     /naber komutu - Tek tek rastgele cümlelerle etiketleme
+    Grupta olmayan kullanıcıları otomatik siler
 
     Args:
         group_id: Grup ID
@@ -267,8 +465,8 @@ async def start_naber_tagging(
     if is_tagging_active(group_id):
         return False
 
-    # Kullanıcıları getir
-    users = await get_group_users(group_id)
+    # Aktif kullanıcıları getir (grupta olmayanları siler)
+    users = await get_active_group_users(bot, group_id)
 
     if not users:
         return False
@@ -288,6 +486,11 @@ async def start_naber_tagging(
             except:
                 pass
 
+            # Mesajları karıştır (her seferinde farklı sıra)
+            shuffled_messages = NABER_MESSAGES.copy()
+            random.shuffle(shuffled_messages)
+            message_index = 0
+
             # Her kullanıcıyı tek tek etiketle
             for user in users:
                 # Durduruldu mu kontrol et
@@ -296,7 +499,10 @@ async def start_naber_tagging(
                     break
 
                 mention = format_user_mention(user)
-                random_msg = random.choice(NABER_MESSAGES)
+
+                # Sırayla mesaj seç, biterse başa dön
+                random_msg = shuffled_messages[message_index % len(shuffled_messages)]
+                message_index += 1
 
                 text = f"{mention} {random_msg}"
 
@@ -354,3 +560,176 @@ def get_tagging_type(group_id: int) -> Optional[str]:
     if session and session.get('active'):
         return session.get('type')
     return None
+
+
+# ============================================
+# 🤖 OTOMATİK ETİKETLEME SİSTEMİ
+# ============================================
+
+async def get_auto_tag_settings(group_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Grubun otomatik etiket ayarlarını getir
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            settings = await conn.fetchrow("""
+                SELECT * FROM auto_tag_settings
+                WHERE group_id = $1
+            """, group_id)
+            return dict(settings) if settings else None
+    except Exception as e:
+        print(f"❌ Otomatik etiket ayarları getirme hatası: {e}")
+        return None
+
+
+async def set_auto_tag_settings(
+    group_id: int,
+    enabled: bool,
+    interval_minutes: int = 60,
+    tag_type: str = "naber"
+) -> bool:
+    """
+    Grubun otomatik etiket ayarlarını kaydet
+
+    Args:
+        group_id: Grup ID
+        enabled: Aktif mi
+        interval_minutes: Kaç dakikada bir (varsayılan 60)
+        tag_type: Etiket tipi ("naber" veya "etiket")
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO auto_tag_settings (group_id, enabled, interval_minutes, tag_type, updated_at)
+                VALUES ($1, $2, $3, $4, NOW())
+                ON CONFLICT (group_id)
+                DO UPDATE SET enabled = $2, interval_minutes = $3, tag_type = $4, updated_at = NOW()
+            """, group_id, enabled, interval_minutes, tag_type)
+            return True
+    except Exception as e:
+        print(f"❌ Otomatik etiket ayarları kaydetme hatası: {e}")
+        return False
+
+
+async def toggle_auto_tag(group_id: int) -> tuple[bool, bool]:
+    """
+    Otomatik etiketi aç/kapat
+
+    Returns:
+        tuple: (başarılı mı, yeni durum)
+    """
+    settings = await get_auto_tag_settings(group_id)
+
+    if settings:
+        new_state = not settings['enabled']
+    else:
+        new_state = True  # İlk kez açılıyor
+
+    success = await set_auto_tag_settings(
+        group_id,
+        enabled=new_state,
+        interval_minutes=settings['interval_minutes'] if settings else 60,
+        tag_type=settings['tag_type'] if settings else "naber"
+    )
+
+    return success, new_state
+
+
+async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 60):
+    """
+    Otomatik etiketleme görevini başlat
+
+    Args:
+        group_id: Grup ID
+        bot: Telegram bot instance
+        interval_minutes: Kaç dakikada bir
+    """
+    # Zaten çalışan bir görev var mı?
+    if group_id in auto_tagging_tasks and auto_tagging_tasks[group_id].get('active'):
+        return
+
+    async def auto_tag_loop():
+        while True:
+            try:
+                # Ayarları kontrol et
+                settings = await get_auto_tag_settings(group_id)
+
+                if not settings or not settings['enabled']:
+                    # Devre dışı bırakıldı, görevi sonlandır
+                    break
+
+                # Aktif manuel etiketleme var mı kontrol et
+                if not is_tagging_active(group_id):
+                    # Aktif kullanıcıları getir
+                    users = await get_active_group_users(bot, group_id)
+
+                    if users:
+                        # Rastgele 3-7 kullanıcı seç (herkesi değil)
+                        sample_size = min(random.randint(3, 7), len(users))
+                        selected_users = random.sample(users, sample_size)
+
+                        # Her kullanıcıya rastgele mesaj gönder
+                        for user in selected_users:
+                            mention = format_user_mention(user)
+                            random_msg = random.choice(NABER_MESSAGES)
+
+                            try:
+                                await bot.send_message(
+                                    group_id,
+                                    f"{mention} {random_msg}",
+                                    parse_mode="HTML"
+                                )
+                            except TelegramError as e:
+                                print(f"❌ Otomatik etiket hatası: {e}")
+
+                            # Mesajlar arası bekleme
+                            await asyncio.sleep(random.randint(3, 6))
+
+                # Sonraki etiketleme için bekle
+                # interval_minutes'a rastgele ±10 dakika ekle (daha doğal görünsün)
+                wait_minutes = interval_minutes + random.randint(-10, 10)
+                wait_minutes = max(15, wait_minutes)  # Minimum 15 dakika
+
+                await asyncio.sleep(wait_minutes * 60)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"❌ Otomatik etiket döngü hatası: {e}")
+                await asyncio.sleep(60)  # Hata durumunda 1 dakika bekle
+
+        # Görev bitti, temizle
+        auto_tagging_tasks.pop(group_id, None)
+
+    # Görevi başlat
+    task = asyncio.create_task(auto_tag_loop())
+    auto_tagging_tasks[group_id] = {
+        'active': True,
+        'task': task,
+        'interval': interval_minutes
+    }
+
+
+def stop_auto_tagging(group_id: int) -> bool:
+    """
+    Otomatik etiketleme görevini durdur
+    """
+    if group_id not in auto_tagging_tasks:
+        return False
+
+    task_info = auto_tagging_tasks[group_id]
+    task_info['active'] = False
+
+    task = task_info.get('task')
+    if task and not task.done():
+        task.cancel()
+
+    auto_tagging_tasks.pop(group_id, None)
+    return True
+
+
+def is_auto_tagging_active(group_id: int) -> bool:
+    """
+    Otomatik etiketleme aktif mi?
+    """
+    return group_id in auto_tagging_tasks and auto_tagging_tasks[group_id].get('active', False)
