@@ -23,135 +23,99 @@ active_tagging_sessions: Dict[int, Dict[str, Any]] = {}
 auto_tagging_tasks: Dict[int, Dict[str, Any]] = {}
 
 
-# /naber için rastgele cümleler - Harley'in cilveli tarzıyla (GENİŞLETİLMİŞ)
+# /naber için rastgele cümleler - Merak uyandırıcı ve minimal emoji
 NABER_MESSAGES = [
-    # Klasik selamlaşmalar
-    "Nabersin canım? 💕",
-    "Nasılsın tatlım? 🥰",
-    "Seni özledim! ✨",
-    "Selam güzelim! 💖",
-    "Heyy, naptın? 💋",
-    "Naber aşkım? 💝",
-    "Nasıl gidiyor? 🌸",
-    "Ne var ne yok? 💫",
-    "Merak ettim seni! 💗",
-    "Hadi konuş benimle! 🥺",
-    "Neredesin? 💕",
-    "Sana bir şey sorucam! ✨",
-    "Gel buraya! 💖",
-    "Bak bak kim gelmiş! 🥰",
-    "Naber güzel insan? 💝",
-    "Seni arıyordum! 💋",
-    "Aa sen miydin? 😍",
-    "Canım benim! 💕",
-    "Nasılsın bakalım? 🌷",
-    "Özlettin kendini! 💗",
+    # MERAK UYANDIRAN - GİZEMLİ
+    "Sana bir şey söyleyeceğim ama...",
+    "Dün gece bir şey oldu, anlatmam lazım",
+    "Biliyor musun, senin hakkında bir şey duydum",
+    "Bekle, sana önemli bir şey soracağım",
+    "Bir sır var, söylesem mi söylemesem mi...",
+    "Az önce bir şey fark ettim de...",
+    "Tahmin et ne oldu?",
+    "Bunu duyunca şaşıracaksın",
+    "Sana bir teklifim var...",
+    "Bir dakika, bu çok önemli",
+    "Duydun mu son haberi?",
+    "Senden bir şey isteyeceğim",
+    "Bak, sana bir şey göstermem lazım",
+    "Bu sadece senin için...",
+    "Şşş, kimse duymasın ama...",
+    "Bir planım var, katılır mısın?",
+    "Sana güveniyorum, söyleyebilir miyim?",
+    "Bu aramızda kalsın ama...",
+    "Bir şeyi merak ediyorum...",
+    "Sence de garip değil mi?",
+    "Dikkat et, önemli bir şey söyleyeceğim",
+    "Bunu sadece sana söylüyorum",
+    "Kulağına bir şey fısıldayacağım",
+    "Hadi gel, bir şey paylaşayım",
 
-    # Merak uyandıran mesajlar
-    "Sana bir şey söyleyeceğim... 🤫",
-    "Dur bir dakika, seninle konuşmam lazım! 👀",
-    "Bir sır vereyim mi? 🤭",
-    "Biliyor musun ne oldu? 😱",
-    "Tahmin et ne düşünüyorum! 🧐",
-    "Sana bir haberim var... 📢",
-    "Duydun mu son gelişmeleri? 👂",
-    "Bir dakika, dur! Önemli bir şey var! ⚡",
-    "Psst, buraya bak! 🔍",
-    "Hey, sana bir şey göstereceğim! 🎁",
-    "Acil konuşmamız lazım! 🚨",
-    "Bunu duyunca şok olacaksın! 💥",
-    "Bir şey fark ettim de... 🤔",
-    "Sen niye sessizsin? Merak ettim! 🧐",
-    "Bir sorun mu var? Anlat bakalım! 💭",
+    # SORU SORAN - İLGİ ÇEKİCİ
+    "Neden sessizsin, bir şey mi oldu?",
+    "Sen ne düşünüyorsun bu konuda?",
+    "Merak ettim, nasıl gidiyor?",
+    "Bugün ne yaptın anlatsana",
+    "Sence hangisi daha iyi?",
+    "Bir şey sormak istiyorum",
+    "Son zamanlarda neler oluyor?",
+    "Bana bir şey söyle",
+    "Fikrini merak ediyorum",
+    "Ne zaman konuşacağız?",
+    "Planların ne?",
+    "Bir dakikan var mı?",
+    "Seninle bir konu hakkında konuşmak istiyorum",
+    "Bu durumda ne yapardın?",
 
-    # Eğlenceli & şakacı
-    "Uyan artık uyku tulumu! 😴",
-    "Neredesin lan? Kaybolmuşsun! 🔎",
-    "Yaşıyor musun yoksa? 👻",
-    "Alo? Biri var mı orada? 📞",
-    "Houston, cevap ver! 🚀",
-    "Dünya'ya dön artık! 🌍",
-    "Uzaylılar mı kaçırdı seni? 👽",
-    "Hibernasyondan çık! 🐻",
-    "Kış uykusuna mı yattın? ❄️",
-    "Ninja mısın görünmüyorsun? 🥷",
-    "Hayalet misin nesin? 👻",
-    "Sessiz film mi çekiyoruz? 🎬",
-    "Parmakların yoruldu mu? ⌨️",
-    "Klavyen bozuldu mu? 🔧",
-    "İnternet mi kesildi? 📶",
+    # UYANDIRICI - ENERJİK
+    "Heyy neredesin?",
+    "Uyan artık!",
+    "Cevap versene",
+    "Görüyorum seni",
+    "Kaçamazsın benden",
+    "Yaşıyor musun?",
+    "Bir işaret ver",
+    "Burada mısın?",
+    "Alo, biri var mı?",
+    "Dünyaya dön",
+    "Kaybolma hadi",
+    "Gel buraya",
+    "Bekletme beni",
+    "Hadi konuş",
 
-    # İlgi çekici sorular
-    "Bugün ne yaptın? Anlatsana! 📖",
-    "Hayatında neler oluyor? 🎭",
-    "Ne düşünüyorsun şu an? 💭",
-    "Canın ne istiyor? 🎯",
-    "Planların ne bu akşam? 🌙",
-    "Hafta sonu ne yapıyorsun? 📅",
-    "En son ne zaman güldün? 😊",
-    "Favorin hangisi, söyle! 🏆",
-    "Bir dilek hakkın olsa? ⭐",
-    "Rüyanda ne gördün? 🌈",
+    # SAMİMİ - SICAK
+    "Nasılsın canım?",
+    "Seni özledim",
+    "Ne var ne yok?",
+    "Seninle konuşmak istiyorum",
+    "Özlettin kendini",
+    "Bir şeyler anlat",
+    "Naber bakayım",
+    "Görüşmeyeli ne oldu?",
+    "Aklıma geldin",
+    "Seni merak ettim",
+    "Nasıl gidiyor hayat?",
+    "İyisin değil mi?",
+    "Keyifler nasıl?",
 
-    # Motivasyon & pozitif
-    "Günaydın güneşim! ☀️",
-    "Bugün senin günün! 🎉",
-    "Gülümse biraz! 😊",
-    "Sen harikasın biliyor musun? 💎",
-    "Kendine iyi bak! 🌺",
-    "Mutlu ol yeter! 🦋",
-    "Her şey güzel olacak! 🌟",
-    "Sen başarırsın! 💪",
-    "İnanıyorum sana! ⭐",
-    "Parlıyorsun! ✨",
+    # EĞLENCE ÖNERİSİ
+    "Sıkıldın mı? Gel muhabbet edelim",
+    "Canın sohbet ister mi?",
+    "Oyun oynayalım mı?",
+    "Bir şeyler yapalım",
+    "Muhabbet edelim mi?",
+    "Gel takılalım",
+    "Vakit geçirelim mi?",
 
-    # Samimi & sevecen
-    "Canımsın sen ya! 💝",
-    "Seni seviyorum biliyorsun! 💕",
-    "Çok tatlısın! 🍭",
-    "Gel sarılalım! 🤗",
-    "Öpüyorum yanağından! 😘",
-    "Seninle konuşmak güzel! 💬",
-    "Varlığın bile yeter! 🌸",
-    "Gözlerime bak! 👁️",
-    "Kalbimdesin! ❤️",
-    "Unutulmaz birisin! 💫",
-
-    # Meraklı & sorgulayan
-    "Neden cevap vermiyorsun? 🤨",
-    "Beni göremiyor musun? 👋",
-    "Hey, buradayım! 🙋",
-    "Yoksa kızdın mı bana? 😢",
-    "Ne oldu, sorun mu var? 😟",
-    "Niye kaçıyorsun? 🏃",
-    "Saklama benden! 🙈",
-    "Dürüst ol hadi! 🎯",
-    "Söyle bakalım ne var? 👂",
-    "İtiraf zamanı! 🔔",
-
-    # Oyuncu & eğlenceli
-    "Oyun oynayalım mı? 🎮",
-    "Sıkıldın mı? Gel eğlenelim! 🎪",
-    "Dans edelim mi? 💃",
-    "Şarkı söyleyelim! 🎤",
-    "Film izleyelim mi? 🎬",
-    "Kahve içelim! ☕",
-    "Dedikodu yapalım mı? 🤭",
-    "Sohbet edelim! 💬",
-    "Maceraya çıkalım! 🗺️",
-    "Parti zamanı! 🎊",
-
-    # Dikkat çekici
-    "⚠️ ACİL ÇAĞRI! ⚠️",
-    "🔥 SICAK HABER 🔥",
-    "💥 BOM! Burdayım! 💥",
-    "🚨 ALARM! Yaz hadi! 🚨",
-    "📣 DUYURU VAR! 📣",
-    "🎺 TAN TAN TAAAAN! 🎺",
-    "⚡ Elektrik çarpsın! ⚡",
-    "🌪️ Fırtına gibi geldim! 🌪️",
-    "💣 Patladım! Cevap ver! 💣",
-    "🎯 Hedeftesin! 🎯",
+    # KISA VE ETKİLİ
+    "Hey!",
+    "Psst...",
+    "Bak bak",
+    "Dur bir dakika",
+    "Bekle",
+    "Gel",
+    "Dinle",
+    "Baksana",
 ]
 
 
@@ -362,17 +326,17 @@ async def start_etiket_tagging(
 
     # Premium emoji var mı kontrol et
     has_custom_emoji = False
-    emoji_prefix = ""
+    emoji_html = ""
 
     if message_entities:
         for entity in message_entities:
             if entity.type == "custom_emoji":
                 has_custom_emoji = True
-                # Custom emoji'nin text'ini al
-                if custom_emoji_text:
-                    start = entity.offset
-                    end = entity.offset + entity.length
-                    emoji_prefix = custom_emoji_text[start:end] + " "
+                # Custom emoji ID'sini al ve HTML formatına çevir
+                custom_emoji_id = entity.custom_emoji_id
+                if custom_emoji_id:
+                    # Telegram HTML formatı: <tg-emoji emoji-id="ID">emoji</tg-emoji>
+                    emoji_html = f'<tg-emoji emoji-id="{custom_emoji_id}">✨</tg-emoji> '
                 break
 
     async def tagging_task():
