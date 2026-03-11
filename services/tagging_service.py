@@ -123,7 +123,7 @@ NABER_MESSAGES = [
     "aklıma geldin",
     "la seni arıyodum",
     "tam seni düşünüyodum",
-    "naber hayatımk",
+    "naber hayatım",
     "naber kanka",
     "naber dostum",
     "naber reis",
