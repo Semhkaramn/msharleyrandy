@@ -221,6 +221,84 @@ class Database:
                 )
             """)
 
+            # ============================================
+            # ÇEKİLİŞ (GIVEAWAY) TABLOLARI
+            # ============================================
+
+            # Çekiliş Ayarları (grup bazlı varsayılan ayarlar)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS giveaway_settings (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT UNIQUE NOT NULL,
+                    admin_group_id BIGINT,
+                    default_duration_hours INT DEFAULT 2,
+                    default_winner_count INT DEFAULT 1,
+                    max_wins_per_user INT DEFAULT 0,
+                    pin_announcement BOOLEAN DEFAULT TRUE,
+                    pin_winner_message BOOLEAN DEFAULT TRUE,
+                    pin_in_admin_group BOOLEAN DEFAULT TRUE,
+                    notify_admin_group BOOLEAN DEFAULT TRUE,
+                    winner_message_template TEXT DEFAULT '🎉 Tebrikler! Çekilişi kazandınız!',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+
+            # Çekilişler
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS giveaways (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    creator_id BIGINT NOT NULL,
+                    prize_text TEXT NOT NULL,
+                    duration_hours INT NOT NULL,
+                    winner_count INT NOT NULL,
+                    max_wins_per_user INT DEFAULT 0,
+                    status TEXT DEFAULT 'active',
+                    announcement_message_id BIGINT,
+                    pin_announcement BOOLEAN DEFAULT TRUE,
+                    pin_winner_message BOOLEAN DEFAULT TRUE,
+                    notify_admin_group BOOLEAN DEFAULT TRUE,
+                    pin_in_admin_group BOOLEAN DEFAULT TRUE,
+                    started_at TIMESTAMP DEFAULT NOW(),
+                    ends_at TIMESTAMP,
+                    ended_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+
+            # Çekiliş Kazanma Zamanları (her kazanan için rastgele belirlenen zaman)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS giveaway_win_times (
+                    id SERIAL PRIMARY KEY,
+                    giveaway_id INT REFERENCES giveaways(id) ON DELETE CASCADE,
+                    win_time TIMESTAMP NOT NULL,
+                    slot_number INT NOT NULL,
+                    winner_id BIGINT,
+                    winner_username TEXT,
+                    winner_first_name TEXT,
+                    winner_message_id BIGINT,
+                    reply_message_id BIGINT,
+                    is_won BOOLEAN DEFAULT FALSE,
+                    won_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(giveaway_id, slot_number)
+                )
+            """)
+
+            # Kullanıcı Kazanma Sayıları (limit kontrolü için)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS giveaway_user_wins (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    win_count INT DEFAULT 0,
+                    last_win_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(group_id, user_id)
+                )
+            """)
+
             # İndeksler
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram ON telegram_users(telegram_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_group ON telegram_users(group_id)")
@@ -230,6 +308,10 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_channels_draft ON randy_channels(randy_draft_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_randy_channels_randy ON randy_channels(randy_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_auto_tag_group ON auto_tag_settings(group_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_giveaway_status ON giveaways(status)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_giveaway_group ON giveaways(group_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_giveaway_win_times ON giveaway_win_times(giveaway_id, win_time)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_giveaway_user_wins ON giveaway_user_wins(group_id, user_id)")
 
             print("✅ Tablolar oluşturuldu")
 
