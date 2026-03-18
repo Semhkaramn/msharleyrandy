@@ -21,6 +21,13 @@ from services.randy_service import (
     get_or_create_group_draft
 )
 from services.gpt_service import is_gpt_enabled, enable_gpt, disable_gpt
+from services.giveaway_service import (
+    get_giveaway_settings, save_giveaway_settings, update_giveaway_setting,
+    create_giveaway, get_active_giveaway, get_giveaway_by_id,
+    get_giveaway_win_times, cancel_giveaway, get_past_giveaways,
+    get_giveaway_winners, get_top_winners, start_giveaway_watcher,
+    update_announcement_message_id
+)
 from utils.admin_check import is_group_admin, is_activity_group_admin
 
 
@@ -214,6 +221,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         giveaway_id = int(data.replace("cekilis_detail_", ""))
         await show_cekilis_detail(query, user_id, giveaway_id, context)
 
+    elif data == "cekilis_duration_menu":
+        await show_duration_menu(query, user_id, context)
+
+    elif data == "cekilis_winners_menu":
+        await show_winners_menu(query, user_id, context)
+
+    elif data == "cekilis_limit_menu":
+        await show_limit_menu(query, user_id, context)
+
     # ============================================
     # BOT BAŞLATMA KONTROLÜ (.ben için)
     # ============================================
@@ -251,6 +267,7 @@ async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
     """Ana menüyü göster"""
     keyboard = [
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
+        [InlineKeyboardButton(BUTTONS["CEKILIS_YONETIMI"], callback_data="cekilis_menu")],
         [InlineKeyboardButton(BUTTONS["ROLL_YONETIMI"], callback_data="roll_menu")],
         [InlineKeyboardButton(BUTTONS["ETIKET_YONETIMI"], callback_data="etiket_menu")],
         [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
@@ -269,6 +286,7 @@ async def show_main_menu_message(message, context: ContextTypes.DEFAULT_TYPE):
     """Ana menüyü mesaj olarak göster (ilk kez)"""
     keyboard = [
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
+        [InlineKeyboardButton(BUTTONS["CEKILIS_YONETIMI"], callback_data="cekilis_menu")],
         [InlineKeyboardButton(BUTTONS["ROLL_YONETIMI"], callback_data="roll_menu")],
         [InlineKeyboardButton(BUTTONS["ETIKET_YONETIMI"], callback_data="etiket_menu")],
         [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
@@ -1201,6 +1219,563 @@ async def handle_check_started(query, user_id: int, target_user_id: int, context
 # ============================================
 # RANDY KATILIM
 # ============================================
+
+# ============================================
+# ÇEKİLİŞ MENÜ FONKSİYONLARI
+# ============================================
+
+async def show_cekilis_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş ana menüsünü göster"""
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        keyboard = [[InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")]]
+        await query.edit_message_text(
+            "❌ <b>Yetkiniz Yok</b>\n\n"
+            "Çekiliş yönetimi için ana gruptaki admin olmanız gerekiyor.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    # Aktif çekiliş var mı kontrol et
+    active_giveaway = None
+    if ACTIVITY_GROUP_ID:
+        active_giveaway = await get_active_giveaway(ACTIVITY_GROUP_ID)
+
+    keyboard = [
+        [InlineKeyboardButton("⚙️ Çekiliş Ayarları", callback_data="cekilis_settings")],
+    ]
+
+    if active_giveaway:
+        keyboard.append([InlineKeyboardButton("🎯 Aktif Çekiliş", callback_data="cekilis_active")])
+        keyboard.append([InlineKeyboardButton("❌ Çekilişi İptal Et", callback_data="cekilis_cancel")])
+    else:
+        keyboard.append([InlineKeyboardButton("🎁 Yeni Çekiliş Başlat", callback_data="cekilis_create")])
+
+    keyboard.append([InlineKeyboardButton("📜 Geçmiş Çekilişler", callback_data="cekilis_past")])
+    keyboard.append([InlineKeyboardButton("🏆 En Çok Kazananlar", callback_data="cekilis_top_winners")])
+    keyboard.append([InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")])
+
+    await query.edit_message_text(
+        GIVEAWAY["MENU"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_cekilis_settings(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş ayarlarını göster"""
+    from config import ACTIVITY_GROUP_ID
+
+    if not ACTIVITY_GROUP_ID:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+        await query.edit_message_text(
+            "❌ ACTIVITY_GROUP_ID tanımlı değil.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    # Ayarları getir veya varsayılan değerler kullan
+    settings = await get_giveaway_settings(ACTIVITY_GROUP_ID)
+
+    if not settings:
+        settings = {
+            'default_duration_hours': 2,
+            'default_winner_count': 1,
+            'max_wins_per_user': 0,
+            'pin_announcement': True,
+            'pin_winner_message': True,
+            'notify_admin_group': True,
+            'pin_in_admin_group': True,
+            'admin_group_id': None
+        }
+
+    duration = settings.get('default_duration_hours', 2)
+    winners = settings.get('default_winner_count', 1)
+    max_wins = settings.get('max_wins_per_user', 0)
+    pin_ann = "✅" if settings.get('pin_announcement', True) else "❌"
+    pin_win = "✅" if settings.get('pin_winner_message', True) else "❌"
+    notify_admin = "✅" if settings.get('notify_admin_group', True) else "❌"
+    pin_admin = "✅" if settings.get('pin_in_admin_group', True) else "❌"
+
+    max_wins_text = f"{max_wins}" if max_wins > 0 else "Sınırsız"
+
+    keyboard = [
+        [
+            InlineKeyboardButton(f"⏱️ Süre: {duration}s", callback_data="cekilis_duration_menu"),
+        ],
+        [
+            InlineKeyboardButton(f"🏆 Kazanan: {winners}", callback_data="cekilis_winners_menu"),
+        ],
+        [
+            InlineKeyboardButton(f"🔢 Limit: {max_wins_text}", callback_data="cekilis_limit_menu"),
+        ],
+        [
+            InlineKeyboardButton(f"{pin_ann} Duyuru Sabitle", callback_data="cekilis_toggle_pin_ann"),
+        ],
+        [
+            InlineKeyboardButton(f"{pin_win} Kazanan Sabitle", callback_data="cekilis_toggle_pin_win"),
+        ],
+        [
+            InlineKeyboardButton(f"{notify_admin} Yönetime Bildir", callback_data="cekilis_toggle_notify_admin"),
+        ],
+        [
+            InlineKeyboardButton(f"{pin_admin} Yönetimde Sabitle", callback_data="cekilis_toggle_pin_admin"),
+        ],
+        [InlineKeyboardButton("👥 Yönetim Grubu Ayarla", callback_data="cekilis_set_admin_group")],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")],
+    ]
+
+    text = GIVEAWAY["SETTINGS_MENU"].format(
+        duration=duration,
+        winners=winners,
+        max_wins=max_wins_text,
+        pin_ann=pin_ann,
+        pin_win=pin_win,
+        notify_admin=notify_admin,
+        pin_admin=pin_admin
+    )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_active_cekilis(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Aktif çekilişi göster"""
+    from config import ACTIVITY_GROUP_ID
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+
+    if not ACTIVITY_GROUP_ID:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+        await query.edit_message_text(
+            "❌ ACTIVITY_GROUP_ID tanımlı değil.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    giveaway = await get_active_giveaway(ACTIVITY_GROUP_ID)
+
+    if not giveaway:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+        await query.edit_message_text(
+            GIVEAWAY["NO_ACTIVE"],
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    # Kazanma zamanlarını getir
+    win_times = await get_giveaway_win_times(giveaway['id'])
+    win_times_text = format_giveaway_win_times(win_times, show_winners=True)
+
+    # Tarihleri formatla
+    started_at = giveaway.get('started_at')
+    ends_at = giveaway.get('ends_at')
+
+    if started_at:
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        start_local = started_at.astimezone(TR_TZ)
+        start_str = start_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        start_str = "-"
+
+    if ends_at:
+        if ends_at.tzinfo is None:
+            ends_at = ends_at.replace(tzinfo=timezone.utc)
+        end_local = ends_at.astimezone(TR_TZ)
+        end_str = end_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        end_str = "-"
+
+    text = GIVEAWAY["ACTIVE_GIVEAWAY"].format(
+        prize=giveaway.get('prize_text', 'Belirtilmedi'),
+        duration=giveaway.get('duration_hours', 0),
+        winner_count=giveaway.get('winner_count', 1),
+        start_time=start_str,
+        end_time=end_str,
+        win_times=win_times_text
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("❌ Çekilişi İptal Et", callback_data="cekilis_cancel")],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")],
+    ]
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_past_cekilisler(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Geçmiş çekilişleri göster"""
+    from config import ACTIVITY_GROUP_ID
+
+    if not ACTIVITY_GROUP_ID:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+        await query.edit_message_text(
+            "❌ ACTIVITY_GROUP_ID tanımlı değil.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    giveaways = await get_past_giveaways(ACTIVITY_GROUP_ID, limit=10)
+
+    if not giveaways:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+        await query.edit_message_text(
+            GIVEAWAY["NO_PAST"],
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    giveaway_list = format_giveaway_list(giveaways)
+
+    keyboard = []
+    # Her çekiliş için detay butonu
+    for g in giveaways[:5]:  # İlk 5 çekiliş için buton
+        giveaway_id = g.get('id')
+        prize = g.get('prize_text', 'Ödül')
+        if len(prize) > 20:
+            prize = prize[:17] + "..."
+        keyboard.append([
+            InlineKeyboardButton(f"#{giveaway_id} {prize}", callback_data=f"cekilis_detail_{giveaway_id}")
+        ])
+
+    keyboard.append([InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")])
+
+    text = GIVEAWAY["PAST_GIVEAWAYS"].format(
+        giveaway_list=giveaway_list,
+        count=len(giveaways)
+    )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_top_winners(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """En çok kazananları göster"""
+    from config import ACTIVITY_GROUP_ID
+
+    if not ACTIVITY_GROUP_ID:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+        await query.edit_message_text(
+            "❌ ACTIVITY_GROUP_ID tanımlı değil.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    winners = await get_top_winners(ACTIVITY_GROUP_ID, limit=10)
+
+    if not winners:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+        await query.edit_message_text(
+            "🏆 <b>En Çok Kazananlar</b>\n\nHenüz kazanan yok.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    winner_list = format_top_winners(winners)
+
+    text = GIVEAWAY["TOP_WINNERS"].format(winner_list=winner_list)
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def start_cekilis_create(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş oluşturma başlat - ödül metnini iste"""
+    context.user_data['waiting_for'] = 'cekilis_prize'
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_menu")]]
+
+    await query.edit_message_text(
+        GIVEAWAY["CREATE_PROMPT_PRIZE"],
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def cancel_active_cekilis(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Aktif çekilişi iptal et"""
+    from config import ACTIVITY_GROUP_ID
+    from services.giveaway_service import stop_giveaway_watcher
+
+    if not ACTIVITY_GROUP_ID:
+        await query.answer("❌ Grup tanımlı değil!", show_alert=True)
+        return
+
+    giveaway = await get_active_giveaway(ACTIVITY_GROUP_ID)
+
+    if not giveaway:
+        await query.answer("❌ Aktif çekiliş yok!", show_alert=True)
+        await show_cekilis_menu(query, user_id, context)
+        return
+
+    # Çekilişi iptal et
+    success = await cancel_giveaway(giveaway['id'])
+
+    if success:
+        # Watcher'ı durdur
+        stop_giveaway_watcher(giveaway['id'])
+
+        await query.answer("✅ Çekiliş iptal edildi!", show_alert=True)
+
+        # Gruba bildirim gönder
+        try:
+            await context.bot.send_message(
+                ACTIVITY_GROUP_ID,
+                "❌ <b>Çekiliş iptal edildi.</b>",
+                parse_mode="HTML"
+            )
+        except TelegramError:
+            pass
+    else:
+        await query.answer("❌ İptal işlemi başarısız!", show_alert=True)
+
+    await show_cekilis_menu(query, user_id, context)
+
+
+async def show_cekilis_detail(query, user_id: int, giveaway_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş detayını göster"""
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+
+    giveaway = await get_giveaway_by_id(giveaway_id)
+
+    if not giveaway:
+        await query.answer("❌ Çekiliş bulunamadı!", show_alert=True)
+        await show_past_cekilisler(query, user_id, context)
+        return
+
+    # Kazananları getir
+    winners = await get_giveaway_winners(giveaway_id)
+    win_times = await get_giveaway_win_times(giveaway_id)
+
+    # Tarihleri formatla
+    started_at = giveaway.get('started_at')
+    ended_at = giveaway.get('ended_at')
+
+    if started_at:
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        start_local = started_at.astimezone(TR_TZ)
+        start_str = start_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        start_str = "-"
+
+    if ended_at:
+        if ended_at.tzinfo is None:
+            ended_at = ended_at.replace(tzinfo=timezone.utc)
+        end_local = ended_at.astimezone(TR_TZ)
+        end_str = end_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        end_str = "-"
+
+    win_times_text = format_giveaway_win_times(win_times, show_winners=True)
+
+    status = giveaway.get('status', 'ended')
+    status_text = "🎊 Tamamlandı" if status == 'ended' else "❌ İptal Edildi"
+
+    text = (
+        f"📋 <b>Çekiliş #{giveaway_id} Detayı</b>\n\n"
+        f"🎯 <b>Ödül:</b> {giveaway.get('prize_text', '-')}\n"
+        f"📊 <b>Durum:</b> {status_text}\n"
+        f"⏱️ <b>Süre:</b> {giveaway.get('duration_hours', 0)} saat\n"
+        f"🏆 <b>Kazanan Sayısı:</b> {giveaway.get('winner_count', 1)}\n"
+        f"📅 <b>Başlangıç:</b> {start_str}\n"
+        f"🏁 <b>Bitiş:</b> {end_str}\n\n"
+        f"<b>Kazanma Zamanları:</b>\n{win_times_text}"
+    )
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_past")]]
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def set_cekilis_duration(query, user_id: int, hours: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş süresini ayarla"""
+    from config import ACTIVITY_GROUP_ID
+
+    await update_giveaway_setting(ACTIVITY_GROUP_ID, default_duration_hours=hours)
+    await query.answer(f"✅ Süre {hours} saat olarak ayarlandı!", show_alert=True)
+    await show_cekilis_settings(query, user_id, context)
+
+
+async def set_cekilis_winners(query, user_id: int, count: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş kazanan sayısını ayarla"""
+    from config import ACTIVITY_GROUP_ID
+
+    await update_giveaway_setting(ACTIVITY_GROUP_ID, default_winner_count=count)
+    await query.answer(f"✅ Kazanan sayısı {count} olarak ayarlandı!", show_alert=True)
+    await show_cekilis_settings(query, user_id, context)
+
+
+async def set_cekilis_limit(query, user_id: int, limit: int, context: ContextTypes.DEFAULT_TYPE):
+    """Kişi başı kazanma limitini ayarla"""
+    from config import ACTIVITY_GROUP_ID
+
+    await update_giveaway_setting(ACTIVITY_GROUP_ID, max_wins_per_user=limit)
+    limit_text = f"{limit}" if limit > 0 else "Sınırsız"
+    await query.answer(f"✅ Limit {limit_text} olarak ayarlandı!", show_alert=True)
+    await show_cekilis_settings(query, user_id, context)
+
+
+async def toggle_cekilis_setting(query, user_id: int, setting_name: str, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş ayarını aç/kapat"""
+    from config import ACTIVITY_GROUP_ID
+
+    settings = await get_giveaway_settings(ACTIVITY_GROUP_ID)
+
+    if not settings:
+        settings = {}
+
+    current_value = settings.get(setting_name, True)
+    new_value = not current_value
+
+    await update_giveaway_setting(ACTIVITY_GROUP_ID, **{setting_name: new_value})
+
+    status = "açıldı" if new_value else "kapatıldı"
+    await query.answer(f"✅ Ayar {status}!", show_alert=True)
+    await show_cekilis_settings(query, user_id, context)
+
+
+async def prompt_admin_group(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Yönetim grubu ID'sini iste"""
+    context.user_data['waiting_for'] = 'cekilis_admin_group'
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_settings")]]
+
+    await query.edit_message_text(
+        "👥 <b>Yönetim Grubu</b>\n\n"
+        "Kazanan bildirimlerinin gönderileceği yönetim grubunun ID'sini girin.\n\n"
+        "<i>Grup ID'sini bulmak için gruba @userinfobot ekleyebilirsiniz.</i>\n\n"
+        "Örnek: <code>-1001234567890</code>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_duration_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekiliş süresi seçim menüsü"""
+    keyboard = [
+        [
+            InlineKeyboardButton("1 Saat", callback_data="cekilis_set_duration_1"),
+            InlineKeyboardButton("2 Saat", callback_data="cekilis_set_duration_2"),
+        ],
+        [
+            InlineKeyboardButton("3 Saat", callback_data="cekilis_set_duration_3"),
+            InlineKeyboardButton("4 Saat", callback_data="cekilis_set_duration_4"),
+        ],
+        [
+            InlineKeyboardButton("6 Saat", callback_data="cekilis_set_duration_6"),
+            InlineKeyboardButton("8 Saat", callback_data="cekilis_set_duration_8"),
+        ],
+        [
+            InlineKeyboardButton("12 Saat", callback_data="cekilis_set_duration_12"),
+            InlineKeyboardButton("24 Saat", callback_data="cekilis_set_duration_24"),
+        ],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_settings")],
+    ]
+
+    await query.edit_message_text(
+        "⏱️ <b>Çekiliş Süresi</b>\n\nVarsayılan çekiliş süresini seçin:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_winners_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Kazanan sayısı seçim menüsü"""
+    keyboard = [
+        [
+            InlineKeyboardButton("1 Kişi", callback_data="cekilis_set_winners_1"),
+            InlineKeyboardButton("2 Kişi", callback_data="cekilis_set_winners_2"),
+            InlineKeyboardButton("3 Kişi", callback_data="cekilis_set_winners_3"),
+        ],
+        [
+            InlineKeyboardButton("4 Kişi", callback_data="cekilis_set_winners_4"),
+            InlineKeyboardButton("5 Kişi", callback_data="cekilis_set_winners_5"),
+            InlineKeyboardButton("6 Kişi", callback_data="cekilis_set_winners_6"),
+        ],
+        [
+            InlineKeyboardButton("8 Kişi", callback_data="cekilis_set_winners_8"),
+            InlineKeyboardButton("10 Kişi", callback_data="cekilis_set_winners_10"),
+        ],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_settings")],
+    ]
+
+    await query.edit_message_text(
+        "🏆 <b>Kazanan Sayısı</b>\n\nVarsayılan kazanan sayısını seçin:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_limit_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Kişi başı kazanma limiti seçim menüsü"""
+    keyboard = [
+        [
+            InlineKeyboardButton("Sınırsız", callback_data="cekilis_set_limit_0"),
+        ],
+        [
+            InlineKeyboardButton("1", callback_data="cekilis_set_limit_1"),
+            InlineKeyboardButton("2", callback_data="cekilis_set_limit_2"),
+            InlineKeyboardButton("3", callback_data="cekilis_set_limit_3"),
+        ],
+        [
+            InlineKeyboardButton("5", callback_data="cekilis_set_limit_5"),
+            InlineKeyboardButton("10", callback_data="cekilis_set_limit_10"),
+        ],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_settings")],
+    ]
+
+    await query.edit_message_text(
+        "🔢 <b>Kişi Başı Kazanma Limiti</b>\n\n"
+        "Bir kullanıcının maksimum kaç kez kazanabileceğini seçin:\n\n"
+        "<i>0 = Sınırsız</i>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
 
 async def handle_randy_join(query, user_id: int, randy_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Randy'ye katılım"""
