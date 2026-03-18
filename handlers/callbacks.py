@@ -359,6 +359,19 @@ async def start_randy_settings(query, user_id: int, context: ContextTypes.DEFAUL
             }]
         except Exception as e:
             print(f"❌ Grup bilgisi alma hatası: {e}")
+            # Kullanıcıya hata durumunu bildir
+            keyboard = [[InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")]]
+            await query.edit_message_text(
+                "⚠️ <b>Grup Erişim Sorunu</b>\n\n"
+                "Bot ana gruba erişemedi. Lütfen:\n"
+                "1️⃣ Bot'un grupta admin olduğundan emin olun\n"
+                "2️⃣ Grupta /start komutunu çalıştırın\n"
+                "3️⃣ Tekrar deneyin\n\n"
+                f"<i>Hata: {str(e)[:100]}</i>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+            return
 
     if not groups:
         keyboard = [[InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")]]
