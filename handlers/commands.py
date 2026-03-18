@@ -1024,16 +1024,14 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Veritabanından sıralama al
     # Türkiye saat dilimini al
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     try:
         from zoneinfo import ZoneInfo
     except ImportError:
         from backports.zoneinfo import ZoneInfo
 
     TR_TZ = ZoneInfo("Europe/Istanbul")
-    now_utc = datetime.utcnow()
-    from datetime import timezone
-    now_utc = now_utc.replace(tzinfo=timezone.utc)
+    now_utc = datetime.now(timezone.utc)
     now_tr = now_utc.astimezone(TR_TZ)
 
     async with db.pool.acquire() as conn:
