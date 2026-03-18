@@ -383,12 +383,10 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             winner_count = 1
 
         # Onay menüsünü göster
+        # Not: Süre ve kazanan sayısı ayarlardan gelir, onay ekranında değiştirilemez
         keyboard = [
-            [
-                InlineKeyboardButton(f"⏱️ Süre: {duration}s", callback_data="cekilis_duration_menu"),
-                InlineKeyboardButton(f"🏆 Kazanan: {winner_count}", callback_data="cekilis_winners_menu"),
-            ],
             [InlineKeyboardButton("✅ Çekilişi Başlat", callback_data="cekilis_confirm_start")],
+            [InlineKeyboardButton("⚙️ Ayarları Değiştir", callback_data="cekilis_settings")],
             [InlineKeyboardButton("❌ İptal", callback_data="cekilis_menu")],
         ]
 
