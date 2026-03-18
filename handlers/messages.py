@@ -1078,7 +1078,7 @@ async def check_giveaway_winner(
 
 def _format_steps(steps: list, session_info: dict = None) -> str:
     """Adımları formatla - roll durumu ve başlama saati ile"""
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     try:
         from zoneinfo import ZoneInfo
     except ImportError:
