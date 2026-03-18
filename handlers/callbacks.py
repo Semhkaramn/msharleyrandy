@@ -230,6 +230,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "cekilis_limit_menu":
         await show_limit_menu(query, user_id, context)
 
+    elif data == "cekilis_confirm_start":
+        await confirm_start_cekilis(query, user_id, context)
+
     # ============================================
     # BOT BAŞLATMA KONTROLÜ (.ben için)
     # ============================================
@@ -1775,6 +1778,108 @@ async def show_limit_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYP
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+
+
+async def confirm_start_cekilis(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Çekilişi onaylayıp başlat"""
+    from config import ACTIVITY_GROUP_ID
+    from templates import GIVEAWAY
+
+    if not ACTIVITY_GROUP_ID:
+        await query.answer("❌ Grup tanımlı değil!", show_alert=True)
+        return
+
+    # Ödül metnini al
+    prize_text = context.user_data.get('cekilis_prize')
+
+    if not prize_text:
+        await query.answer("❌ Ödül metni bulunamadı!", show_alert=True)
+        await show_cekilis_menu(query, user_id, context)
+        return
+
+    # Ayarlardan değerleri al
+    settings = await get_giveaway_settings(ACTIVITY_GROUP_ID)
+
+    if settings:
+        duration = settings.get('default_duration_hours', 2)
+        winner_count = settings.get('default_winner_count', 1)
+        max_wins = settings.get('max_wins_per_user', 0)
+        pin_announcement = settings.get('pin_announcement', True)
+        pin_winner_message = settings.get('pin_winner_message', True)
+        notify_admin_group = settings.get('notify_admin_group', True)
+        pin_in_admin_group = settings.get('pin_in_admin_group', True)
+    else:
+        duration = 2
+        winner_count = 1
+        max_wins = 0
+        pin_announcement = True
+        pin_winner_message = True
+        notify_admin_group = True
+        pin_in_admin_group = True
+
+    # Çekiliş oluştur
+    success, giveaway_data = await create_giveaway(
+        group_id=ACTIVITY_GROUP_ID,
+        creator_id=user_id,
+        prize_text=prize_text,
+        duration_hours=duration,
+        winner_count=winner_count,
+        max_wins_per_user=max_wins,
+        pin_announcement=pin_announcement,
+        pin_winner_message=pin_winner_message,
+        notify_admin_group=notify_admin_group,
+        pin_in_admin_group=pin_in_admin_group
+    )
+
+    if not success:
+        if giveaway_data and giveaway_data.get("error") == "already_active":
+            await query.answer("⚠️ Bu grupta zaten aktif bir çekiliş var!", show_alert=True)
+        else:
+            await query.answer("❌ Çekiliş oluşturulamadı!", show_alert=True)
+        await show_cekilis_menu(query, user_id, context)
+        return
+
+    # Watcher başlat
+    await start_giveaway_watcher(giveaway_data['id'], ACTIVITY_GROUP_ID, context.bot)
+
+    # Gruba duyuru mesajı gönder
+    announcement_text = GIVEAWAY["ANNOUNCEMENT"].format(
+        prize=prize_text,
+        duration=duration,
+        winner_count=winner_count
+    )
+
+    try:
+        ann_msg = await context.bot.send_message(
+            ACTIVITY_GROUP_ID,
+            announcement_text,
+            parse_mode="HTML"
+        )
+
+        # Mesaj ID'sini kaydet
+        await update_announcement_message_id(giveaway_data['id'], ann_msg.message_id)
+
+        # Sabitleme
+        if pin_announcement:
+            try:
+                await context.bot.pin_chat_message(
+                    ACTIVITY_GROUP_ID,
+                    ann_msg.message_id,
+                    disable_notification=True
+                )
+            except TelegramError:
+                pass
+
+    except TelegramError as e:
+        print(f"❌ Çekiliş duyuru hatası: {e}")
+
+    # Context'i temizle
+    context.user_data.pop('cekilis_prize', None)
+
+    await query.answer("✅ Çekiliş başlatıldı!", show_alert=True)
+
+    # Aktif çekiliş menüsünü göster
+    await show_active_cekilis(query, user_id, context)
 
 
 async def handle_randy_join(query, user_id: int, randy_id: int, context: ContextTypes.DEFAULT_TYPE):
