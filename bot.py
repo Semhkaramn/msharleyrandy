@@ -66,7 +66,21 @@ async def post_init(application: Application) -> None:
     # Otomatik etiket görevlerini yeniden başlat
     await _restart_auto_tagging_tasks(application.bot)
 
+    # Aktif çekilişleri yeniden başlat
+    await _restart_active_giveaways(application.bot)
+
     logger.info("✅ Bot başlatıldı!")
+
+
+async def _restart_active_giveaways(bot):
+    """Bot restart olduğunda aktif çekilişleri yeniden başlat"""
+    from services.giveaway_service import restart_active_giveaways
+
+    try:
+        await restart_active_giveaways(bot)
+        logger.info("🎁 Aktif çekilişler yeniden başlatıldı")
+    except Exception as e:
+        logger.error(f"❌ Çekiliş yeniden başlatma hatası: {e}")
 
 
 async def _restart_auto_tagging_tasks(bot):
