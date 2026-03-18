@@ -8,8 +8,9 @@ from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
 from templates import (
-    MENU, RANDY, BUTTONS, ERRORS, SUCCESS,
-    format_winner_list, get_period_text, get_media_type_text
+    MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY,
+    format_winner_list, get_period_text, get_media_type_text,
+    format_giveaway_win_times, format_giveaway_list, format_top_winners
 )
 from services.randy_service import (
     get_draft, update_draft,
@@ -157,6 +158,61 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ============================================
     elif data == "stats_menu":
         await show_stats_menu(query, context)
+
+    # ============================================
+    # ÇEKİLİŞ MENÜSÜ
+    # ============================================
+    elif data == "cekilis_menu":
+        await show_cekilis_menu(query, user_id, context)
+
+    elif data == "cekilis_settings":
+        await show_cekilis_settings(query, user_id, context)
+
+    elif data == "cekilis_active":
+        await show_active_cekilis(query, user_id, context)
+
+    elif data == "cekilis_past":
+        await show_past_cekilisler(query, user_id, context)
+
+    elif data == "cekilis_top_winners":
+        await show_top_winners(query, user_id, context)
+
+    elif data == "cekilis_create":
+        await start_cekilis_create(query, user_id, context)
+
+    elif data == "cekilis_cancel":
+        await cancel_active_cekilis(query, user_id, context)
+
+    elif data.startswith("cekilis_set_duration_"):
+        hours = int(data.replace("cekilis_set_duration_", ""))
+        await set_cekilis_duration(query, user_id, hours, context)
+
+    elif data.startswith("cekilis_set_winners_"):
+        count = int(data.replace("cekilis_set_winners_", ""))
+        await set_cekilis_winners(query, user_id, count, context)
+
+    elif data.startswith("cekilis_set_limit_"):
+        limit = int(data.replace("cekilis_set_limit_", ""))
+        await set_cekilis_limit(query, user_id, limit, context)
+
+    elif data == "cekilis_toggle_pin_ann":
+        await toggle_cekilis_setting(query, user_id, "pin_announcement", context)
+
+    elif data == "cekilis_toggle_pin_win":
+        await toggle_cekilis_setting(query, user_id, "pin_winner_message", context)
+
+    elif data == "cekilis_toggle_notify_admin":
+        await toggle_cekilis_setting(query, user_id, "notify_admin_group", context)
+
+    elif data == "cekilis_toggle_pin_admin":
+        await toggle_cekilis_setting(query, user_id, "pin_in_admin_group", context)
+
+    elif data == "cekilis_set_admin_group":
+        await prompt_admin_group(query, user_id, context)
+
+    elif data.startswith("cekilis_detail_"):
+        giveaway_id = int(data.replace("cekilis_detail_", ""))
+        await show_cekilis_detail(query, user_id, giveaway_id, context)
 
     # ============================================
     # BOT BAŞLATMA KONTROLÜ (.ben için)
