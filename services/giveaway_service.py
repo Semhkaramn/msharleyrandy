@@ -87,6 +87,13 @@ async def save_giveaway_settings(
 
 async def update_giveaway_setting(group_id: int, **kwargs) -> bool:
     """Tek bir ayarı güncelle"""
+    # İzin verilen alan isimleri (SQL injection koruması)
+    ALLOWED_FIELDS = {
+        'admin_group_id', 'default_duration_hours', 'default_winner_count',
+        'max_wins_per_user', 'pin_announcement', 'pin_winner_message',
+        'pin_in_admin_group', 'notify_admin_group', 'winner_message_template'
+    }
+
     try:
         async with db.pool.acquire() as conn:
             # Önce mevcut ayarları kontrol et, yoksa oluştur
@@ -99,8 +106,11 @@ async def update_giveaway_setting(group_id: int, **kwargs) -> bool:
                     INSERT INTO giveaway_settings (group_id) VALUES ($1)
                 """, group_id)
 
-            # Ayarları güncelle
+            # Ayarları güncelle (sadece izin verilen alanlar)
             for key, value in kwargs.items():
+                if key not in ALLOWED_FIELDS:
+                    print(f"⚠️ Geçersiz alan adı: {key}")
+                    continue
                 await conn.execute(f"""
                     UPDATE giveaway_settings SET {key} = $1, updated_at = NOW()
                     WHERE group_id = $2
@@ -194,8 +204,20 @@ def _generate_random_win_times(start: datetime, end: datetime, count: int) -> Li
     # En az 5 dakika (300 saniye) ara ile zamanlar oluştur
     min_gap = 300
 
+    # Minimum ve maksimum offset hesapla
+    # İlk 5 dk ve son 2 dk'yı hariç tutmaya çalış ama süre yetmezse esneklik göster
+    min_offset = min(300, total_seconds // 4)  # İlk 5 dk veya toplam sürenin 1/4'ü
+    max_offset = max(120, total_seconds // 10)  # Son 2 dk veya toplam sürenin 1/10'u
+
+    # Kullanılabilir aralık çok kısa mı?
+    usable_range = total_seconds - min_offset - max_offset
+    if usable_range < 60:
+        # Çok kısa süre, eşit aralıklarla dağıt
+        interval = total_seconds // (count + 1)
+        return [start + timedelta(seconds=interval * (i + 1)) for i in range(count)]
+
     # Kullanılabilir zaman aralıklarını hesapla
-    if total_seconds < (count * min_gap):
+    if usable_range < (count * min_gap):
         # Yeterli süre yok, eşit aralıklarla dağıt
         interval = total_seconds // (count + 1)
         return [start + timedelta(seconds=interval * (i + 1)) for i in range(count)]
@@ -206,8 +228,8 @@ def _generate_random_win_times(start: datetime, end: datetime, count: int) -> Li
     for _ in range(count):
         attempts = 0
         while attempts < 100:
-            # Rastgele saniye seç (ilk 5 dk ve son 2 dk hariç)
-            rand_seconds = random.randint(300, total_seconds - 120)
+            # Rastgele saniye seç
+            rand_seconds = random.randint(min_offset, total_seconds - max_offset)
 
             # Bu zaman diğer zamanlarla çakışıyor mu?
             too_close = False
@@ -225,7 +247,7 @@ def _generate_random_win_times(start: datetime, end: datetime, count: int) -> Li
 
         # 100 denemede bulunamadıysa, boş bir zaman bul
         if attempts >= 100:
-            for s in range(300, total_seconds - 120, 60):
+            for s in range(min_offset, total_seconds - max_offset, 60):
                 valid = True
                 for used in used_seconds:
                     if abs(s - used) < min_gap:
