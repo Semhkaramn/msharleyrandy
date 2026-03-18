@@ -154,7 +154,8 @@ async def create_giveaway(
             if existing:
                 return False, {"error": "already_active"}
 
-            now = datetime.now(timezone.utc)
+            # UTC zamanı al ve naive'e çevir (DB uyumluluğu için)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             ends_at = now + timedelta(hours=duration_hours)
 
             # Çekiliş oluştur
@@ -310,7 +311,8 @@ async def get_pending_win_slot(group_id: int) -> Optional[Dict[str, Any]]:
     (win_time geçmiş ve is_won = False)
     """
     try:
-        now = datetime.now(timezone.utc)
+        # UTC zamanı al ve naive'e çevir (DB uyumluluğu için)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         async with db.pool.acquire() as conn:
             slot = await conn.fetchrow("""
@@ -372,7 +374,8 @@ async def record_winner(
 ) -> bool:
     """Kazananı kaydet"""
     try:
-        now = datetime.now(timezone.utc)
+        # UTC zamanı al ve naive'e çevir (DB uyumluluğu için)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         async with db.pool.acquire() as conn:
             # Slot'u güncelle
@@ -528,6 +531,7 @@ async def start_giveaway_watcher(giveaway_id: int, group_id: int, bot: Bot):
                 return
 
             ends_at = giveaway['ends_at']
+            # DB'den gelen tarihler naive (UTC), aware'e çevirip karşılaştır
             if ends_at.tzinfo is None:
                 ends_at = ends_at.replace(tzinfo=timezone.utc)
 
