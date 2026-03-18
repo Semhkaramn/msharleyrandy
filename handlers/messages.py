@@ -44,6 +44,10 @@ from services.randy_service import (
     add_channel_to_draft, get_draft_channels,
     get_randy_by_message_id, get_participant_count, end_randy_with_count
 )
+from services.giveaway_service import (
+    check_and_award_winner, get_giveaway_settings, update_giveaway_setting,
+    create_giveaway, start_giveaway_watcher, update_announcement_message_id
+)
 from services.chat_control_service import close_chat, open_chat
 from services.gpt_service import get_gpt_response, is_gpt_enabled, is_harley_mention
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
@@ -352,6 +356,140 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             )
         return
 
+    # ========== ÇEKİLİŞ ÖDÜL METNİ ==========
+    if waiting_for == 'cekilis_prize':
+        from config import ACTIVITY_GROUP_ID
+        text = message.text or ""
+
+        if not text.strip():
+            await message.reply_text(
+                "❌ Ödül metni boş olamaz. Lütfen tekrar deneyin.",
+                parse_mode="HTML"
+            )
+            return
+
+        # Ödül metnini kaydet
+        context.user_data['cekilis_prize'] = text.strip()
+        context.user_data.pop('waiting_for', None)
+
+        # Ayarlardan varsayılan değerleri al
+        settings = await get_giveaway_settings(ACTIVITY_GROUP_ID)
+
+        if settings:
+            duration = settings.get('default_duration_hours', 2)
+            winner_count = settings.get('default_winner_count', 1)
+        else:
+            duration = 2
+            winner_count = 1
+
+        # Onay menüsünü göster
+        keyboard = [
+            [
+                InlineKeyboardButton(f"⏱️ Süre: {duration}s", callback_data="cekilis_duration_menu"),
+                InlineKeyboardButton(f"🏆 Kazanan: {winner_count}", callback_data="cekilis_winners_menu"),
+            ],
+            [InlineKeyboardButton("✅ Çekilişi Başlat", callback_data="cekilis_confirm_start")],
+            [InlineKeyboardButton("❌ İptal", callback_data="cekilis_menu")],
+        ]
+
+        menu_message_id = context.user_data.get('menu_message_id')
+
+        confirm_text = (
+            "🎁 <b>Çekiliş Önizleme</b>\n\n"
+            f"🎯 <b>Ödül:</b> {text.strip()}\n"
+            f"⏱️ <b>Süre:</b> {duration} saat\n"
+            f"🏆 <b>Kazanan:</b> {winner_count} kişi\n\n"
+            "Onaylıyor musunuz?"
+        )
+
+        if menu_message_id:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=menu_message_id,
+                    text=confirm_text,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="HTML"
+                )
+                try:
+                    await message.delete()
+                except TelegramError:
+                    pass
+                return
+            except TelegramError:
+                pass
+
+        sent_msg = await message.reply_text(
+            confirm_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        context.user_data['menu_message_id'] = sent_msg.message_id
+        return
+
+    # ========== ÇEKİLİŞ YÖNETİM GRUBU ID ==========
+    if waiting_for == 'cekilis_admin_group':
+        from config import ACTIVITY_GROUP_ID
+        text = message.text or ""
+
+        try:
+            admin_group_id = int(text.strip())
+
+            # Grup geçerli mi kontrol et
+            try:
+                chat = await context.bot.get_chat(admin_group_id)
+                if chat.type not in ['group', 'supergroup']:
+                    raise ValueError("Not a group")
+            except TelegramError:
+                await message.reply_text(
+                    "❌ Grup bulunamadı veya bota erişim yok.\n\n"
+                    "Lütfen şunlara dikkat edin:\n"
+                    "• Bot grupta admin olmalı\n"
+                    "• Grup ID'si doğru olmalı",
+                    parse_mode="HTML"
+                )
+                return
+
+            await update_giveaway_setting(ACTIVITY_GROUP_ID, admin_group_id=admin_group_id)
+            context.user_data.pop('waiting_for', None)
+
+            await message.reply_text(
+                f"✅ Yönetim grubu ayarlandı: <b>{chat.title}</b>",
+                parse_mode="HTML"
+            )
+
+            # Ayarlar menüsüne dön
+            from handlers.callbacks import show_cekilis_settings
+            # Menü mesajını güncelle
+            menu_message_id = context.user_data.get('menu_message_id')
+            if menu_message_id:
+                try:
+                    # Fake query oluştur
+                    class FakeQuery:
+                        def __init__(self, message):
+                            self.message = message
+
+                        async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                            await context.bot.edit_message_text(
+                                chat_id=self.message.chat.id,
+                                message_id=menu_message_id,
+                                text=text,
+                                reply_markup=reply_markup,
+                                parse_mode=parse_mode
+                            )
+
+                    fake_query = FakeQuery(message)
+                    await show_cekilis_settings(fake_query, user_id, context)
+                except TelegramError:
+                    pass
+
+        except ValueError:
+            await message.reply_text(
+                "❌ Geçersiz grup ID'si. Sayı olmalı.\n\nÖrnek: <code>-1001234567890</code>",
+                parse_mode="HTML"
+            )
+        return
+
 
 async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_TYPE, reply_message):
     """
@@ -606,6 +744,13 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
         username, first_name
     )
 
+    # 4. Çekiliş kazanan kontrolü
+    await check_giveaway_winner(
+        chat.id, user_id,
+        username, first_name,
+        message, context
+    )
+
 
 async def handle_roll_command(update: Update, context: ContextTypes.DEFAULT_TYPE, lower_text: str):
     """Roll komutlarını işler"""
@@ -789,6 +934,148 @@ async def handle_roll_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML"
         )
         return
+
+
+async def check_giveaway_winner(
+    group_id: int,
+    user_id: int,
+    username: str,
+    first_name: str,
+    message,
+    context
+):
+    """
+    Çekiliş kazanan kontrolü
+    Kazanma zamanı geldiyse ve bu kullanıcı ilk mesaj yazıyorsa kazanır
+    """
+    from services.giveaway_service import (
+        check_and_award_winner, get_giveaway_settings,
+        update_slot_reply_message_id
+    )
+    from templates import GIVEAWAY
+
+    try:
+        # Bot kontrolü
+        is_bot = message.from_user.is_bot if message.from_user else False
+
+        # Kazanan kontrolü yap
+        result = await check_and_award_winner(
+            group_id=group_id,
+            user_id=user_id,
+            username=username,
+            first_name=first_name,
+            message_id=message.message_id,
+            bot=context.bot,
+            is_bot=is_bot
+        )
+
+        if not result:
+            return  # Kazanan yok
+
+        # KAZANDI!
+        slot = result['slot']
+        giveaway = result['giveaway']
+        prize_text = result['prize_text']
+        slot_number = slot['slot_number']
+        total_winners = giveaway['winner_count']
+
+        # Kazanma zamanını formatla
+        from datetime import timezone
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            from backports.zoneinfo import ZoneInfo
+
+        TR_TZ = ZoneInfo("Europe/Istanbul")
+        won_at = slot.get('win_time')
+        if won_at:
+            if won_at.tzinfo is None:
+                won_at = won_at.replace(tzinfo=timezone.utc)
+            local_time = won_at.astimezone(TR_TZ)
+            time_str = local_time.strftime("%H:%M")
+        else:
+            time_str = "??:??"
+
+        # Kazanan mesajına reply at
+        winner_text = GIVEAWAY["WINNER_MESSAGE"].format(
+            prize=prize_text,
+            slot=slot_number,
+            total=total_winners,
+            time=time_str
+        )
+
+        try:
+            reply_msg = await message.reply_text(
+                winner_text,
+                parse_mode="HTML"
+            )
+
+            # Reply mesaj ID'sini kaydet
+            await update_slot_reply_message_id(slot['id'], reply_msg.message_id)
+
+            # Sabitleme
+            if result.get('pin_winner_message', True):
+                try:
+                    await context.bot.pin_chat_message(
+                        group_id,
+                        reply_msg.message_id,
+                        disable_notification=True
+                    )
+                except TelegramError:
+                    pass
+
+        except TelegramError as e:
+            print(f"❌ Kazanan mesajı gönderme hatası: {e}")
+
+        # Yönetim grubuna bildirim
+        if result.get('notify_admin_group', True):
+            settings = await get_giveaway_settings(group_id)
+
+            if settings and settings.get('admin_group_id'):
+                admin_group_id = settings['admin_group_id']
+
+                # Kullanıcı mention'ı
+                winner_mention = f'<a href="tg://user?id={user_id}">{first_name}</a>'
+
+                # Grup adını al
+                try:
+                    group_chat = await context.bot.get_chat(group_id)
+                    group_name = group_chat.title or f"Grup {group_id}"
+                except TelegramError:
+                    group_name = f"Grup {group_id}"
+
+                admin_text = GIVEAWAY["ADMIN_NOTIFICATION"].format(
+                    winner_mention=winner_mention,
+                    prize=prize_text,
+                    slot=slot_number,
+                    total=total_winners,
+                    time=time_str,
+                    group_name=group_name
+                )
+
+                try:
+                    admin_msg = await context.bot.send_message(
+                        admin_group_id,
+                        admin_text,
+                        parse_mode="HTML"
+                    )
+
+                    # Yönetimde sabitleme
+                    if result.get('pin_in_admin_group', True):
+                        try:
+                            await context.bot.pin_chat_message(
+                                admin_group_id,
+                                admin_msg.message_id,
+                                disable_notification=True
+                            )
+                        except TelegramError:
+                            pass
+
+                except TelegramError as e:
+                    print(f"❌ Admin bildirim hatası: {e}")
+
+    except Exception as e:
+        print(f"❌ Çekiliş kazanan kontrolü hatası: {e}")
 
 
 def _format_steps(steps: list, session_info: dict = None) -> str:
