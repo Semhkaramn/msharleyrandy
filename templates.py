@@ -423,6 +423,8 @@ GIVEAWAY = {
         "🎉 <b>TEBRİKLER!</b>\n\n"
         "Çekilişi kazandınız!\n\n"
         "🎯 <b>Ödül:</b> {prize}\n"
+        "🏆 <b>Slot:</b> {slot}/{total}\n"
+        "⏰ <b>Zaman:</b> {time}\n\n"
         "@msharleydestek Size Ulaşacaktır."
     ),
 
