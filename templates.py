@@ -416,16 +416,14 @@ GIVEAWAY = {
         "🎯 <b>Ödül:</b> {prize}\n"
         "⏱️ <b>Süre:</b> {duration} saat\n"
         "🏆 <b>Kazanan:</b> {winner_count} kişi\n\n"
-        "📝 Gruba mesaj yazarak otomatik katılın!\n"
-        "🎲 Rastgele zamanlarda mesaj yazanlar kazanır.\n\n"
-        "<i>🤖 Botlar katılamaz.</i>"
+        "📝 <b>Gruba Mesaj Yazanlardan Rastgele Kişiler Seçilir</b>\n"
     ),
 
     "WINNER_MESSAGE": (
         "🎉 <b>TEBRİKLER!</b>\n\n"
         "Çekilişi kazandınız!\n\n"
         "🎯 <b>Ödül:</b> {prize}\n"
-        "🏆 <b>Kazanan:</b> {slot}/{total} ({time})"
+        "@msharleydestek Size Ulaşacaktır."
     ),
 
     "ADMIN_NOTIFICATION": (
@@ -456,7 +454,7 @@ GIVEAWAY = {
         "{winner_list}"
     ),
 
-    "CREATE_PROMPT_PRIZE": "🎯 <b>Ödül Metni</b>\n\nÇekiliş ödülünü yazın:\n\n<i>Örnek: 100 TL Steam Kodu</i>",
+    "CREATE_PROMPT_PRIZE": "🎯 <b>Ödül Metni</b>\n\nÇekiliş ödülünü yazın:\n\n<i>Örnek: 100 TL </i>",
 
     "CREATE_PROMPT_DURATION": "⏱️ <b>Süre</b>\n\nÇekiliş kaç saat sürecek?\n\n<i>Örnek: 2</i>",
 
