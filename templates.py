@@ -136,6 +136,21 @@ MENU = {
         "• <code>.aylık</code> - Aylık sıralama\n\n"
         "<i>Bu komutları grupta kullanabilirsiniz.</i>"
     ),
+
+    # Çekiliş Menüsü
+    "CEKILIS_MENU": (
+        "🎁 <b>Çekiliş Yönetimi</b>\n\n"
+        "Rastgele zamanlı otomatik çekiliş sistemi.\n\n"
+        "<b>📝 Nasıl Çalışır:</b>\n"
+        "1️⃣ Çekilişi başlat (süre + kazanan sayısı)\n"
+        "2️⃣ Sistem rastgele zamanlar belirler\n"
+        "3️⃣ O zamanlarda mesaj yazan İLK kişi kazanır\n"
+        "4️⃣ Kazananın mesajına reply atılır\n\n"
+        "<b>📢 Komutlar (Grupta):</b>\n"
+        "• <code>/cekilis [ödül]</code> - Hızlı başlat\n"
+        "• <code>/cekilis iptal</code> - İptal et\n\n"
+        "<i>🤖 Botlar çekilişe katılamaz.</i>"
+    ),
 }
 
 # ============================================
@@ -304,6 +319,22 @@ BUTTONS = {
     "AUTO_TAG_120": "2 Saat",
     "AUTO_TAG_180": "3 Saat",
 
+    # Çekiliş
+    "CEKILIS_YONETIMI": "🎁 Çekiliş",
+    "CEKILIS_AYARLARI": "⚙️ Çekiliş Ayarları",
+    "CEKILIS_BASLAT": "🎁 Yeni Çekiliş",
+    "AKTIF_CEKILIS": "🎯 Aktif Çekiliş",
+    "GECMIS_CEKILISLER": "📜 Geçmiş Çekilişler",
+    "EN_COK_KAZANANLAR": "🏆 En Çok Kazananlar",
+    "CEKILIS_IPTAL": "❌ Çekilişi İptal Et",
+    "SURE_AYARLA": "⏱️ Süre",
+    "KAZANAN_LIMIT": "🔢 Kişi Başı Limit",
+    "DUYURU_SABITLE": "📌 Duyuru Sabitle",
+    "KAZANAN_SABITLE": "📌 Kazanan Sabitle",
+    "YONETIM_BILDIR": "📢 Yönetime Bildir",
+    "YONETIMDE_SABITLE": "📌 Yönetimde Sabitle",
+    "YONETIM_GRUBU": "👥 Yönetim Grubu",
+
     # Genel
     "GERI": "◀️ Geri",
     "ANA_MENU": "🏠 Ana Menü",
@@ -333,6 +364,107 @@ SUCCESS = {
     "KAYDEDILDI": "✅ Başarıyla kaydedildi!",
     "GUNCELLENDI": "✅ Başarıyla güncellendi!",
     "SILINDI": "✅ Başarıyla silindi!",
+}
+
+
+# ============================================
+# 🎁 ÇEKİLİŞ MESAJLARI
+# ============================================
+
+GIVEAWAY = {
+    "MENU": (
+        "🎁 <b>Çekiliş Yönetimi</b>\n\n"
+        "Rastgele zamanlı otomatik çekiliş sistemi.\n\n"
+        "<b>Nasıl Çalışır:</b>\n"
+        "1️⃣ Çekilişi başlat (süre + kazanan sayısı)\n"
+        "2️⃣ Sistem rastgele zamanlar belirler\n"
+        "3️⃣ O zamanlarda mesaj yazan İLK kişi kazanır\n"
+        "4️⃣ Kazananın mesajına reply atılır\n\n"
+        "<i>Botlar çekilişe katılamaz.</i>"
+    ),
+
+    "SETTINGS_MENU": (
+        "⚙️ <b>Çekiliş Ayarları</b>\n\n"
+        "Varsayılan çekiliş ayarlarını yapılandırın.\n\n"
+        "<b>Mevcut Ayarlar:</b>\n"
+        "• Süre: {duration} saat\n"
+        "• Kazanan: {winners} kişi\n"
+        "• Kişi başı limit: {max_wins}\n"
+        "• Duyuru sabitle: {pin_ann}\n"
+        "• Kazanan mesajı sabitle: {pin_win}\n"
+        "• Yönetim bildirimi: {notify_admin}\n"
+        "• Yönetimde sabitle: {pin_admin}"
+    ),
+
+    "ACTIVE_GIVEAWAY": (
+        "🎁 <b>Aktif Çekiliş</b>\n\n"
+        "🎯 <b>Ödül:</b> {prize}\n"
+        "⏱️ <b>Süre:</b> {duration} saat\n"
+        "🏆 <b>Kazanan Sayısı:</b> {winner_count}\n"
+        "📅 <b>Başlangıç:</b> {start_time}\n"
+        "⏰ <b>Bitiş:</b> {end_time}\n\n"
+        "<b>Kazanma Zamanları:</b>\n{win_times}\n\n"
+        "<i>Bu zamanlar gizlidir, sadece adminler görebilir.</i>"
+    ),
+
+    "NO_ACTIVE": "❌ Şu anda aktif çekiliş yok.",
+
+    "ALREADY_ACTIVE": "⚠️ Bu grupta zaten aktif bir çekiliş var.",
+
+    "ANNOUNCEMENT": (
+        "🎁 <b>ÇEKİLİŞ BAŞLADI!</b>\n\n"
+        "🎯 <b>Ödül:</b> {prize}\n"
+        "⏱️ <b>Süre:</b> {duration} saat\n"
+        "🏆 <b>Kazanan:</b> {winner_count} kişi\n\n"
+        "📝 Gruba mesaj yazarak otomatik katılın!\n"
+        "🎲 Rastgele zamanlarda mesaj yazanlar kazanır.\n\n"
+        "<i>🤖 Botlar katılamaz.</i>"
+    ),
+
+    "WINNER_MESSAGE": (
+        "🎉 <b>TEBRİKLER!</b>\n\n"
+        "Çekilişi kazandınız!\n\n"
+        "🎯 <b>Ödül:</b> {prize}\n"
+        "🏆 <b>Kazanan:</b> {slot}/{total} ({time})"
+    ),
+
+    "ADMIN_NOTIFICATION": (
+        "🎁 <b>ÇEKİLİŞ KAZANANI</b>\n\n"
+        "👤 Kazanan: {winner_mention}\n"
+        "🎯 Ödül: {prize}\n"
+        "🏆 Slot: {slot}/{total}\n"
+        "⏰ Zaman: {time}\n"
+        "💬 Grup: {group_name}"
+    ),
+
+    "ENDED": (
+        "🎊 <b>ÇEKİLİŞ SONA ERDİ!</b>\n\n"
+        "🎯 <b>Ödül:</b> {prize}\n\n"
+        "<b>Kazananlar:</b>\n{winner_list}"
+    ),
+
+    "PAST_GIVEAWAYS": (
+        "📜 <b>Geçmiş Çekilişler</b>\n\n"
+        "{giveaway_list}\n\n"
+        "<i>Son {count} çekiliş gösteriliyor.</i>"
+    ),
+
+    "NO_PAST": "📭 Henüz geçmiş çekiliş yok.",
+
+    "TOP_WINNERS": (
+        "🏆 <b>En Çok Kazananlar</b>\n\n"
+        "{winner_list}"
+    ),
+
+    "CREATE_PROMPT_PRIZE": "🎯 <b>Ödül Metni</b>\n\nÇekiliş ödülünü yazın:\n\n<i>Örnek: 100 TL Steam Kodu</i>",
+
+    "CREATE_PROMPT_DURATION": "⏱️ <b>Süre</b>\n\nÇekiliş kaç saat sürecek?\n\n<i>Örnek: 2</i>",
+
+    "CREATE_PROMPT_WINNERS": "🏆 <b>Kazanan Sayısı</b>\n\nKaç kişi kazanacak?\n\n<i>Örnek: 3</i>",
+
+    "CANCELLED": "❌ Çekiliş iptal edildi.",
+
+    "WIN_LIMIT_REACHED": "⚠️ Bu çekilişte kazanma limitinize ulaştınız.",
 }
 
 
@@ -411,3 +543,102 @@ def get_media_type_text(media_type: str) -> str:
         "animation": "GIF"
     }
     return types.get(media_type, "Yok")
+
+
+def format_giveaway_win_times(win_times: list, show_winners: bool = True) -> str:
+    """Çekiliş kazanma zamanlarını formatla"""
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+
+    lines = []
+    for wt in win_times:
+        win_time = wt.get('win_time')
+        slot_num = wt.get('slot_number', 0)
+        is_won = wt.get('is_won', False)
+
+        if win_time:
+            if win_time.tzinfo is None:
+                win_time = win_time.replace(tzinfo=timezone.utc)
+            local_time = win_time.astimezone(TR_TZ)
+            time_str = local_time.strftime("%H:%M")
+        else:
+            time_str = "??:??"
+
+        if is_won and show_winners:
+            winner_name = wt.get('winner_first_name', 'Kazanan')
+            winner_username = wt.get('winner_username')
+            if winner_username:
+                winner_text = f"@{winner_username}"
+            else:
+                winner_text = winner_name
+            lines.append(f"✅ Slot {slot_num}: {time_str} - {winner_text}")
+        elif is_won:
+            lines.append(f"✅ Slot {slot_num}: {time_str} - Kazanıldı")
+        else:
+            lines.append(f"⏳ Slot {slot_num}: {time_str} - Bekliyor")
+
+    return "\n".join(lines) if lines else "Zaman belirlenmedi"
+
+
+def format_giveaway_list(giveaways: list) -> str:
+    """Geçmiş çekilişleri formatla"""
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+
+    lines = []
+    for g in giveaways:
+        giveaway_id = g.get('id')
+        prize = g.get('prize_text', 'Ödül')
+        status = g.get('status', 'ended')
+        ended_at = g.get('ended_at')
+
+        status_emoji = "🎊" if status == 'ended' else "❌"
+
+        if ended_at:
+            if ended_at.tzinfo is None:
+                ended_at = ended_at.replace(tzinfo=timezone.utc)
+            local_time = ended_at.astimezone(TR_TZ)
+            date_str = local_time.strftime("%d.%m.%Y %H:%M")
+        else:
+            date_str = "-"
+
+        # Ödül metnini kısalt
+        if len(prize) > 30:
+            prize = prize[:27] + "..."
+
+        lines.append(f"{status_emoji} #{giveaway_id} | {prize} | {date_str}")
+
+    return "\n".join(lines) if lines else "Çekiliş yok"
+
+
+def format_top_winners(winners: list) -> str:
+    """En çok kazananları formatla"""
+    lines = []
+    for i, w in enumerate(winners, 1):
+        user_id = w.get('user_id')
+        win_count = w.get('win_count', 0)
+        first_name = w.get('first_name', 'Kullanıcı')
+        username = w.get('username')
+
+        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+
+        if username:
+            name = f"@{username}"
+        elif user_id:
+            name = f'<a href="tg://user?id={user_id}">{first_name}</a>'
+        else:
+            name = first_name
+
+        lines.append(f"{medal} {name} - {win_count} kazanma")
+
+    return "\n".join(lines) if lines else "Henüz kazanan yok"
