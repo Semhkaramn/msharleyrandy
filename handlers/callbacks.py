@@ -1740,27 +1740,17 @@ async def show_duration_menu(query, user_id: int, context: ContextTypes.DEFAULT_
 
 
 async def show_winners_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Kazanan sayısı seçim menüsü"""
+    """Kazanan sayısı için yazı girişi iste"""
+    context.user_data['waiting_for'] = 'cekilis_winner_count'
+
     keyboard = [
-        [
-            InlineKeyboardButton("1 Kişi", callback_data="cekilis_set_winners_1"),
-            InlineKeyboardButton("2 Kişi", callback_data="cekilis_set_winners_2"),
-            InlineKeyboardButton("3 Kişi", callback_data="cekilis_set_winners_3"),
-        ],
-        [
-            InlineKeyboardButton("4 Kişi", callback_data="cekilis_set_winners_4"),
-            InlineKeyboardButton("5 Kişi", callback_data="cekilis_set_winners_5"),
-            InlineKeyboardButton("6 Kişi", callback_data="cekilis_set_winners_6"),
-        ],
-        [
-            InlineKeyboardButton("8 Kişi", callback_data="cekilis_set_winners_8"),
-            InlineKeyboardButton("10 Kişi", callback_data="cekilis_set_winners_10"),
-        ],
         [InlineKeyboardButton(BUTTONS["GERI"], callback_data="cekilis_settings")],
     ]
 
     await query.edit_message_text(
-        "🏆 <b>Kazanan Sayısı</b>\n\nVarsayılan kazanan sayısını seçin:",
+        "🏆 <b>Kazanan Sayısı</b>\n\n"
+        "Varsayılan kazanan sayısını yazın:\n"
+        "<i>(Örn: 1, 5, 10, 50...)</i>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
