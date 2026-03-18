@@ -3,7 +3,7 @@
 Kullanıcı mesajlarını sayar ve istatistikleri yönetir
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 try:
     from zoneinfo import ZoneInfo
@@ -43,7 +43,7 @@ async def track_message(
 
     try:
         async with db.pool.acquire() as conn:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)  # Naive UTC for DB compatibility
 
             # Kullanıcı var mı kontrol et
             user = await conn.fetchrow("""
@@ -152,7 +152,7 @@ async def get_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[str, 
                 return None
 
             # Şu anki zamanı al
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)  # Naive UTC for DB compatibility
 
             # Reset kontrolü yap - dönem geçmişse count 0 olmalı
             daily_count = user['daily_count']
@@ -228,7 +228,6 @@ def _get_tr_time(dt: datetime) -> datetime:
         return None
     # UTC olarak işaretle ve TR'ye çevir
     if dt.tzinfo is None:
-        from datetime import timezone
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(TR_TZ)
 
