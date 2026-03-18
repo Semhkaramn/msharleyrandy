@@ -488,6 +488,66 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             )
         return
 
+    # ========== ÇEKİLİŞ KAZANAN SAYISI ==========
+    if waiting_for == 'cekilis_winner_count':
+        from config import ACTIVITY_GROUP_ID
+        text = message.text or ""
+
+        try:
+            winner_count = int(text.strip())
+
+            if winner_count < 1:
+                await message.reply_text(
+                    "❌ Kazanan sayısı en az 1 olmalıdır.",
+                    parse_mode="HTML"
+                )
+                return
+
+            if winner_count > 100:
+                await message.reply_text(
+                    "❌ Kazanan sayısı en fazla 100 olabilir.",
+                    parse_mode="HTML"
+                )
+                return
+
+            await update_giveaway_setting(ACTIVITY_GROUP_ID, default_winner_count=winner_count)
+            context.user_data.pop('waiting_for', None)
+
+            await message.reply_text(
+                f"✅ Kazanan sayısı <b>{winner_count}</b> olarak ayarlandı!",
+                parse_mode="HTML"
+            )
+
+            # Ayarlar menüsüne dön
+            from handlers.callbacks import show_cekilis_settings
+            menu_message_id = context.user_data.get('menu_message_id')
+            if menu_message_id:
+                try:
+                    class FakeQuery:
+                        def __init__(self, message):
+                            self.message = message
+
+                        async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                            await context.bot.edit_message_text(
+                                chat_id=self.message.chat.id,
+                                message_id=menu_message_id,
+                                text=text,
+                                reply_markup=reply_markup,
+                                parse_mode=parse_mode
+                            )
+
+                    fake_query = FakeQuery(message)
+                    await show_cekilis_settings(fake_query, user_id, context)
+                except TelegramError:
+                    pass
+
+        except ValueError:
+            await message.reply_text(
+                "❌ Geçersiz sayı. Lütfen bir rakam girin.\n\nÖrnek: <code>5</code>",
+                parse_mode="HTML"
+            )
+        return
+
 
 async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_TYPE, reply_message):
     """
