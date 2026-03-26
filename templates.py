@@ -476,22 +476,23 @@ def format_winner_list(winners: list) -> str:
     result = []
     for i, w in enumerate(winners, 1):
         telegram_id = w.get("telegram_id")
-        first_name = w.get("first_name", "Kullanıcı")
+        first_name = w.get("first_name")
         username = w.get("username")
+
+        # Görüntülenecek ismi belirle
+        if first_name:
+            display_name = first_name
+        elif username:
+            display_name = username
+        else:
+            display_name = "Kullanıcı"
 
         # Her zaman tıklanabilir mention kullan
         if telegram_id:
-            # Username varsa parantez içinde göster
-            if username:
-                name = f'<a href="tg://user?id={telegram_id}">{first_name}</a> (@{username})'
-            else:
-                name = f'<a href="tg://user?id={telegram_id}">{first_name}</a>'
+            name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
         else:
             # telegram_id yoksa (olmaması lazım ama fallback)
-            if username:
-                name = f"@{username}"
-            else:
-                name = first_name
+            name = display_name
 
         result.append(f"{i}. {name}")
 
