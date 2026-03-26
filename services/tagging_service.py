@@ -23,134 +23,103 @@ active_tagging_sessions: Dict[int, Dict[str, Any]] = {}
 auto_tagging_tasks: Dict[int, Dict[str, Any]] = {}
 
 
-# /naber için rastgele mesajlar - Doğal, samimi, gerçek insan gibi
+# /naber için rastgele mesajlar - Cana yakın, merak uyandırıcı, samimi
 NABER_MESSAGES = [
-    # === KISA & DOĞAL ===
-    "nbr",
-    "naber la",
-    "naptın",
-    "eyyy",
-    "selam",
-    "hadi be",
-    "lan",
-    "yaw",
-    "heyyo",
-    "sa",
-    "slm",
-    "mrb",
-    "nbrrr",
-    "nabersin",
-    "noldu sana",
-    "ee",
-    "hee",
-    "burdasın dimi",
-    "yo",
-
-    # === SAMİMİ SELAMLAR ===
-    "napıyon la",
-    "naber canım",
-    "ne haber dostum",
-    "nasılsın bee",
-    "iyi misin lan",
-    "hayırdır sessizsin",
-    "görünmüyon hiç",
-    "yaşıyon mu",
-    "noldu kaybolmuşsun",
-    "çıksana bi",
-    "neredesin ya",
-    "hala buradasın dimi",
-    "yok musun",
-    "gel bi konuşak",
-    "ne yapıyosun",
-
     # === MERAK UYANDIRAN ===
-    "bişey sorucam",
-    "dün dediklerini düşündüm",
-    "ya bi dk",
-    "sana bişey dicem",
-    "dur bi",
-    "haber var",
-    "duydun mu",
-    "biliyo musun ne oldu",
-    "çok saçma bişey oldu",
-    "inanamıcan",
-    "harbi mi lan",
-    "sen ne diyosun bu işe",
-    "bi bak şuna",
-    "gördün mü bunu",
+    "sana bi şey söylicem",
+    "bi dakika",
+    "dur dur dur",
+    "tahmin et ne oldu",
+    "biliyor musun ne düşündüm",
+    "çok ilginç bi şey var",
+    "duydum duydum",
+    "sana bi soru sorucam",
+    "acil gel",
+    "bi saniye",
+    "haberin var mı",
+    "dur anlatıyım",
+    "çok garip bi şey fark ettim",
+    "bunu görmek zorundasın",
+    "yok artık ya",
+    "şaka mı bu",
+    "cidden mi",
+    "inanmıyorum",
+    "bak bak bak",
+    "gel bakıyım buraya",
 
-    # === SORU SORANLAR ===
-    "ne diyosun",
-    "nası gidiyo",
-    "hayat nasıl",
-    "bugün nasıldı",
-    "iyi misin",
-    "sıkıldın mı",
-    "ne var ne yok",
-    "anlatsana",
-    "neler oluyo",
-    "sen napıyon bugün",
-    "boş musun",
-    "müsait misin",
-
-    # === TEPKİ BEKLEYENLER ===
-    "cevap ver be",
-    "yaz artık",
-    "görmezden gelme",
-    "hadi ama",
-    "bi ses ver",
-    "susma",
-    "niye yazmıyon",
-    "gördüğünü biliyorum",
-    "online olduğunu görüyom",
-    "kaçma",
-    "gel buraya",
-    "niye kaçıyon",
-
-    # === EĞLENCE & SOHBET ===
-    "takılalım mı",
-    "sohbet edelim",
-    "canım sıkılıyo",
-    "gel muhabbet",
-    "bi şeyler yapalım",
-    "sıkıldım ya",
-    "eğlenelim mi",
-    "ne yapalım",
-    "fikrin var mı",
-
-    # === ARKADAŞÇA ===
-    "özledim seni ya",
-    "aklıma geldin",
-    "la seni arıyodum",
-    "tam seni düşünüyodum",
+    # === SICAK & SAMİMİ ===
+    "canım benim",
+    "tatlım",
+    "güzelim",
     "naber hayatım",
-    "naber kanka",
-    "naber dostum",
-    "naber reis",
-    "noldu sana ya",
-    "görüşmeyeli çok oldu",
+    "aşkım naptın",
+    "özledim senii",
+    "nerelerdesin be",
+    "görünsene bi",
+    "kaçma benden",
+    "hadi gel konuşalım",
+    "seni arıyordum",
+    "tam seni düşünüyordum",
+    "aklıma geldin",
+    "nasılsın bakalım",
+    "iyi misin sen",
 
-    # === GÜNLÜK & RAHAT ===
-    "uyanık mısın",
-    "uyudun mu",
-    "yemek yedin mi",
-    "kahve içiyon mu",
-    "ne izliyon",
-    "ne dinliyon",
-    "evde misin",
-    "dışarı çıkıyon mu",
-    "bugün ne planın var",
-    "akşam napıyon",
+    # === ENERJİK & EĞLENCELİ ===
+    "heyy",
+    "heyyy selamm",
+    "yooo",
+    "alooo",
+    "buradayım",
+    "selammm",
+    "merhabaa",
+    "naberr",
+    "neşeli misin",
+    "keyifler nasıl",
+    "gülümsüyor musun",
+    "mutlu musun",
+    "harika bi gün değil mi",
 
-    # === MİNİMAL ===
-    "?",
-    "??",
-    "e",
-    "hm",
-    "aa",
-    "oo",
-    "hmm",
-    "yaa",
+    # === DOĞAL & RAHAT ===
+    "napıyon",
+    "naber la",
+    "nası gidiyo",
+    "ne var ne yok",
+    "nasıl gidiyor",
+    "her şey yolunda mı",
+    "hayat nasıl",
+    "sıkıldın mı yoksa",
+    "canın sıkılıyo mu",
+    "boş musun",
+
+    # === DAVET EDEN ===
+    "gel bi muhabbet edelim",
+    "sohbet edelim mi",
+    "konuşalım mı",
+    "takılalım mı biraz",
+    "bi çay içelim mi",
+    "gel seni dinliyim",
+    "anlat bakalım",
+    "ne düşünüyosun",
+
+    # === İLGİ ÇEKİCİ ===
+    "psst",
+    "hey sen",
+    "bi baksana",
+    "buraya bak",
+    "dikkat",
+    "sana diyorum",
+    "duydun mu beni",
+    "görüyor musun",
+    "yazıyorum işte",
+    "sesimi duyuyor musun",
+
+    # === SEVİMLİ ===
+    "hiii",
+    "selam tatlı şey",
+    "merhaba güzel insan",
+    "nasılsın bi tanem",
+    "iyi akşamlar güzellik",
+    "günaydın tatlım",
 ]
 
 
@@ -265,7 +234,7 @@ async def get_active_group_users(bot: Bot, group_id: int) -> List[Dict[str, Any]
 def format_user_mention(user: Dict[str, Any]) -> str:
     """
     Kullanıcıyı mention formatında döndür
-    Önce @username dener (daha güvenilir), yoksa tg://user formatı
+    Her zaman tıklanabilir tg://user formatı kullanır (username olsa da olmasa da)
 
     Args:
         user: Kullanıcı dict'i
@@ -275,14 +244,18 @@ def format_user_mention(user: Dict[str, Any]) -> str:
     """
     telegram_id = user['telegram_id']
     username = user.get('username')
-    first_name = user.get('first_name') or f"User{str(telegram_id)[-4:]}"
+    first_name = user.get('first_name')
 
-    # Username varsa @username kullan (daha güvenilir, her zaman çalışır)
-    if username:
-        return f'@{username}'
+    # Görüntülenecek ismi belirle
+    if first_name:
+        display_name = first_name
+    elif username:
+        display_name = username
+    else:
+        display_name = f"Kullanıcı"
 
-    # Username yoksa tg://user formatı kullan
-    return f'<a href="tg://user?id={telegram_id}">{first_name}</a>'
+    # Her zaman tıklanabilir mention kullan (username olsa da olmasa da çalışır)
+    return f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
 
 
 def is_tagging_active(group_id: int) -> bool:
@@ -394,11 +367,11 @@ async def start_etiket_tagging(
                 batch = users[i:i + batch_size]
                 mentions = [format_user_mention(u) for u in batch]
 
-                # Premium emoji varsa onu kullan, yoksa varsayılan
+                # Premium emoji varsa onu kullan, yoksa sadece mesaj
                 if has_custom_emoji and emoji_prefix:
                     text = f"{emoji_prefix}{message}\n\n" + " ".join(mentions)
                 else:
-                    text = f"💎 {message}\n\n" + " ".join(mentions)
+                    text = f"{message}\n\n" + " ".join(mentions)
 
                 try:
                     await bot.send_message(
