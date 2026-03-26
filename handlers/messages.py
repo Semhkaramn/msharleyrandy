@@ -674,6 +674,11 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
             is_admin = await is_group_admin(context.bot, chat.id, user.id) if user else False
 
         if is_admin:
+            # Önce aktif etiketleme varsa durdur
+            from services.tagging_service import stop_tagging, is_tagging_active
+            if is_tagging_active(chat.id):
+                stop_tagging(chat.id)
+
             success, msg = await close_chat(context.bot, chat.id)
             await context.bot.send_message(chat.id, msg, parse_mode="HTML")
         return
