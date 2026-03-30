@@ -8,10 +8,10 @@ from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
 from templates import (
-    MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY, WEEKLY_REWARDS,
+    MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY,
     format_winner_list, get_period_text, get_media_type_text,
     format_giveaway_win_times, format_giveaway_list, format_top_winners,
-    format_weekly_leaderboard, format_rewards_list
+    format_rewards_list
 )
 from services.randy_service import (
     get_draft, update_draft,
@@ -240,12 +240,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "weekly_rewards_menu":
         await show_weekly_rewards_menu(query, user_id, context)
 
-    elif data == "weekly_rewards_toggle":
-        await toggle_weekly_rewards(query, user_id, context)
-
-    elif data == "weekly_rewards_auto_pin":
-        await toggle_weekly_auto_pin(query, user_id, context)
-
     elif data == "weekly_rewards_top_menu":
         await show_weekly_top_count_menu(query, user_id, context)
 
@@ -253,16 +247,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         count = int(data.replace("weekly_rewards_top_", ""))
         await set_weekly_top_count(query, user_id, count, context)
 
-    elif data.startswith("weekly_rewards_time_"):
-        hour = int(data.replace("weekly_rewards_time_", ""))
-        await set_weekly_post_time(query, user_id, hour, context)
-
     elif data.startswith("weekly_set_reward_"):
         rank = int(data.replace("weekly_set_reward_", ""))
         await prompt_set_reward(query, user_id, rank, context)
-
-    elif data == "weekly_rewards_post_now":
-        await post_weekly_rewards_now(query, user_id, context)
 
     # ============================================
     # BOT BAŞLATMA KONTROLÜ (.ben için)
@@ -1923,7 +1910,7 @@ async def confirm_start_cekilis(query, user_id: int, context: ContextTypes.DEFAU
 # ============================================
 
 async def show_weekly_rewards_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Haftalık ödül ayarları menüsünü göster"""
+    """Haftalık ödül ayarları menüsünü göster - sadece kişi sayısı ve ödüller"""
     from config import ACTIVITY_GROUP_ID
     from services.weekly_rewards_service import (
         get_weekly_reward_settings, get_rewards_for_group
@@ -1956,27 +1943,15 @@ async def show_weekly_rewards_menu(query, user_id: int, context: ContextTypes.DE
     rewards = await get_rewards_for_group(ACTIVITY_GROUP_ID)
 
     if settings:
-        status = "✅ Açık" if settings.get('enabled', True) else "❌ Kapalı"
         top_count = settings.get('top_count', 5)
-        auto_post = "✅" if settings.get('auto_post_sunday', True) else "❌"
-        auto_pin = "✅" if settings.get('auto_pin', True) else "❌"
-        post_hour = settings.get('post_hour', 23)
-        post_minute = settings.get('post_minute', 0)
-        post_time = f"{post_hour:02d}:{post_minute:02d}"
     else:
-        status = "✅ Açık"
         top_count = 5
-        auto_post = "✅"
-        auto_pin = "✅"
-        post_time = "23:00"
 
     # Ödül listesi
     rewards_list = format_rewards_list(rewards, top_count)
 
     keyboard = [
-        [InlineKeyboardButton(f"{'🔴 Kapat' if status == '✅ Açık' else '🟢 Aç'}", callback_data="weekly_rewards_toggle")],
         [InlineKeyboardButton(f"📊 Kişi Sayısı: {top_count}", callback_data="weekly_rewards_top_menu")],
-        [InlineKeyboardButton(f"{auto_pin} Otomatik Sabitle", callback_data="weekly_rewards_auto_pin")],
     ]
 
     # Her sıra için ödül ayarlama butonları
@@ -1988,16 +1963,13 @@ async def show_weekly_rewards_menu(query, user_id: int, context: ContextTypes.DE
             InlineKeyboardButton(f"🎁 {i}. Ödül: {reward}", callback_data=f"weekly_set_reward_{i}")
         ])
 
-    keyboard.append([InlineKeyboardButton("📤 Şimdi Paylaş", callback_data="weekly_rewards_post_now")])
     keyboard.append([InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")])
 
-    text = WEEKLY_REWARDS["MENU"].format(
-        status=status,
-        top_count=top_count,
-        auto_post=auto_post,
-        auto_pin=auto_pin,
-        post_time=post_time,
-        rewards_list=rewards_list
+    text = (
+        "🏆 <b>Haftalık Ödül Ayarları</b>\n\n"
+        f"<b>Kaç kişi ödül alacak:</b> {top_count} kişi\n\n"
+        f"<b>Ödüller:</b>\n{rewards_list}\n\n"
+        "💡 <i>Grupta</i> <code>.haftalık</code> <i>yazarak sıralamayı ve ödülleri görebilirsiniz.</i>"
     )
 
     try:
@@ -2009,42 +1981,6 @@ async def show_weekly_rewards_menu(query, user_id: int, context: ContextTypes.DE
     except TelegramError:
         # Mesaj içeriği aynıysa hata fırlatılır, bu durumu yoksay
         pass
-
-
-async def toggle_weekly_rewards(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Haftalık ödül sistemini aç/kapat"""
-    from config import ACTIVITY_GROUP_ID
-    from services.weekly_rewards_service import (
-        get_weekly_reward_settings, toggle_weekly_rewards as toggle_service
-    )
-
-    settings = await get_weekly_reward_settings(ACTIVITY_GROUP_ID)
-    current = settings.get('enabled', True) if settings else True
-    new_value = not current
-
-    await toggle_service(ACTIVITY_GROUP_ID, new_value)
-
-    status = "açıldı" if new_value else "kapatıldı"
-    await query.answer(f"✅ Haftalık ödül sistemi {status}!", show_alert=True)
-    await show_weekly_rewards_menu(query, user_id, context)
-
-
-async def toggle_weekly_auto_pin(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Otomatik sabitlemeyi aç/kapat"""
-    from config import ACTIVITY_GROUP_ID
-    from services.weekly_rewards_service import (
-        get_weekly_reward_settings, update_auto_pin
-    )
-
-    settings = await get_weekly_reward_settings(ACTIVITY_GROUP_ID)
-    current = settings.get('auto_pin', True) if settings else True
-    new_value = not current
-
-    await update_auto_pin(ACTIVITY_GROUP_ID, new_value)
-
-    status = "açıldı" if new_value else "kapatıldı"
-    await query.answer(f"✅ Otomatik sabitleme {status}!", show_alert=True)
-    await show_weekly_rewards_menu(query, user_id, context)
 
 
 async def show_weekly_top_count_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
@@ -2088,16 +2024,6 @@ async def set_weekly_top_count(query, user_id: int, count: int, context: Context
     await show_weekly_rewards_menu(query, user_id, context)
 
 
-async def set_weekly_post_time(query, user_id: int, hour: int, context: ContextTypes.DEFAULT_TYPE):
-    """Paylaşım saatini ayarla"""
-    from config import ACTIVITY_GROUP_ID
-    from services.weekly_rewards_service import update_post_time
-
-    await update_post_time(ACTIVITY_GROUP_ID, hour, 0)
-    await query.answer(f"✅ Paylaşım saati {hour:02d}:00 olarak ayarlandı!", show_alert=True)
-    await show_weekly_rewards_menu(query, user_id, context)
-
-
 async def prompt_set_reward(query, user_id: int, rank: int, context: ContextTypes.DEFAULT_TYPE):
     """Ödül tanımlama için yazı iste"""
     context.user_data['waiting_for'] = 'weekly_reward'
@@ -2110,79 +2036,6 @@ async def prompt_set_reward(query, user_id: int, rank: int, context: ContextType
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
-
-
-async def post_weekly_rewards_now(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Haftalık ödülleri şimdi paylaş"""
-    from config import ACTIVITY_GROUP_ID
-    from services.weekly_rewards_service import (
-        get_weekly_reward_settings, get_weekly_leaderboard_with_rewards,
-        get_group_admin_ids, save_weekly_history, has_posted_this_week
-    )
-    from datetime import datetime
-    try:
-        from zoneinfo import ZoneInfo
-    except ImportError:
-        from backports.zoneinfo import ZoneInfo
-
-    TR_TZ = ZoneInfo("Europe/Istanbul")
-
-    if not ACTIVITY_GROUP_ID:
-        await query.answer("❌ Grup tanımlı değil!", show_alert=True)
-        return
-
-    # Bu hafta zaten paylaşıldı mı?
-    if await has_posted_this_week(ACTIVITY_GROUP_ID):
-        await query.answer("⚠️ Bu hafta zaten paylaşım yapıldı!", show_alert=True)
-        return
-
-    # Admin ID'lerini al
-    admin_ids = await get_group_admin_ids(context.bot, ACTIVITY_GROUP_ID)
-
-    # Liderliği al
-    leaderboard = await get_weekly_leaderboard_with_rewards(ACTIVITY_GROUP_ID, admin_ids)
-
-    if not leaderboard:
-        await query.answer("❌ Bu hafta yeterli veri yok!", show_alert=True)
-        return
-
-    # Mesajı oluştur
-    leaderboard_text = format_weekly_leaderboard(leaderboard, show_rewards=True)
-
-    text = WEEKLY_REWARDS["AUTO_POST_MESSAGE"].format(
-        count=len(leaderboard),
-        leaderboard=leaderboard_text
-    )
-
-    try:
-        # Mesajı gönder
-        sent_msg = await context.bot.send_message(
-            ACTIVITY_GROUP_ID,
-            text,
-            parse_mode="HTML"
-        )
-
-        # Sabitle
-        settings = await get_weekly_reward_settings(ACTIVITY_GROUP_ID)
-        if settings and settings.get('auto_pin', True):
-            try:
-                await context.bot.pin_chat_message(
-                    ACTIVITY_GROUP_ID,
-                    sent_msg.message_id,
-                    disable_notification=False
-                )
-            except TelegramError:
-                pass
-
-        # Geçmişe kaydet
-        await save_weekly_history(ACTIVITY_GROUP_ID, leaderboard, sent_msg.message_id)
-
-        await query.answer("✅ Haftalık ödüller paylaşıldı!", show_alert=True)
-
-    except TelegramError as e:
-        await query.answer(f"❌ Hata: {str(e)[:50]}", show_alert=True)
-
-    await show_weekly_rewards_menu(query, user_id, context)
 
 
 async def handle_randy_join(query, user_id: int, randy_id: int, context: ContextTypes.DEFAULT_TYPE):
