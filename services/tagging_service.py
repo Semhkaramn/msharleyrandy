@@ -304,6 +304,7 @@ async def start_etiket_tagging(
     /etiket komutu - 5'erli mention etiketleme başlat
     Premium emoji destekli
     Grupta olmayan kullanıcıları otomatik siler
+    Kullanıcılar rastgele sıralanır
 
     Args:
         group_id: Grup ID
@@ -325,6 +326,9 @@ async def start_etiket_tagging(
 
     if not users:
         return False
+
+    # Kullanıcıları rastgele karıştır (her seferinde farklı sıra)
+    random.shuffle(users)
 
     # Session başlat
     active_tagging_sessions[group_id] = {
@@ -356,7 +360,7 @@ async def start_etiket_tagging(
             except:
                 pass
 
-            # 5'erli gruplar halinde etiketle
+            # 5'erli gruplar halinde etiketle (kullanıcılar zaten karıştırıldı)
             batch_size = 5
 
             for i in range(0, len(users), batch_size):
@@ -425,6 +429,7 @@ async def start_naber_tagging(
     """
     /naber komutu - Tek tek rastgele cümlelerle etiketleme
     Grupta olmayan kullanıcıları otomatik siler
+    Kullanıcılar rastgele sıralanır
 
     Args:
         group_id: Grup ID
@@ -443,6 +448,9 @@ async def start_naber_tagging(
 
     if not users:
         return False
+
+    # Kullanıcıları rastgele karıştır (her seferinde farklı sıra)
+    random.shuffle(users)
 
     # Session başlat
     active_tagging_sessions[group_id] = {
@@ -464,7 +472,7 @@ async def start_naber_tagging(
             random.shuffle(shuffled_messages)
             message_index = 0
 
-            # Her kullanıcıyı tek tek etiketle
+            # Her kullanıcıyı tek tek etiketle (kullanıcılar zaten karıştırıldı)
             for user in users:
                 # Durduruldu mu kontrol et
                 session = active_tagging_sessions.get(group_id)
