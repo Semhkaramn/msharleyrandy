@@ -8,9 +8,10 @@ from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
 from templates import (
-    MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY,
+    MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY, WEEKLY_REWARDS,
     format_winner_list, get_period_text, get_media_type_text,
-    format_giveaway_win_times, format_giveaway_list, format_top_winners
+    format_giveaway_win_times, format_giveaway_list, format_top_winners,
+    format_weekly_leaderboard, format_rewards_list
 )
 from services.randy_service import (
     get_draft, update_draft,
@@ -232,6 +233,33 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "cekilis_confirm_start":
         await confirm_start_cekilis(query, user_id, context)
+
+    # ============================================
+    # HAFTALIK ÖDÜL MENÜSÜ
+    # ============================================
+    elif data == "weekly_rewards_menu":
+        await show_weekly_rewards_menu(query, user_id, context)
+
+    elif data == "weekly_rewards_toggle":
+        await toggle_weekly_rewards(query, user_id, context)
+
+    elif data == "weekly_rewards_auto_pin":
+        await toggle_weekly_auto_pin(query, user_id, context)
+
+    elif data.startswith("weekly_rewards_top_"):
+        count = int(data.replace("weekly_rewards_top_", ""))
+        await set_weekly_top_count(query, user_id, count, context)
+
+    elif data.startswith("weekly_rewards_time_"):
+        hour = int(data.replace("weekly_rewards_time_", ""))
+        await set_weekly_post_time(query, user_id, hour, context)
+
+    elif data.startswith("weekly_set_reward_"):
+        rank = int(data.replace("weekly_set_reward_", ""))
+        await prompt_set_reward(query, user_id, rank, context)
+
+    elif data == "weekly_rewards_post_now":
+        await post_weekly_rewards_now(query, user_id, context)
 
     # ============================================
     # BOT BAŞLATMA KONTROLÜ (.ben için)
