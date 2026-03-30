@@ -299,6 +299,60 @@ class Database:
                 )
             """)
 
+            # ============================================
+            # HAFTALIK AKTİVİTE ÖDÜL TABLOLARI
+            # ============================================
+
+            # Haftalık Ödül Ayarları (grup bazlı)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_reward_settings (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT UNIQUE NOT NULL,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    top_count INT DEFAULT 5,
+                    auto_post_sunday BOOLEAN DEFAULT TRUE,
+                    auto_pin BOOLEAN DEFAULT TRUE,
+                    post_hour INT DEFAULT 23,
+                    post_minute INT DEFAULT 0,
+                    last_posted_week INT,
+                    last_posted_year INT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+
+            # Haftalık Ödül Tanımları (sıralama bazlı)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_rewards (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    rank INT NOT NULL,
+                    reward_text TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(group_id, rank)
+                )
+            """)
+
+            # Haftalık Ödül Geçmişi
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_reward_history (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    week_number INT NOT NULL,
+                    year INT NOT NULL,
+                    rank INT NOT NULL,
+                    telegram_id BIGINT NOT NULL,
+                    username TEXT,
+                    first_name TEXT,
+                    message_count INT NOT NULL,
+                    reward_text TEXT,
+                    message_id BIGINT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(group_id, year, week_number, rank)
+                )
+            """)
+
             # İndeksler
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram ON telegram_users(telegram_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_group ON telegram_users(group_id)")
@@ -312,6 +366,9 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_giveaway_group ON giveaways(group_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_giveaway_win_times ON giveaway_win_times(giveaway_id, win_time)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_giveaway_user_wins ON giveaway_user_wins(group_id, user_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_weekly_reward_settings_group ON weekly_reward_settings(group_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_weekly_rewards_group ON weekly_rewards(group_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_weekly_reward_history ON weekly_reward_history(group_id, year, week_number)")
 
             print("✅ Tablolar oluşturuldu")
 
