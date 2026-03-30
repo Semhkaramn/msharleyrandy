@@ -21,10 +21,7 @@ from services.tagging_service import (
     start_etiket_tagging, start_naber_tagging, stop_tagging,
     is_tagging_active, get_tagging_type
 )
-from services.weekly_rewards_service import (
-    get_weekly_leaderboard_with_rewards, get_group_admin_ids,
-    get_weekly_reward_settings
-)
+from services.weekly_rewards_service import get_weekly_reward_settings
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
 
@@ -999,8 +996,101 @@ async def gunluk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Haftalık mesaj sıralaması (sadece adminler)"""
-    await _leaderboard_command(update, context, 'weekly')
+    """Haftalık mesaj sıralaması + ödüller (sadece adminler)"""
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    from datetime import datetime, timedelta, timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+    now_utc = datetime.now(timezone.utc)
+    now_tr = now_utc.astimezone(TR_TZ)
+
+    # Bu haftanın Pazartesi günü 00:00 (Türkiye saati) - UTC'ye çevir
+    days_since_monday = now_tr.weekday()
+    monday_tr = (now_tr - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    period_start = monday_tr.astimezone(timezone.utc).replace(tzinfo=None)
+
+    # Ödülleri al
+    from services.weekly_rewards_service import get_rewards_for_group, get_weekly_reward_settings
+    rewards = await get_rewards_for_group(chat.id)
+    rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
+
+    # Ayarları al
+    settings = await get_weekly_reward_settings(chat.id)
+    top_count = settings.get('top_count', 10) if settings else 10
+
+    async with db.pool.acquire() as conn:
+        # Sadece bu dönemde mesaj atmış kullanıcıları getir
+        users = await conn.fetch("""
+            SELECT telegram_id, username, first_name, last_name, weekly_count as count
+            FROM telegram_users
+            WHERE group_id = $1 AND weekly_count > 0 AND last_weekly_reset >= $2
+            ORDER BY weekly_count DESC
+            LIMIT $3
+        """, chat.id, period_start, top_count)
+
+    if not users:
+        no_data = "📊 <b>Haftalık Mesaj Sıralaması</b>\n\n⚠️ Henüz mesaj atan kullanıcı yok."
+        await message.reply_text(no_data, parse_mode="HTML")
+        return
+
+    # Hafta bilgisi
+    week_number = now_tr.isocalendar()[1]
+    year = now_tr.year
+
+    medals = ['🥇', '🥈', '🥉']
+    lines = [f"🏆 <b>HAFTALIK SIRALAMA</b>", f"📅 {year} - {week_number}. hafta", ""]
+
+    for i, u in enumerate(users):
+        rank = i + 1
+        medal = medals[i] if i < 3 else f"{rank}."
+        telegram_id = u['telegram_id']
+
+        # Görüntülenecek ismi belirle - username öncelikli
+        if u['username']:
+            display_name = f"@{u['username']}"
+        elif u['first_name']:
+            display_name = u['first_name']
+            if u['last_name']:
+                display_name += f" {u['last_name']}"
+        else:
+            display_name = f"Kullanıcı {str(telegram_id)[-4:]}"
+
+        # Her zaman tıklanabilir mention kullan
+        name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
+
+        # Ödül varsa ekle
+        reward = rewards_dict.get(rank)
+        if reward:
+            lines.append(f"{medal} {name} — <b>{u['count']}</b> mesaj\n    🎁 <b>Ödül:</b> {reward}")
+        else:
+            lines.append(f"{medal} {name} — <b>{u['count']}</b> mesaj")
+
+    lines.append(f"\n💬 Bu hafta en aktif {len(users)} kullanıcı")
+
+    await message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def aylik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1051,15 +1141,6 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
             # Bugünün başlangıcı (Türkiye saati 00:00) - UTC'ye çevir
             today_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
             period_start = today_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
-        elif period == 'weekly':
-            field = 'weekly_count'
-            reset_field = 'last_weekly_reset'
-            title = '📊 <b>Haftalık Mesaj Sıralaması</b>'
-            period_text = 'Bu hafta'
-            # Bu haftanın Pazartesi günü 00:00 (Türkiye saati) - UTC'ye çevir
-            days_since_monday = now_tr.weekday()
-            monday_tr = (now_tr - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-            period_start = monday_tr.astimezone(timezone.utc).replace(tzinfo=None)
         else:
             field = 'monthly_count'
             reset_field = 'last_monthly_reset'
@@ -1340,72 +1421,3 @@ async def dur_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await info_msg.delete()
         except TelegramError:
             pass
-
-
-# ============================================
-# .aktiflik - Haftalık Aktivite Ödül Listesi
-# ============================================
-
-async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    .aktiflik, /aktiflik komutu
-    Haftalık en aktif kullanıcıları ve ödüllerini gösterir
-    Sadece adminler kullanabilir
-    """
-    chat = update.effective_chat
-    user = update.effective_user
-    message = update.effective_message
-
-    if not user or not message:
-        return
-
-    # Sadece gruplarda çalışır
-    if chat.type not in ['group', 'supergroup']:
-        return
-
-    # Admin kontrolü
-    if can_anonymous_admin_use_commands(message):
-        is_admin = True
-    else:
-        is_admin = await is_group_admin(context.bot, chat.id, user.id)
-
-    if not is_admin:
-        return
-
-    from templates import WEEKLY_REWARDS, format_weekly_leaderboard
-    from datetime import datetime
-    try:
-        from zoneinfo import ZoneInfo
-    except ImportError:
-        from backports.zoneinfo import ZoneInfo
-
-    TR_TZ = ZoneInfo("Europe/Istanbul")
-
-    # Admin ID'lerini al (hariç tutulacak)
-    admin_ids = await get_group_admin_ids(context.bot, chat.id)
-
-    # Haftalık liderliği al
-    leaderboard = await get_weekly_leaderboard_with_rewards(chat.id, admin_ids)
-
-    if not leaderboard:
-        await message.reply_text(
-            WEEKLY_REWARDS["NO_DATA"],
-            parse_mode="HTML"
-        )
-        return
-
-    # Hafta bilgisi
-    now_tr = datetime.now(TR_TZ)
-    week_number = now_tr.isocalendar()[1]
-    year = now_tr.year
-    week_info = f"{year} - {week_number}. hafta"
-
-    # Liderlik tablosunu formatla
-    leaderboard_text = format_weekly_leaderboard(leaderboard, show_rewards=True)
-
-    text = WEEKLY_REWARDS["LEADERBOARD"].format(
-        week_info=week_info,
-        leaderboard=leaderboard_text
-    )
-
-    await message.reply_text(text, parse_mode="HTML")
