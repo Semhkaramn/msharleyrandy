@@ -2000,11 +2000,15 @@ async def show_weekly_rewards_menu(query, user_id: int, context: ContextTypes.DE
         rewards_list=rewards_list
     )
 
-    await query.edit_message_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
+    try:
+        await query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+    except TelegramError:
+        # Mesaj içeriği aynıysa hata fırlatılır, bu durumu yoksay
+        pass
 
 
 async def toggle_weekly_rewards(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
