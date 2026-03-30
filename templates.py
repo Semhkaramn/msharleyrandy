@@ -468,6 +468,115 @@ GIVEAWAY = {
 }
 
 
+# ============================================
+# 🏆 HAFTALIK AKTİVİTE ÖDÜL MESAJLARI
+# ============================================
+
+WEEKLY_REWARDS = {
+    "MENU": (
+        "🏆 <b>Haftalık Aktivite Ödülleri</b>\n\n"
+        "Her hafta en aktif üyelere ödül verilir.\n"
+        "Adminler bu listeye dahil değildir.\n\n"
+        "<b>Mevcut Ayarlar:</b>\n"
+        "• Durum: {status}\n"
+        "• Top sayısı: {top_count} kişi\n"
+        "• Otomatik paylaşım: {auto_post}\n"
+        "• Otomatik sabitle: {auto_pin}\n"
+        "• Paylaşım saati: Pazar {post_time}\n\n"
+        "<b>Ödüller:</b>\n{rewards_list}"
+    ),
+
+    "SET_REWARD_PROMPT": (
+        "🎁 <b>{rank}. Sıra Ödülü</b>\n\n"
+        "Bu sıra için ödül metnini yazın.\n\n"
+        "<i>Örnek: 50 TL Hediye Çeki</i>"
+    ),
+
+    "REWARD_SAVED": "✅ {rank}. sıra ödülü kaydedildi: <b>{reward}</b>",
+
+    "LEADERBOARD": (
+        "🏆 <b>HAFTALIK AKTİVİTE LİDERLERİ</b>\n\n"
+        "📅 Hafta: {week_info}\n\n"
+        "{leaderboard}\n\n"
+        "🎯 <i>Haftaya da aktif ol, ödülleri kap!</i>"
+    ),
+
+    "LEADERBOARD_ROW": "{medal} {mention} — <b>{count}</b> mesaj",
+    "LEADERBOARD_ROW_REWARD": "{medal} {mention} — <b>{count}</b> mesaj\n    🎁 <b>Ödül:</b> {reward}",
+
+    "NO_DATA": "📭 Bu hafta henüz yeterli veri yok.",
+
+    "ALREADY_POSTED": "⚠️ Bu hafta zaten paylaşım yapıldı.",
+
+    "REWARD_NOT_SET": "<i>Ödül tanımlanmamış</i>",
+
+    "AUTO_POST_MESSAGE": (
+        "🏆 <b>HAFTANIN EN AKTİFLERİ!</b>\n\n"
+        "Bu haftanın en aktif {count} üyesini kutluyoruz!\n\n"
+        "{leaderboard}\n\n"
+        "🎉 <b>Tebrikler!</b>\n"
+        "Ödülleriniz için yöneticilerimizle iletişime geçin.\n\n"
+        "💪 <i>Yeni hafta, yeni şans! Aktif ol, kazan!</i>"
+    ),
+}
+
+
+def format_weekly_leaderboard(leaderboard: list, show_rewards: bool = True) -> str:
+    """Haftalık liderlik tablosunu formatla"""
+    if not leaderboard:
+        return WEEKLY_REWARDS["NO_DATA"]
+
+    medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+    lines = []
+
+    for user in leaderboard:
+        rank = user.get('rank', 1)
+        medal = medals[rank - 1] if rank <= len(medals) else f"{rank}."
+
+        # Mention oluştur
+        telegram_id = user.get('telegram_id')
+        first_name = user.get('first_name', 'Kullanıcı')
+        username = user.get('username')
+
+        if username:
+            mention = f"@{username}"
+        elif telegram_id:
+            mention = f'<a href="tg://user?id={telegram_id}">{first_name}</a>'
+        else:
+            mention = first_name
+
+        count = user.get('weekly_count', 0)
+        reward = user.get('reward')
+
+        if show_rewards and reward:
+            line = WEEKLY_REWARDS["LEADERBOARD_ROW_REWARD"].format(
+                medal=medal, mention=mention, count=count, reward=reward
+            )
+        else:
+            line = WEEKLY_REWARDS["LEADERBOARD_ROW"].format(
+                medal=medal, mention=mention, count=count
+            )
+
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_rewards_list(rewards: list, top_count: int = 5) -> str:
+    """Ödül listesini formatla"""
+    if not rewards:
+        return "Henüz ödül tanımlanmamış."
+
+    rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
+    lines = []
+
+    for i in range(1, top_count + 1):
+        reward = rewards_dict.get(i, "—")
+        lines.append(f"  {i}. {reward}")
+
+    return "\n".join(lines)
+
+
 def format_winner_list(winners: list) -> str:
     """Kazanan listesini formatla (tıklanabilir mention)"""
     if not winners:
