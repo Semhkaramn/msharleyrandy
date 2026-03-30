@@ -1350,6 +1350,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     .aktiflik, /aktiflik komutu
     Haftalık en aktif kullanıcıları ve ödüllerini gösterir
+    Sadece adminler kullanabilir
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -1360,6 +1361,15 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
         return
 
     from templates import WEEKLY_REWARDS, format_weekly_leaderboard
