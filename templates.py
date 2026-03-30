@@ -533,17 +533,24 @@ def format_weekly_leaderboard(leaderboard: list, show_rewards: bool = True) -> s
         rank = user.get('rank', 1)
         medal = medals[rank - 1] if rank <= len(medals) else f"{rank}."
 
-        # Mention oluştur
+        # Mention oluştur - her zaman tıklanabilir link kullan
         telegram_id = user.get('telegram_id')
         first_name = user.get('first_name', 'Kullanıcı')
         username = user.get('username')
 
+        # Görüntülenecek ismi belirle - username öncelikli
         if username:
-            mention = f"@{username}"
-        elif telegram_id:
-            mention = f'<a href="tg://user?id={telegram_id}">{first_name}</a>'
+            display_name = f"@{username}"
+        elif first_name:
+            display_name = first_name
         else:
-            mention = first_name
+            display_name = "Kullanıcı"
+
+        # Her zaman tıklanabilir mention kullan (telegram_id varsa)
+        if telegram_id:
+            mention = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
+        else:
+            mention = display_name
 
         count = user.get('weekly_count', 0)
         reward = user.get('reward')
@@ -588,11 +595,11 @@ def format_winner_list(winners: list) -> str:
         first_name = w.get("first_name")
         username = w.get("username")
 
-        # Görüntülenecek ismi belirle
-        if first_name:
+        # Görüntülenecek ismi belirle - username öncelikli
+        if username:
+            display_name = f"@{username}"
+        elif first_name:
             display_name = first_name
-        elif username:
-            display_name = username
         else:
             display_name = "Kullanıcı"
 
@@ -682,10 +689,21 @@ def format_giveaway_win_times(win_times: list, show_winners: bool = True) -> str
         if is_won and show_winners:
             winner_name = wt.get('winner_first_name', 'Kazanan')
             winner_username = wt.get('winner_username')
+            winner_id = wt.get('winner_id')
+
+            # Görüntülenecek ismi belirle - username öncelikli
             if winner_username:
-                winner_text = f"@{winner_username}"
+                display_name = f"@{winner_username}"
+            elif winner_name and winner_name != 'Kazanan':
+                display_name = winner_name
             else:
-                winner_text = winner_name
+                display_name = "Kazanan"
+
+            # Her zaman tıklanabilir mention kullan (winner_id varsa)
+            if winner_id:
+                winner_text = f'<a href="tg://user?id={winner_id}">{display_name}</a>'
+            else:
+                winner_text = display_name
             lines.append(f"✅ Slot {slot_num}: {time_str} - {winner_text}")
         elif is_won:
             lines.append(f"✅ Slot {slot_num}: {time_str} - Kazanıldı")
@@ -742,12 +760,19 @@ def format_top_winners(winners: list) -> str:
 
         medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
 
+        # Görüntülenecek ismi belirle - username öncelikli
         if username:
-            name = f"@{username}"
-        elif user_id:
-            name = f'<a href="tg://user?id={user_id}">{first_name}</a>'
+            display_name = f"@{username}"
+        elif first_name:
+            display_name = first_name
         else:
-            name = first_name
+            display_name = "Kullanıcı"
+
+        # Her zaman tıklanabilir mention kullan (user_id varsa)
+        if user_id:
+            name = f'<a href="tg://user?id={user_id}">{display_name}</a>'
+        else:
+            name = display_name
 
         lines.append(f"{medal} {name} - {win_count} kazanma")
 
