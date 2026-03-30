@@ -969,23 +969,19 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     period_start = monday_tr.astimezone(timezone.utc).replace(tzinfo=None)
 
     # Ödülleri al
-    from services.weekly_rewards_service import get_rewards_for_group, get_weekly_reward_settings
+    from services.weekly_rewards_service import get_rewards_for_group
     rewards = await get_rewards_for_group(chat.id)
     rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
 
-    # Ayarları al
-    settings = await get_weekly_reward_settings(chat.id)
-    top_count = settings.get('top_count', 10) if settings else 10
-
     async with db.pool.acquire() as conn:
-        # Sadece bu dönemde mesaj atmış kullanıcıları getir
+        # Sadece bu dönemde mesaj atmış kullanıcıları getir - her zaman 10 kişi göster
         users = await conn.fetch("""
             SELECT telegram_id, username, first_name, last_name, weekly_count as count
             FROM telegram_users
             WHERE group_id = $1 AND weekly_count > 0 AND last_weekly_reset >= $2
             ORDER BY weekly_count DESC
-            LIMIT $3
-        """, chat.id, period_start, top_count)
+            LIMIT 10
+        """, chat.id, period_start)
 
     if not users:
         no_data = "📊 <b>Haftalık Mesaj Sıralaması</b>\n\n⚠️ Henüz mesaj atan kullanıcı yok."
