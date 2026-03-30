@@ -41,8 +41,7 @@ from handlers.commands import (
     bitir_command,
     etiket_command,
     naber_command,
-    dur_command,
-    aktiflik_command
+    dur_command
 )
 from handlers.messages import handle_message
 from handlers.callbacks import handle_callback
@@ -70,9 +69,6 @@ async def post_init(application: Application) -> None:
     # Aktif çekilişleri yeniden başlat
     await _restart_active_giveaways(application.bot)
 
-    # Haftalık ödül scheduler'ını başlat
-    await _start_weekly_reward_scheduler(application)
-
     logger.info("✅ Bot başlatıldı!")
 
 
@@ -85,115 +81,6 @@ async def _restart_active_giveaways(bot):
         logger.info("🎁 Aktif çekilişler yeniden başlatıldı")
     except Exception as e:
         logger.error(f"❌ Çekiliş yeniden başlatma hatası: {e}")
-
-
-async def _start_weekly_reward_scheduler(application):
-    """
-    Haftalık ödül otomatik paylaşım scheduler'ını başlat
-    Pazar günü belirtilen saatte (varsayılan 23:00) mesajlar sıfırlanmadan ÖNCE paylaşım yapar
-    """
-    from services.weekly_rewards_service import (
-        get_weekly_reward_settings, get_weekly_leaderboard_with_rewards,
-        get_group_admin_ids, save_weekly_history, has_posted_this_week
-    )
-    from templates import WEEKLY_REWARDS, format_weekly_leaderboard
-    from config import ACTIVITY_GROUP_ID
-    from telegram.error import TelegramError
-    try:
-        from zoneinfo import ZoneInfo
-    except ImportError:
-        from backports.zoneinfo import ZoneInfo
-
-    TR_TZ = ZoneInfo("Europe/Istanbul")
-
-    async def check_and_post_weekly_rewards():
-        """Pazar günü haftalık ödülleri paylaş - mesajlar sıfırlanmadan ÖNCE"""
-        from datetime import datetime
-
-        while True:
-            try:
-                now_tr = datetime.now(TR_TZ)
-
-                # Pazar günü mü? (weekday() = 6)
-                if now_tr.weekday() == 6:
-                    if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
-                        # Ayarları kontrol et
-                        settings = await get_weekly_reward_settings(ACTIVITY_GROUP_ID)
-
-                        if settings and settings.get('enabled', True) and settings.get('auto_post_sunday', True):
-                            post_hour = settings.get('post_hour', 23)
-                            post_minute = settings.get('post_minute', 0)
-
-                            # Doğru saat mi?
-                            if now_tr.hour == post_hour and now_tr.minute == post_minute:
-                                # Bu hafta zaten paylaşıldı mı?
-                                if not await has_posted_this_week(ACTIVITY_GROUP_ID):
-                                    logger.info("🏆 Haftalık ödül paylaşımı başlatılıyor...")
-
-                                    # Admin ID'lerini al
-                                    admin_ids = await get_group_admin_ids(
-                                        application.bot, ACTIVITY_GROUP_ID
-                                    )
-
-                                    # Liderliği al
-                                    leaderboard = await get_weekly_leaderboard_with_rewards(
-                                        ACTIVITY_GROUP_ID, admin_ids
-                                    )
-
-                                    if leaderboard:
-                                        # Mesajı oluştur
-                                        leaderboard_text = format_weekly_leaderboard(
-                                            leaderboard, show_rewards=True
-                                        )
-
-                                        text = WEEKLY_REWARDS["AUTO_POST_MESSAGE"].format(
-                                            count=len(leaderboard),
-                                            leaderboard=leaderboard_text
-                                        )
-
-                                        try:
-                                            # Mesajı gönder
-                                            sent_msg = await application.bot.send_message(
-                                                ACTIVITY_GROUP_ID,
-                                                text,
-                                                parse_mode="HTML"
-                                            )
-
-                                            # Sabitle
-                                            if settings.get('auto_pin', True):
-                                                try:
-                                                    await application.bot.pin_chat_message(
-                                                        ACTIVITY_GROUP_ID,
-                                                        sent_msg.message_id,
-                                                        disable_notification=False
-                                                    )
-                                                    logger.info("📌 Haftalık ödül mesajı sabitlendi!")
-                                                except TelegramError as e:
-                                                    logger.error(f"⚠️ Sabitleme hatası: {e}")
-
-                                            # Geçmişe kaydet
-                                            await save_weekly_history(
-                                                ACTIVITY_GROUP_ID,
-                                                leaderboard,
-                                                sent_msg.message_id
-                                            )
-
-                                            logger.info("🏆 Haftalık ödül paylaşımı tamamlandı!")
-
-                                        except TelegramError as e:
-                                            logger.error(f"❌ Haftalık paylaşım hatası: {e}")
-                                    else:
-                                        logger.warning("⚠️ Haftalık liderlik verisi yok!")
-
-            except Exception as e:
-                logger.error(f"❌ Haftalık ödül scheduler hatası: {e}")
-
-            # Her dakika kontrol et
-            await asyncio.sleep(60)
-
-    # Scheduler'ı başlat
-    asyncio.create_task(check_and_post_weekly_rewards())
-    logger.info("🏆 Haftalık ödül scheduler başlatıldı")
 
 
 async def _restart_auto_tagging_tasks(bot):
@@ -277,7 +164,7 @@ def main():
         gunluk_command
     ))
 
-    # .haftalık - Haftalık sıralama (admin)
+    # .haftalık - Haftalık sıralama (admin) - ödülleri de gösterir
     application.add_handler(MessageHandler(
         filters.Regex(r'^[./!]haftal[ıi]k$') & filters.ChatType.GROUPS,
         haftalik_command
@@ -287,13 +174,6 @@ def main():
     application.add_handler(MessageHandler(
         filters.Regex(r'^[./!]ayl[ıi]k$') & filters.ChatType.GROUPS,
         aylik_command
-    ))
-
-    # .aktiflik - Haftalık aktivite ödül listesi
-    application.add_handler(CommandHandler("aktiflik", aktiflik_command))
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]aktiflik$') & filters.ChatType.GROUPS,
-        aktiflik_command
     ))
 
     # ========== CALLBACK HANDLER ==========
