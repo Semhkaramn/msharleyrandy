@@ -501,8 +501,8 @@ WEEKLY_REWARDS = {
         "🎯 <i>Haftaya da aktif ol, ödülleri kap!</i>"
     ),
 
-    "LEADERBOARD_ROW": "{medal} {mention} — <b>{count}</b> mesaj",
-    "LEADERBOARD_ROW_REWARD": "{medal} {mention} — <b>{count}</b> mesaj\n    🎁 <b>Ödül:</b> {reward}",
+    "LEADERBOARD_ROW": "{medal} {mention} - {count}",
+    "LEADERBOARD_ROW_REWARD": "{medal} {mention} - {count} - {reward}",
 
     "NO_DATA": "📭 Bu hafta henüz yeterli veri yok.",
 
