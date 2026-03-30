@@ -21,6 +21,10 @@ from services.tagging_service import (
     start_etiket_tagging, start_naber_tagging, stop_tagging,
     is_tagging_active, get_tagging_type
 )
+from services.weekly_rewards_service import (
+    get_weekly_leaderboard_with_rewards, get_group_admin_ids,
+    get_weekly_reward_settings
+)
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
 
@@ -1327,3 +1331,62 @@ async def dur_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await info_msg.delete()
         except TelegramError:
             pass
+
+
+# ============================================
+# .aktiflik - Haftalık Aktivite Ödül Listesi
+# ============================================
+
+async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    .aktiflik, /aktiflik komutu
+    Haftalık en aktif kullanıcıları ve ödüllerini gösterir
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    from templates import WEEKLY_REWARDS, format_weekly_leaderboard
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+
+    # Admin ID'lerini al (hariç tutulacak)
+    admin_ids = await get_group_admin_ids(context.bot, chat.id)
+
+    # Haftalık liderliği al
+    leaderboard = await get_weekly_leaderboard_with_rewards(chat.id, admin_ids)
+
+    if not leaderboard:
+        await message.reply_text(
+            WEEKLY_REWARDS["NO_DATA"],
+            parse_mode="HTML"
+        )
+        return
+
+    # Hafta bilgisi
+    now_tr = datetime.now(TR_TZ)
+    week_number = now_tr.isocalendar()[1]
+    year = now_tr.year
+    week_info = f"{year} - {week_number}. hafta"
+
+    # Liderlik tablosunu formatla
+    leaderboard_text = format_weekly_leaderboard(leaderboard, show_rewards=True)
+
+    text = WEEKLY_REWARDS["LEADERBOARD"].format(
+        week_info=week_info,
+        leaderboard=leaderboard_text
+    )
+
+    await message.reply_text(text, parse_mode="HTML")
