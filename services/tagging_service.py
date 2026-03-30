@@ -235,6 +235,7 @@ def format_user_mention(user: Dict[str, Any]) -> str:
     """
     Kullanıcıyı mention formatında döndür
     Her zaman tıklanabilir tg://user formatı kullanır (username olsa da olmasa da)
+    Username varsa onu, yoksa first_name gösterir
 
     Args:
         user: Kullanıcı dict'i
@@ -246,13 +247,13 @@ def format_user_mention(user: Dict[str, Any]) -> str:
     username = user.get('username')
     first_name = user.get('first_name')
 
-    # Görüntülenecek ismi belirle
-    if first_name:
+    # Görüntülenecek ismi belirle - username öncelikli
+    if username:
+        display_name = f"@{username}"
+    elif first_name:
         display_name = first_name
-    elif username:
-        display_name = username
     else:
-        display_name = f"Kullanıcı"
+        display_name = "Kullanıcı"
 
     # Her zaman tıklanabilir mention kullan (username olsa da olmasa da çalışır)
     return f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
