@@ -548,6 +548,65 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             )
         return
 
+    # ========== HAFTALIK ÖDÜL TANIMLAMA ==========
+    if waiting_for == 'weekly_reward':
+        from config import ACTIVITY_GROUP_ID
+        from services.weekly_rewards_service import set_reward
+        from templates import WEEKLY_REWARDS
+
+        text = message.text or ""
+        rank = context.user_data.get('weekly_reward_rank', 1)
+
+        if not text.strip():
+            await message.reply_text(
+                "❌ Ödül metni boş olamaz. Lütfen tekrar deneyin.",
+                parse_mode="HTML"
+            )
+            return
+
+        reward_text = text.strip()
+
+        # Ödülü kaydet
+        success = await set_reward(ACTIVITY_GROUP_ID, rank, reward_text)
+
+        if success:
+            context.user_data.pop('waiting_for', None)
+            context.user_data.pop('weekly_reward_rank', None)
+
+            await message.reply_text(
+                WEEKLY_REWARDS["REWARD_SAVED"].format(rank=rank, reward=reward_text),
+                parse_mode="HTML"
+            )
+
+            # Menüye geri dön
+            from handlers.callbacks import show_weekly_rewards_menu
+            menu_message_id = context.user_data.get('menu_message_id')
+            if menu_message_id:
+                try:
+                    class FakeQuery:
+                        def __init__(self, message):
+                            self.message = message
+
+                        async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                            await context.bot.edit_message_text(
+                                chat_id=self.message.chat.id,
+                                message_id=menu_message_id,
+                                text=text,
+                                reply_markup=reply_markup,
+                                parse_mode=parse_mode
+                            )
+
+                    fake_query = FakeQuery(message)
+                    await show_weekly_rewards_menu(fake_query, user_id, context)
+                except TelegramError:
+                    pass
+        else:
+            await message.reply_text(
+                "❌ Ödül kaydedilemedi. Lütfen tekrar deneyin.",
+                parse_mode="HTML"
+            )
+        return
+
 
 async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_TYPE, reply_message):
     """
