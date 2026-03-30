@@ -41,7 +41,8 @@ from handlers.commands import (
     bitir_command,
     etiket_command,
     naber_command,
-    dur_command
+    dur_command,
+    aktiflik_command
 )
 from handlers.messages import handle_message
 from handlers.callbacks import handle_callback
@@ -69,6 +70,9 @@ async def post_init(application: Application) -> None:
     # Aktif çekilişleri yeniden başlat
     await _restart_active_giveaways(application.bot)
 
+    # Haftalık ödül scheduler'ını başlat
+    await _start_weekly_reward_scheduler(application)
+
     logger.info("✅ Bot başlatıldı!")
 
 
@@ -81,6 +85,107 @@ async def _restart_active_giveaways(bot):
         logger.info("🎁 Aktif çekilişler yeniden başlatıldı")
     except Exception as e:
         logger.error(f"❌ Çekiliş yeniden başlatma hatası: {e}")
+
+
+async def _start_weekly_reward_scheduler(application):
+    """Haftalık ödül otomatik paylaşım scheduler'ını başlat"""
+    from services.weekly_rewards_service import (
+        get_weekly_reward_settings, get_weekly_leaderboard_with_rewards,
+        get_group_admin_ids, save_weekly_history, has_posted_this_week
+    )
+    from templates import WEEKLY_REWARDS, format_weekly_leaderboard
+    from config import ACTIVITY_GROUP_ID
+    from telegram.error import TelegramError
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
+
+    async def check_and_post_weekly_rewards():
+        """Pazar günü haftalık ödülleri paylaş"""
+        from datetime import datetime
+
+        while True:
+            try:
+                now_tr = datetime.now(TR_TZ)
+
+                # Pazar günü mü? (weekday() = 6)
+                if now_tr.weekday() == 6:
+                    if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
+                        # Ayarları kontrol et
+                        settings = await get_weekly_reward_settings(ACTIVITY_GROUP_ID)
+
+                        if settings and settings.get('enabled', True) and settings.get('auto_post_sunday', True):
+                            post_hour = settings.get('post_hour', 23)
+                            post_minute = settings.get('post_minute', 0)
+
+                            # Doğru saat mi?
+                            if now_tr.hour == post_hour and now_tr.minute == post_minute:
+                                # Bu hafta zaten paylaşıldı mı?
+                                if not await has_posted_this_week(ACTIVITY_GROUP_ID):
+                                    # Admin ID'lerini al
+                                    admin_ids = await get_group_admin_ids(
+                                        application.bot, ACTIVITY_GROUP_ID
+                                    )
+
+                                    # Liderliği al
+                                    leaderboard = await get_weekly_leaderboard_with_rewards(
+                                        ACTIVITY_GROUP_ID, admin_ids
+                                    )
+
+                                    if leaderboard:
+                                        # Mesajı oluştur
+                                        leaderboard_text = format_weekly_leaderboard(
+                                            leaderboard, show_rewards=True
+                                        )
+
+                                        text = WEEKLY_REWARDS["AUTO_POST_MESSAGE"].format(
+                                            count=len(leaderboard),
+                                            leaderboard=leaderboard_text
+                                        )
+
+                                        try:
+                                            # Mesajı gönder
+                                            sent_msg = await application.bot.send_message(
+                                                ACTIVITY_GROUP_ID,
+                                                text,
+                                                parse_mode="HTML"
+                                            )
+
+                                            # Sabitle
+                                            if settings.get('auto_pin', True):
+                                                try:
+                                                    await application.bot.pin_chat_message(
+                                                        ACTIVITY_GROUP_ID,
+                                                        sent_msg.message_id,
+                                                        disable_notification=False
+                                                    )
+                                                except TelegramError:
+                                                    pass
+
+                                            # Geçmişe kaydet
+                                            await save_weekly_history(
+                                                ACTIVITY_GROUP_ID,
+                                                leaderboard,
+                                                sent_msg.message_id
+                                            )
+
+                                            logger.info("🏆 Haftalık ödül paylaşımı yapıldı!")
+
+                                        except TelegramError as e:
+                                            logger.error(f"❌ Haftalık paylaşım hatası: {e}")
+
+            except Exception as e:
+                logger.error(f"❌ Haftalık ödül scheduler hatası: {e}")
+
+            # Her dakika kontrol et
+            await asyncio.sleep(60)
+
+    # Scheduler'ı başlat
+    asyncio.create_task(check_and_post_weekly_rewards())
+    logger.info("🏆 Haftalık ödül scheduler başlatıldı")
 
 
 async def _restart_auto_tagging_tasks(bot):
@@ -172,8 +277,55 @@ def main():
 
     # .aylık - Aylık sıralama (admin)
     application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]ayl[ıi]k$') & filters.ChatType.GROUPS,
+        filters.Regex(r'^[./!]ayl[ıi]k
+    application.add_handler(CallbackQueryHandler(handle_callback))
+
+    # ========== MESAJ HANDLER ==========
+    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
+    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
+    # Randy reply bitirme ve medya ekleme için gerekli
+    application.add_handler(MessageHandler(
+        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
+         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
+        handle_message
+    ))
+
+    # Bot'u çalıştır (polling mode - Heroku için)
+    logger.info("🚀 Bot başlatılıyor...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
+    main()
+) & filters.ChatType.GROUPS,
         aylik_command
+    ))
+
+    # .aktiflik - Haftalık aktivite ödül listesi
+    application.add_handler(CommandHandler("aktiflik", aktiflik_command))
+    application.add_handler(MessageHandler(
+        filters.Regex(r'^[./!]aktiflik
+    application.add_handler(CallbackQueryHandler(handle_callback))
+
+    # ========== MESAJ HANDLER ==========
+    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
+    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
+    # Randy reply bitirme ve medya ekleme için gerekli
+    application.add_handler(MessageHandler(
+        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
+         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
+        handle_message
+    ))
+
+    # Bot'u çalıştır (polling mode - Heroku için)
+    logger.info("🚀 Bot başlatılıyor...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
+    main()
+) & filters.ChatType.GROUPS,
+        aktiflik_command
     ))
 
     # ========== CALLBACK HANDLER ==========
