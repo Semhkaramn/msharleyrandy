@@ -742,8 +742,9 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_registered = await is_user_registered(user.id, chat.id)
 
     if not is_registered:
-        # Bot başlatma mesajı gönder
-        mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+        # Bot başlatma mesajı gönder - username öncelikli
+        display_name = f"@{user.username}" if user.username else user.first_name
+        mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
 
         # Bot username'ini al
         bot_info = await context.bot.get_me()
@@ -796,8 +797,9 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 disable_web_page_preview=True
             )
         except TelegramError:
-            # Özelden gönderilemezse botu başlatmasını iste
-            mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+            # Özelden gönderilemezse botu başlatmasını iste - username öncelikli
+            display_name = f"@{user.username}" if user.username else user.first_name
+            mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
             keyboard = [[
                 InlineKeyboardButton(
                     "🚀 Botu Başlat",
@@ -828,15 +830,17 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text,
             parse_mode="HTML"
         )
-        # Grupta bilgi ver - tıklanabilir link ile bota yönlendir (silinmez)
+        # Grupta bilgi ver - tıklanabilir link ile bota yönlendir (silinmez) - username öncelikli
+        display_name = f"@{user.username}" if user.username else user.first_name
         await message.reply_text(
-            f"📬 <a href='https://t.me/{bot_username}'>{user.first_name}</a>, istatistiklerin özelden gönderildi!",
+            f"📬 <a href='https://t.me/{bot_username}'>{display_name}</a>, istatistiklerin özelden gönderildi!",
             parse_mode="HTML",
             disable_web_page_preview=True
         )
     except TelegramError:
-        # Özelden gönderilemezse botu başlatmasını iste
-        mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
+        # Özelden gönderilemezse botu başlatmasını iste - username öncelikli
+        display_name = f"@{user.username}" if user.username else user.first_name
+        mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
         keyboard = [[
             InlineKeyboardButton(
                 "🚀 Botu Başlat",
@@ -1085,15 +1089,20 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     for i, u in enumerate(users):
         medal = medals[i] if i < 3 else f"{i + 1}."
+        telegram_id = u['telegram_id']
 
+        # Görüntülenecek ismi belirle - username öncelikli
         if u['username']:
-            name = f"@{u['username']}"
+            display_name = f"@{u['username']}"
         elif u['first_name']:
-            name = u['first_name']
+            display_name = u['first_name']
             if u['last_name']:
-                name += f" {u['last_name']}"
+                display_name += f" {u['last_name']}"
         else:
-            name = f"Kullanıcı {str(u['telegram_id'])[-4:]}"
+            display_name = f"Kullanıcı {str(telegram_id)[-4:]}"
+
+        # Her zaman tıklanabilir mention kullan
+        name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
 
         lines.append(f"{medal} {name} — <b>{u['count']}</b> mesaj")
 
