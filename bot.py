@@ -88,7 +88,10 @@ async def _restart_active_giveaways(bot):
 
 
 async def _start_weekly_reward_scheduler(application):
-    """Haftalık ödül otomatik paylaşım scheduler'ını başlat"""
+    """
+    Haftalık ödül otomatik paylaşım scheduler'ını başlat
+    Pazar günü belirtilen saatte (varsayılan 23:00) mesajlar sıfırlanmadan ÖNCE paylaşım yapar
+    """
     from services.weekly_rewards_service import (
         get_weekly_reward_settings, get_weekly_leaderboard_with_rewards,
         get_group_admin_ids, save_weekly_history, has_posted_this_week
@@ -104,7 +107,7 @@ async def _start_weekly_reward_scheduler(application):
     TR_TZ = ZoneInfo("Europe/Istanbul")
 
     async def check_and_post_weekly_rewards():
-        """Pazar günü haftalık ödülleri paylaş"""
+        """Pazar günü haftalık ödülleri paylaş - mesajlar sıfırlanmadan ÖNCE"""
         from datetime import datetime
 
         while True:
@@ -125,6 +128,8 @@ async def _start_weekly_reward_scheduler(application):
                             if now_tr.hour == post_hour and now_tr.minute == post_minute:
                                 # Bu hafta zaten paylaşıldı mı?
                                 if not await has_posted_this_week(ACTIVITY_GROUP_ID):
+                                    logger.info("🏆 Haftalık ödül paylaşımı başlatılıyor...")
+
                                     # Admin ID'lerini al
                                     admin_ids = await get_group_admin_ids(
                                         application.bot, ACTIVITY_GROUP_ID
@@ -162,8 +167,9 @@ async def _start_weekly_reward_scheduler(application):
                                                         sent_msg.message_id,
                                                         disable_notification=False
                                                     )
-                                                except TelegramError:
-                                                    pass
+                                                    logger.info("📌 Haftalık ödül mesajı sabitlendi!")
+                                                except TelegramError as e:
+                                                    logger.error(f"⚠️ Sabitleme hatası: {e}")
 
                                             # Geçmişe kaydet
                                             await save_weekly_history(
@@ -172,10 +178,12 @@ async def _start_weekly_reward_scheduler(application):
                                                 sent_msg.message_id
                                             )
 
-                                            logger.info("🏆 Haftalık ödül paylaşımı yapıldı!")
+                                            logger.info("🏆 Haftalık ödül paylaşımı tamamlandı!")
 
                                         except TelegramError as e:
                                             logger.error(f"❌ Haftalık paylaşım hatası: {e}")
+                                    else:
+                                        logger.warning("⚠️ Haftalık liderlik verisi yok!")
 
             except Exception as e:
                 logger.error(f"❌ Haftalık ödül scheduler hatası: {e}")
@@ -277,54 +285,14 @@ def main():
 
     # .aylık - Aylık sıralama (admin)
     application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]ayl[ıi]k
-    application.add_handler(CallbackQueryHandler(handle_callback))
-
-    # ========== MESAJ HANDLER ==========
-    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
-    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
-    # Randy reply bitirme ve medya ekleme için gerekli
-    application.add_handler(MessageHandler(
-        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
-         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
-        handle_message
-    ))
-
-    # Bot'u çalıştır (polling mode - Heroku için)
-    logger.info("🚀 Bot başlatılıyor...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-if __name__ == "__main__":
-    main()
-) & filters.ChatType.GROUPS,
+        filters.Regex(r'^[./!]ayl[ıi]k$') & filters.ChatType.GROUPS,
         aylik_command
     ))
 
     # .aktiflik - Haftalık aktivite ödül listesi
     application.add_handler(CommandHandler("aktiflik", aktiflik_command))
     application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]aktiflik
-    application.add_handler(CallbackQueryHandler(handle_callback))
-
-    # ========== MESAJ HANDLER ==========
-    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
-    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
-    # Randy reply bitirme ve medya ekleme için gerekli
-    application.add_handler(MessageHandler(
-        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
-         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
-        handle_message
-    ))
-
-    # Bot'u çalıştır (polling mode - Heroku için)
-    logger.info("🚀 Bot başlatılıyor...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-if __name__ == "__main__":
-    main()
-) & filters.ChatType.GROUPS,
+        filters.Regex(r'^[./!]aktiflik$') & filters.ChatType.GROUPS,
         aktiflik_command
     ))
 
