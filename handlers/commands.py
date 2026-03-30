@@ -120,6 +120,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     /start komutu
     - Özel mesajda: Ana menüyü göster (sadece adminler)
     - Grupta: Grubu kaydet
+    - stats_ parametresi ile: İstatistikleri göster
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -141,6 +142,45 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
         return
+
+    # Özel mesajda /start - parametreleri kontrol et
+    # stats_ parametresi ile geldiyse istatistikleri göster
+    if context.args and len(context.args) > 0:
+        arg = context.args[0]
+
+        if arg.startswith("stats_"):
+            # İstatistik isteği - kullanıcıya istatistiklerini göster
+            from config import ACTIVITY_GROUP_ID
+
+            if ACTIVITY_GROUP_ID:
+                stats = await get_full_user_stats(user.id, ACTIVITY_GROUP_ID)
+
+                if stats:
+                    # İstatistik kartını oluştur
+                    username_line = f"║ 🔗 @{user.username}\n" if user.username else ""
+
+                    if stats.get('randy_participated', 0) > 0:
+                        win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
+                        win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
+                    else:
+                        win_rate_line = ""
+
+                    text = STATS["USER_CARD"].format(
+                        name=user.first_name or "Kullanıcı",
+                        username_line=username_line,
+                        daily=stats.get('daily', 0),
+                        weekly=stats.get('weekly', 0),
+                        monthly=stats.get('monthly', 0),
+                        total=stats.get('total', 0),
+                        randy_participated=stats.get('randy_participated', 0),
+                        randy_won=stats.get('randy_won', 0),
+                        win_rate_line=win_rate_line
+                    )
+                else:
+                    text = STATS["KAYIT_YOK"]
+
+                await message.reply_text(text, parse_mode="HTML")
+                return
 
     # Özel mesajda /start - Önce admin kontrolü
     is_admin = await is_activity_group_admin(context.bot, user.id)
@@ -708,7 +748,7 @@ async def _finish_randy(context, chat_id: int, randy: dict):
 async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     .ben, !ben, /ben komutu - Kullanıcının istatistik kartını gösterir
-    Bot başlatılmamışsa yönlendirme butonu gösterir
+    Grupta tek buton gösterir, tıklanınca özelden istatistik gönderir
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -735,127 +775,23 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Kullanıcı kayıtlı mı kontrol et
-    is_registered = await is_user_registered(user.id, chat.id)
+    # Kullanıcı adını al - username öncelikli
+    display_name = f"@{user.username}" if user.username else user.first_name
+    mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
 
-    if not is_registered:
-        # Bot başlatma mesajı gönder - username öncelikli
-        display_name = f"@{user.username}" if user.username else user.first_name
-        mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
-
-        # Bot username'ini al
-        bot_info = await context.bot.get_me()
-        bot_username = bot_info.username
-
-        keyboard = [[
-            InlineKeyboardButton(
-                "🚀 Botu Başlat",
-                url=f"https://t.me/{bot_username}?start=from_group"
-            )
-        ]]
-
-        # Callback ile silme için özel buton ekle
-        keyboard.append([
-            InlineKeyboardButton(
-                "✅ Başlattım",
-                callback_data=f"check_started_{user.id}"
-            )
-        ])
-
-        sent_msg = await message.reply_text(
-            STATS["BOT_BASLAT"].format(mention=mention),
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML"
+    # Tek buton ile kısa mesaj
+    keyboard = [[
+        InlineKeyboardButton(
+            "📊 Buraya Tıklayın",
+            callback_data=f"ben_stats_{user.id}"
         )
+    ]]
 
-        # Mesaj ID'sini kaydet (silme için)
-        context.user_data[f'bot_start_msg_{chat.id}_{user.id}'] = sent_msg.message_id
-        return
-
-    # Bot username'ini al
-    bot_info = await context.bot.get_me()
-    bot_username = bot_info.username
-
-    # Tüm istatistikleri getir
-    stats = await get_full_user_stats(user.id, chat.id)
-
-    if not stats:
-        # Özelden gönder
-        try:
-            await context.bot.send_message(
-                user.id,
-                STATS["KAYIT_YOK"],
-                parse_mode="HTML"
-            )
-            # Grupta bilgi ver - tıklanabilir link ile bota yönlendir (silinmez)
-            await message.reply_text(
-                f"📬 {user.first_name}, istatistiklerin <a href='https://t.me/{bot_username}'>özelden</a> gönderildi!",
-                parse_mode="HTML",
-                disable_web_page_preview=True
-            )
-        except TelegramError:
-            # Özelden gönderilemezse botu başlatmasını iste - username öncelikli
-            display_name = f"@{user.username}" if user.username else user.first_name
-            mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
-            keyboard = [[
-                InlineKeyboardButton(
-                    "🚀 Botu Başlat",
-                    url=f"https://t.me/{bot_username}?start=from_group"
-                )
-            ]]
-            keyboard.append([
-                InlineKeyboardButton(
-                    "✅ Başlattım",
-                    callback_data=f"check_started_{user.id}"
-                )
-            ])
-            sent_msg = await message.reply_text(
-                f"👋 {mention}, istatistiklerini özelden göndermem için önce botu başlatman gerekiyor!",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="HTML"
-            )
-            context.user_data[f'bot_start_msg_{chat.id}_{user.id}'] = sent_msg.message_id
-        return
-
-    # İstatistik kartını oluştur
-    text = _format_user_card(user.first_name, user.username, stats)
-
-    # Özelden gönder
-    try:
-        await context.bot.send_message(
-            user.id,
-            text,
-            parse_mode="HTML"
-        )
-        # Grupta bilgi ver - tıklanabilir link ile bota yönlendir (silinmez) - username öncelikli
-        display_name = f"@{user.username}" if user.username else user.first_name
-        await message.reply_text(
-            f"📬 <a href='https://t.me/{bot_username}'>{display_name}</a>, istatistiklerin özelden gönderildi!",
-            parse_mode="HTML",
-            disable_web_page_preview=True
-        )
-    except TelegramError:
-        # Özelden gönderilemezse botu başlatmasını iste - username öncelikli
-        display_name = f"@{user.username}" if user.username else user.first_name
-        mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
-        keyboard = [[
-            InlineKeyboardButton(
-                "🚀 Botu Başlat",
-                url=f"https://t.me/{bot_username}?start=from_group"
-            )
-        ]]
-        keyboard.append([
-            InlineKeyboardButton(
-                "✅ Başlattım",
-                callback_data=f"check_started_{user.id}"
-            )
-        ])
-        sent_msg = await message.reply_text(
-            f"👋 {mention}, istatistiklerini özelden göndermem için önce botu başlatman gerekiyor!",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML"
-        )
-        context.user_data[f'bot_start_msg_{chat.id}_{user.id}'] = sent_msg.message_id
+    await message.reply_text(
+        f"👋 {mention}, mesaj istatistiklerin için buraya tıkla:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
 
 
 # ============================================
@@ -1061,7 +997,7 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     year = now_tr.year
 
     medals = ['🥇', '🥈', '🥉']
-    lines = [f"🏆 <b>HAFTALIK SIRALAMA</b>", f"📅 {year} - {week_number}. hafta", ""]
+    lines = [f"📊 <b>Haftalık Mesaj Sıralaması</b>", ""]
 
     for i, u in enumerate(users):
         rank = i + 1
@@ -1084,9 +1020,9 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Ödül varsa ekle
         reward = rewards_dict.get(rank)
         if reward:
-            lines.append(f"{medal} {name} — <b>{u['count']}</b> mesaj\n    🎁 <b>Ödül:</b> {reward}")
+            lines.append(f"{medal} {name} - <b>{u['count']}</b> - {reward}")
         else:
-            lines.append(f"{medal} {name} — <b>{u['count']}</b> mesaj")
+            lines.append(f"{medal} {name} - <b>{u['count']}</b>")
 
     lines.append(f"\n💬 Bu hafta en aktif {len(users)} kullanıcı")
 
