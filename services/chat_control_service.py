@@ -24,7 +24,7 @@ NIGHT_PERMISSIONS = ChatPermissions(
     can_send_other_messages=False,  # sticker, gif vs.
     can_add_web_page_previews=False,
     can_change_info=False,
-    can_invite_users=True,  # Sadece üye ekleme açık
+    can_invite_users=False,  # Sadece üye ekleme açık
     can_pin_messages=False,
     can_manage_topics=False,
 )
@@ -42,7 +42,7 @@ MORNING_PERMISSIONS = ChatPermissions(
     can_send_other_messages=True,   # Sticker, GIF açık
     can_add_web_page_previews=False, # Link önizleme kapalı
     can_change_info=False,
-    can_invite_users=True,          # Üye ekleme açık
+    can_invite_users=False,          # Üye ekleme açık
     can_pin_messages=False,
     can_manage_topics=False,
 )
