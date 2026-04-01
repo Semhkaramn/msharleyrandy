@@ -1030,24 +1030,23 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
 
     # Grup adminlerinin ID'lerini al (ödül listesinden hariç tutmak için)
-    admin_ids = []
+    admin_ids = set()
     try:
         admins = await context.bot.get_chat_administrators(chat.id)
-        admin_ids = [admin.user.id for admin in admins]
+        admin_ids = {admin.user.id for admin in admins}
     except TelegramError:
         pass
 
     async with db.pool.acquire() as conn:
-        # Sadece bu dönemde mesaj atmış kullanıcıları getir - adminleri hariç tut
-        # Her zaman en fazla 10 kişi göster (adminler hariç)
+        # Tüm kullanıcıları getir (adminler dahil - listede görünecekler)
+        # Her zaman en fazla 10 kişi göster
         users = await conn.fetch("""
             SELECT telegram_id, username, first_name, last_name, weekly_count as count
             FROM telegram_users
             WHERE group_id = $1 AND weekly_count > 0 AND last_weekly_reset >= $2
-                AND telegram_id != ALL($3::BIGINT[])
             ORDER BY weekly_count DESC
             LIMIT 10
-        """, chat.id, period_start, admin_ids)
+        """, chat.id, period_start)
 
     if not users:
         no_data = "📊 <b>Haftalık Mesaj Sıralaması</b>\n\n⚠️ Henüz mesaj atan kullanıcı yok."
@@ -1061,10 +1060,14 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     medals = ['🥇', '🥈', '🥉']
     lines = [f"📊 <b>Haftalık Mesaj Sıralaması</b>", ""]
 
+    # Ödül sırası için sayaç (adminler atlanacak)
+    reward_rank = 0
+
     for i, u in enumerate(users):
         rank = i + 1
         medal = medals[i] if i < 3 else f"{rank}."
         telegram_id = u['telegram_id']
+        is_admin = telegram_id in admin_ids
 
         # Görüntülenecek ismi belirle - username öncelikli
         if u['username']:
@@ -1079,12 +1082,17 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Her zaman tıklanabilir mention kullan
         name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
 
-        # Ödül varsa ekle
-        reward = rewards_dict.get(rank)
-        if reward:
-            lines.append(f"{medal} {name} - <b>{u['count']}</b> - {reward}")
+        # Admin değilse ödül sırasını artır ve ödül kontrolü yap
+        if not is_admin:
+            reward_rank += 1
+            reward = rewards_dict.get(reward_rank)
+            if reward:
+                lines.append(f"{medal} {name} - <b>{u['count']}</b> - {reward}")
+            else:
+                lines.append(f"{medal} {name} - <b>{u['count']}</b>")
         else:
-            lines.append(f"{medal} {name} - <b>{u['count']}</b>")
+            # Admin - ödül almaz, sadece listede görünür
+            lines.append(f"{medal} {name} - <b>{u['count']}</b> 👑")
 
     lines.append(f"\n💬 Bu hafta en aktif {len(users)} kullanıcı")
 
