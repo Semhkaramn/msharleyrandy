@@ -157,11 +157,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 if stats:
                     # İstatistik kartını oluştur
-                    username_line = f"║ 🔗 @{user.username}\n" if user.username else ""
+                    username_line = f"• @{user.username}" if user.username else ""
 
                     if stats.get('randy_participated', 0) > 0:
                         win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
-                        win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
+                        win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
                     else:
                         win_rate_line = ""
 
@@ -174,7 +174,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         total=stats.get('total', 0),
                         randy_participated=stats.get('randy_participated', 0),
                         randy_won=stats.get('randy_won', 0),
-                        win_rate_line=win_rate_line
+                        win_rate_line=win_rate_line,
+                        weekly_rank=stats.get('weekly_rank', '-'),
+                        daily_avg=stats.get('daily_avg', 0)
                     )
                 else:
                     text = STATS["KAYIT_YOK"]
@@ -792,11 +794,11 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if stats:
             # İstatistik kartını oluştur
-            username_line = f"║ 🔗 @{user.username}\n" if user.username else ""
+            username_line = f"• @{user.username}" if user.username else ""
 
             if stats.get('randy_participated', 0) > 0:
                 win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
-                win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
+                win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
             else:
                 win_rate_line = ""
 
@@ -809,7 +811,9 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 total=stats.get('total', 0),
                 randy_participated=stats.get('randy_participated', 0),
                 randy_won=stats.get('randy_won', 0),
-                win_rate_line=win_rate_line
+                win_rate_line=win_rate_line,
+                weekly_rank=stats.get('weekly_rank', '-'),
+                daily_avg=stats.get('daily_avg', 0)
             )
         else:
             stats_text = STATS["KAYIT_YOK"]
@@ -956,12 +960,12 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def _format_user_card(name: str, username: str, stats: dict) -> str:
     """İstatistik kartını formatla"""
     # Username satırı
-    username_line = f"║ 🔗 @{username}\n" if username else ""
+    username_line = f"• @{username}" if username else ""
 
     # Kazanma oranı
     if stats['randy_participated'] > 0:
         win_rate = (stats['randy_won'] / stats['randy_participated']) * 100
-        win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
+        win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
     else:
         win_rate_line = ""
 
@@ -974,7 +978,9 @@ def _format_user_card(name: str, username: str, stats: dict) -> str:
         total=stats.get('total', 0),
         randy_participated=stats.get('randy_participated', 0),
         randy_won=stats.get('randy_won', 0),
-        win_rate_line=win_rate_line
+        win_rate_line=win_rate_line,
+        weekly_rank=stats.get('weekly_rank', '-'),
+        daily_avg=stats.get('daily_avg', 0)
     )
 
 
