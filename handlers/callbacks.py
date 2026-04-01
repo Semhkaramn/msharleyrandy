@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
 from templates import (
-    MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY,
+    MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY, STATS,
     format_winner_list, get_period_text, get_media_type_text,
     format_giveaway_win_times, format_giveaway_list, format_top_winners,
     format_rewards_list
@@ -257,6 +257,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("check_started_"):
         target_user_id = int(data.replace("check_started_", ""))
         await handle_check_started(query, user_id, target_user_id, context)
+
+    # ============================================
+    # .BEN STATS CALLBACK
+    # ============================================
+    elif data.startswith("ben_stats_"):
+        target_user_id = int(data.replace("ben_stats_", ""))
+        await handle_ben_stats(query, user_id, target_user_id, context)
 
 
 # ============================================
@@ -1250,6 +1257,79 @@ async def handle_check_started(query, user_id: int, target_user_id: int, context
     except TelegramError:
         # Kullanıcı botu henüz başlatmamış
         await query.answer("❌ Önce yukarıdaki 'Botu Başlat' butonuna tıkla!", show_alert=True)
+
+
+async def handle_ben_stats(query, user_id: int, target_user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """
+    .ben stats callback - İstatistikleri göster
+    Sadece hedef kullanıcı tıklayabilir
+    """
+    from services.message_service import get_full_user_stats
+    from templates import STATS
+
+    # Sadece hedef kullanıcı tıklayabilir
+    if user_id != target_user_id:
+        await query.answer("Bu buton sana ait değil!", show_alert=True)
+        return
+
+    # Grup ID'sini al
+    chat = query.message.chat
+    if not chat or chat.type not in ['group', 'supergroup']:
+        await query.answer("Bu komut sadece gruplarda çalışır.", show_alert=True)
+        return
+
+    # İstatistikleri al
+    stats = await get_full_user_stats(user_id, chat.id)
+
+    if stats:
+        # Kullanıcı bilgilerini al
+        try:
+            user_info = await context.bot.get_chat(user_id)
+            username = user_info.username
+            first_name = user_info.first_name or "Kullanıcı"
+        except TelegramError:
+            username = None
+            first_name = "Kullanıcı"
+
+        # İstatistik kartını oluştur
+        username_line = f"║ 🔗 @{username}\n" if username else ""
+
+        if stats.get('randy_participated', 0) > 0:
+            win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
+            win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
+        else:
+            win_rate_line = ""
+
+        stats_text = STATS["USER_CARD"].format(
+            name=first_name,
+            username_line=username_line,
+            daily=stats.get('daily', 0),
+            weekly=stats.get('weekly', 0),
+            monthly=stats.get('monthly', 0),
+            total=stats.get('total', 0),
+            randy_participated=stats.get('randy_participated', 0),
+            randy_won=stats.get('randy_won', 0),
+            win_rate_line=win_rate_line
+        )
+    else:
+        stats_text = STATS["KAYIT_YOK"]
+
+    # Alert olarak göster
+    await query.answer(show_alert=False)
+
+    # Mevcut mesajı düzenle ve istatistikleri göster
+    try:
+        await query.edit_message_text(
+            stats_text,
+            parse_mode="HTML"
+        )
+    except TelegramError:
+        # Düzenlenemezse yeni mesaj gönder
+        await context.bot.send_message(
+            chat_id=chat.id,
+            text=stats_text,
+            parse_mode="HTML"
+        )
 
 
 # ============================================
