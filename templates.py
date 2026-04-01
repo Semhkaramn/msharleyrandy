@@ -238,25 +238,19 @@ STATS = {
 
     # Gelişmiş istatistik kartı
     "USER_CARD": (
-        "╔══════════════════════╗\n"
-        "║  📊 <b>İSTATİSTİK KARTI</b>  ║\n"
-        "╠══════════════════════╣\n"
-        "║ 👤 <b>{name}</b>\n"
-        "{username_line}"
-        "╠══════════════════════╣\n"
-        "║ 💬 <b>MESAJ İSTATİSTİKLERİ</b>\n"
-        "╟──────────────────────╢\n"
-        "║ 📅 Bugün      ➜ <b>{daily}</b>\n"
-        "║ 📆 Bu Hafta   ➜ <b>{weekly}</b>\n"
-        "║ 🗓 Bu Ay      ➜ <b>{monthly}</b>\n"
-        "║ 📈 Toplam     ➜ <b>{total}</b>\n"
-        "╠══════════════════════╣\n"
-        "║ 🎲 <b>RANDY İSTATİSTİKLERİ</b>\n"
-        "╟──────────────────────╢\n"
-        "║ 🎫 Katılım    ➜ <b>{randy_participated}</b>\n"
-        "║ 🏆 Kazanma    ➜ <b>{randy_won}</b>\n"
+        "👤 <b>{name}</b> {username_line}\n\n"
+        "💬 <b>Mesajlar</b>\n"
+        "    Bugün  ➜  <b>{daily}</b>\n"
+        "    Hafta  ➜  <b>{weekly}</b>\n"
+        "    Ay  ➜  <b>{monthly}</b>\n"
+        "    Toplam  ➜  <b>{total}</b>\n\n"
+        "📊 <b>Sıralama</b>\n"
+        "    Haftalık  ➜  <b>{weekly_rank}</b>\n"
+        "    Ort/Gün  ➜  <b>~{daily_avg}</b>\n\n"
+        "🎲 <b>Randy</b>\n"
+        "    Katılım  ➜  <b>{randy_participated}</b>\n"
+        "    Kazanma  ➜  <b>{randy_won}</b>\n"
         "{win_rate_line}"
-        "╚══════════════════════╝"
     ),
 
     # Bot başlatma mesajı
