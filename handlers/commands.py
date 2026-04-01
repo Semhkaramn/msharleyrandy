@@ -748,7 +748,8 @@ async def _finish_randy(context, chat_id: int, randy: dict):
 async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     .ben, !ben, /ben komutu - Kullanıcının istatistik kartını gösterir
-    Grupta tek buton gösterir, tıklanınca özelden istatistik gönderir
+    - Bot başlatılmışsa: Özelden istatistik gönderir ve grupta "Özelden gönderildi" yazar
+    - Bot başlatılmamışsa: Grupta buton gösterir, tıklayınca istatistikleri gösterir
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -779,19 +780,74 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     display_name = f"@{user.username}" if user.username else user.first_name
     mention = f'<a href="tg://user?id={user.id}">{display_name}</a>'
 
-    # Tek buton ile kısa mesaj
-    keyboard = [[
-        InlineKeyboardButton(
-            "📊 Buraya Tıklayın",
-            callback_data=f"ben_stats_{user.id}"
-        )
-    ]]
+    # Bot username'ini al
+    from config import BOT_USERNAME
+    bot_username = BOT_USERNAME or (await context.bot.get_me()).username
 
-    await message.reply_text(
-        f"👋 {mention}, mesaj istatistiklerin için buraya tıkla:",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
+    # Kullanıcı botu başlatmış mı kontrol et
+    bot_started = False
+    try:
+        # Özelden mesaj göndermeyi dene
+        stats = await get_full_user_stats(user.id, chat.id)
+
+        if stats:
+            # İstatistik kartını oluştur
+            username_line = f"║ 🔗 @{user.username}\n" if user.username else ""
+
+            if stats.get('randy_participated', 0) > 0:
+                win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
+                win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
+            else:
+                win_rate_line = ""
+
+            stats_text = STATS["USER_CARD"].format(
+                name=user.first_name or "Kullanıcı",
+                username_line=username_line,
+                daily=stats.get('daily', 0),
+                weekly=stats.get('weekly', 0),
+                monthly=stats.get('monthly', 0),
+                total=stats.get('total', 0),
+                randy_participated=stats.get('randy_participated', 0),
+                randy_won=stats.get('randy_won', 0),
+                win_rate_line=win_rate_line
+            )
+        else:
+            stats_text = STATS["KAYIT_YOK"]
+
+        # Özelden istatistik gönder
+        await context.bot.send_message(
+            chat_id=user.id,
+            text=stats_text,
+            parse_mode="HTML"
+        )
+        bot_started = True
+
+    except TelegramError:
+        # Bot başlatılmamış
+        bot_started = False
+
+    if bot_started:
+        # Bot başlatılmış - grupta "Özelden gönderildi" yaz (tıklanabilir link)
+        await message.reply_text(
+            f"👋 {mention}\n"
+            f'📨 <a href="https://t.me/{bot_username}">Özelden gönderildi</a>',
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+    else:
+        # Bot başlatılmamış - buton göster
+        keyboard = [[
+            InlineKeyboardButton(
+                "📊 İstatistiklerimi Göster",
+                callback_data=f"ben_stats_{user.id}"
+            )
+        ]]
+
+        await message.reply_text(
+            f"👋 {mention}, mesaj istatistiklerin için butona tıkla:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
 
 
 # ============================================
@@ -973,15 +1029,25 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rewards = await get_rewards_for_group(chat.id)
     rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
 
+    # Grup adminlerinin ID'lerini al (ödül listesinden hariç tutmak için)
+    admin_ids = []
+    try:
+        admins = await context.bot.get_chat_administrators(chat.id)
+        admin_ids = [admin.user.id for admin in admins]
+    except TelegramError:
+        pass
+
     async with db.pool.acquire() as conn:
-        # Sadece bu dönemde mesaj atmış kullanıcıları getir - her zaman 10 kişi göster
+        # Sadece bu dönemde mesaj atmış kullanıcıları getir - adminleri hariç tut
+        # Her zaman en fazla 10 kişi göster (adminler hariç)
         users = await conn.fetch("""
             SELECT telegram_id, username, first_name, last_name, weekly_count as count
             FROM telegram_users
             WHERE group_id = $1 AND weekly_count > 0 AND last_weekly_reset >= $2
+                AND telegram_id != ALL($3::BIGINT[])
             ORDER BY weekly_count DESC
             LIMIT 10
-        """, chat.id, period_start)
+        """, chat.id, period_start, admin_ids)
 
     if not users:
         no_data = "📊 <b>Haftalık Mesaj Sıralaması</b>\n\n⚠️ Henüz mesaj atan kullanıcı yok."
