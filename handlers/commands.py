@@ -840,7 +840,7 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Bot başlatılmış - grupta "Özelden gönderildi" yaz (tıklanabilir link)
         await message.reply_text(
             f"👋 {mention}\n"
-            f'📨 <a href="https://t.me/{bot_username}">Özelden gönderildi</a>',
+            f'📨 <a href="https://t.me/msharleybot">Özelden gönderildi</a>',
             parse_mode="HTML",
             disable_web_page_preview=True
         )
