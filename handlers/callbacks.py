@@ -1292,13 +1292,17 @@ async def handle_ben_stats(query, user_id: int, target_user_id: int, context: Co
             first_name = "Kullanıcı"
 
         # İstatistik kartını oluştur
-        username_line = f"║ 🔗 @{username}\n" if username else ""
+        username_line = f"• @{username}" if username else ""
 
         if stats.get('randy_participated', 0) > 0:
             win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
-            win_rate_line = f"║ 📊 Oran      ➜ <b>%{win_rate:.1f}</b>\n"
+            win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
         else:
             win_rate_line = ""
+
+        # Kullanıcı mention'ı
+        display_name = f"@{username}" if username else first_name
+        mention = f'<a href="tg://user?id={user_id}">{display_name}</a>'
 
         stats_text = STATS["USER_CARD"].format(
             name=first_name,
@@ -1309,15 +1313,20 @@ async def handle_ben_stats(query, user_id: int, target_user_id: int, context: Co
             total=stats.get('total', 0),
             randy_participated=stats.get('randy_participated', 0),
             randy_won=stats.get('randy_won', 0),
-            win_rate_line=win_rate_line
+            win_rate_line=win_rate_line,
+            weekly_rank=stats.get('weekly_rank', '-'),
+            daily_avg=stats.get('daily_avg', 0)
         )
+
+        # Mention ekle
+        stats_text = f"👋 {mention}\n\n{stats_text}"
     else:
         stats_text = STATS["KAYIT_YOK"]
 
     # Alert olarak göster
     await query.answer(show_alert=False)
 
-    # Mevcut mesajı düzenle ve istatistikleri göster
+    # Mevcut mesajı düzenle ve istatistikleri göster (buton kalkar)
     try:
         await query.edit_message_text(
             stats_text,
