@@ -150,10 +150,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if arg.startswith("stats_"):
             # İstatistik isteği - kullanıcıya istatistiklerini göster
-            from config import ACTIVITY_GROUP_ID
+            # Format: stats_{group_id}
+            try:
+                group_id = int(arg.replace("stats_", ""))
+            except ValueError:
+                # Eski format veya hatalı - ACTIVITY_GROUP_ID kullan
+                from config import ACTIVITY_GROUP_ID
+                group_id = ACTIVITY_GROUP_ID
 
-            if ACTIVITY_GROUP_ID:
-                stats = await get_full_user_stats(user.id, ACTIVITY_GROUP_ID)
+            if group_id:
+                stats = await get_full_user_stats(user.id, group_id)
 
                 if stats:
                     # İstatistik kartını oluştur
@@ -751,7 +757,7 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     .ben, !ben, /ben komutu - Kullanıcının istatistik kartını gösterir
     - Bot başlatılmışsa: Özelden istatistik gönderir ve grupta "Özelden gönderildi" yazar
-    - Bot başlatılmamışsa: Grupta buton gösterir, tıklayınca istatistikleri gösterir
+    - Bot başlatılmamışsa: Grupta buton gösterir, tıklayınca botu başlatır ve özelden istatistik gönderir
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -834,21 +840,24 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Bot başlatılmış - grupta "Özelden gönderildi" yaz (tıklanabilir link)
         await message.reply_text(
             f"👋 {mention}\n"
-            f'📨 <a href="https://t.me/msharleybot">Özelden gönderildi</a>',
+            f'📨 <a href="https://t.me/{bot_username}">Özelden gönderildi</a>',
             parse_mode="HTML",
             disable_web_page_preview=True
         )
     else:
-        # Bot başlatılmamış - buton göster
+        # Bot başlatılmamış - deep link butonu göster (tıklayınca botu başlatır ve direkt istatistik gösterir)
+        deep_link = f"https://t.me/{bot_username}?start=stats_{chat.id}"
+
         keyboard = [[
             InlineKeyboardButton(
-                "📊 İstatistiklerimi Göster",
-                callback_data=f"ben_stats_{user.id}"
+                "📊 İstatistiklerimi Gör",
+                url=deep_link
             )
         ]]
 
         await message.reply_text(
-            f"👋 {mention}, mesaj istatistiklerin için butona tıkla:",
+            f"👋 {mention}\n\n"
+            "📊 İstatistiklerini görmek için aşağıdaki butona tıkla:",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
