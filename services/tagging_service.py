@@ -349,7 +349,7 @@ async def start_etiket_tagging(
                 custom_emoji_id = entity.custom_emoji_id
                 if custom_emoji_id:
                     # Telegram HTML formatı: <tg-emoji emoji-id="ID">emoji</tg-emoji>
-                    emoji_prefix = f'<tg-emoji emoji-id="{custom_emoji_id}">✨</tg-emoji> '
+                    emoji_prefix = f'<tg-emoji emoji-id="{custom_emoji_id}"></tg-emoji> '
                 break
 
     async def tagging_task():
