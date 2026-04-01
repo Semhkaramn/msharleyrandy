@@ -846,7 +846,7 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         # Bot başlatılmamış - deep link butonu göster (tıklayınca botu başlatır ve direkt istatistik gösterir)
-        deep_link = f"https://t.me/{bot_username}?start=stats_{chat.id}"
+        deep_link = f"https://t.me/msharleybot?start=stats_{chat.id}"
 
         keyboard = [[
             InlineKeyboardButton(
