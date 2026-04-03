@@ -303,7 +303,6 @@ async def start_etiket_tagging(
     """
     /etiket komutu - 5'erli mention etiketleme başlat
     Premium emoji destekli
-    Grupta olmayan kullanıcıları otomatik siler
     Kullanıcılar rastgele sıralanır
 
     Args:
@@ -321,8 +320,8 @@ async def start_etiket_tagging(
     if is_tagging_active(group_id):
         return False
 
-    # Aktif kullanıcıları getir (grupta olmayanları siler)
-    users = await get_active_group_users(bot, group_id)
+    # Kullanıcıları hızlıca getir (API kontrolü yapmadan)
+    users = await get_group_users(group_id)
 
     if not users:
         return False
@@ -337,20 +336,43 @@ async def start_etiket_tagging(
         'task': None
     }
 
-    # Premium emoji var mı kontrol et
-    has_custom_emoji = False
-    emoji_prefix = ""
+    # Premium emoji var mı kontrol et ve mesajdan çıkar
+    custom_emoji_html = ""
+    clean_message = message  # Temiz mesaj (emoji olmadan)
 
-    if message_entities:
-        for entity in message_entities:
-            if entity.type == "custom_emoji":
-                has_custom_emoji = True
-                # Custom emoji ID'sini al ve HTML formatına çevir
-                custom_emoji_id = entity.custom_emoji_id
-                if custom_emoji_id:
-                    # Telegram HTML formatı: <tg-emoji emoji-id="ID">emoji</tg-emoji>
-                    emoji_prefix = f'<tg-emoji emoji-id="{custom_emoji_id}"></tg-emoji> '
-                break
+    if message_entities and custom_emoji_text:
+        # Emoji entity'lerini sondan başa doğru işle (offset'ler değişmesin)
+        sorted_entities = sorted(
+            [e for e in message_entities if e.type == "custom_emoji"],
+            key=lambda e: e.offset,
+            reverse=True
+        )
+
+        for entity in sorted_entities:
+            custom_emoji_id = entity.custom_emoji_id
+            if custom_emoji_id:
+                # Emoji karakterini mesajdan çıkar
+                emoji_start = entity.offset
+                emoji_end = entity.offset + entity.length
+
+                # Komut kısmını atla (/etiket )
+                # Mesaj zaten komuttan sonraki kısım olduğu için offset'i ayarla
+                cmd_offset = len("/etiket ")
+                if emoji_start >= cmd_offset:
+                    adj_start = emoji_start - cmd_offset
+                    adj_end = emoji_end - cmd_offset
+                    if adj_start >= 0 and adj_end <= len(clean_message):
+                        # Emoji karakterini mesajdan çıkar
+                        clean_message = clean_message[:adj_start] + clean_message[adj_end:]
+
+                # İlk emoji için HTML tag oluştur
+                if not custom_emoji_html:
+                    custom_emoji_html = f'<tg-emoji emoji-id="{custom_emoji_id}">⭐</tg-emoji> '
+
+    # Mesajı temizle (başındaki/sonundaki boşluklar)
+    clean_message = clean_message.strip()
+    if not clean_message:
+        clean_message = "🎉 Selamlar!"
 
     async def tagging_task():
         try:
@@ -373,10 +395,10 @@ async def start_etiket_tagging(
                 mentions = [format_user_mention(u) for u in batch]
 
                 # Premium emoji varsa onu kullan, yoksa sadece mesaj
-                if has_custom_emoji and emoji_prefix:
-                    text = f"{emoji_prefix}{message}\n\n" + " ".join(mentions)
+                if custom_emoji_html:
+                    text = f"{custom_emoji_html}{clean_message}\n\n" + " ".join(mentions)
                 else:
-                    text = f"{message}\n\n" + " ".join(mentions)
+                    text = f"{clean_message}\n\n" + " ".join(mentions)
 
                 try:
                     await bot.send_message(
@@ -428,7 +450,6 @@ async def start_naber_tagging(
 ) -> bool:
     """
     /naber komutu - Tek tek rastgele cümlelerle etiketleme
-    Grupta olmayan kullanıcıları otomatik siler
     Kullanıcılar rastgele sıralanır
 
     Args:
@@ -443,8 +464,8 @@ async def start_naber_tagging(
     if is_tagging_active(group_id):
         return False
 
-    # Aktif kullanıcıları getir (grupta olmayanları siler)
-    users = await get_active_group_users(bot, group_id)
+    # Kullanıcıları hızlıca getir (API kontrolü yapmadan)
+    users = await get_group_users(group_id)
 
     if not users:
         return False
