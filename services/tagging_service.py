@@ -203,7 +203,8 @@ async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
 async def get_active_group_users(bot: Bot, group_id: int) -> List[Dict[str, Any]]:
     """
     Gruptaki AKTİF kullanıcıları getir (grupta olanlar)
-    Grupta olmayanları veritabanından siler
+    NOT: Artık kullanıcıları veritabanından SİLMİYOR, sadece etiketleme listesinden atlıyor
+    Mesaj geçmişi korunur!
 
     Args:
         bot: Telegram bot instance
@@ -223,10 +224,8 @@ async def get_active_group_users(bot: Bot, group_id: int) -> List[Dict[str, Any]
 
         if is_in_group:
             active_users.append(user)
-        else:
-            # Grupta değilse veritabanından sil
-            await remove_user_from_db(group_id, user_id)
-            print(f"👋 Grupta olmayan kullanıcı silindi: {user_id}")
+        # NOT: Grupta olmayan kullanıcılar artık SİLİNMİYOR!
+        # Sadece etiketleme listesinden atlanıyor, mesaj geçmişi korunuyor
 
     return active_users
 
@@ -691,9 +690,9 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
                             print(f"✅ Otomatik Etiket #{tag_count} tamamlandı")
                         except BadRequest as e:
                             # Kullanıcı bulunamadı veya engellenmiş
+                            # NOT: Artık kullanıcıyı SİLMİYORUZ, sadece log yazıyoruz
                             if "user not found" in str(e).lower() or "blocked" in str(e).lower():
-                                await remove_user_from_db(group_id, selected_user['telegram_id'])
-                                print(f"🗑️ Kullanıcı silindi (erişilemez): {selected_user['telegram_id']}")
+                                print(f"⚠️ Kullanıcıya ulaşılamadı (etiketleme atlandı): {selected_user['telegram_id']}")
                             else:
                                 print(f"❌ Otomatik etiket hatası: {e}")
                         except TelegramError as e:
