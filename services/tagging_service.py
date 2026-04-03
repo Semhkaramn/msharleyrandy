@@ -336,43 +336,48 @@ async def start_etiket_tagging(
         'task': None
     }
 
-    # Premium emoji var mı kontrol et ve mesajdan çıkar
-    custom_emoji_html = ""
-    clean_message = message  # Temiz mesaj (emoji olmadan)
+    # Premium emoji'leri HTML formatına çevir (orijinal metin korunarak)
+    final_message = message
 
     if message_entities and custom_emoji_text:
-        # Emoji entity'lerini sondan başa doğru işle (offset'ler değişmesin)
-        sorted_entities = sorted(
-            [e for e in message_entities if e.type == "custom_emoji"],
-            key=lambda e: e.offset,
-            reverse=True
-        )
+        # Orijinal metni kullan (komuttan sonraki kısım)
+        original_text = custom_emoji_text
 
-        for entity in sorted_entities:
-            custom_emoji_id = entity.custom_emoji_id
-            if custom_emoji_id:
-                # Emoji karakterini mesajdan çıkar
-                emoji_start = entity.offset
-                emoji_end = entity.offset + entity.length
+        # /etiket komutunu bul ve offset'i hesapla
+        cmd_offset = 0
+        if original_text.startswith("/etiket "):
+            cmd_offset = len("/etiket ")
+        elif original_text.startswith("/etiket"):
+            cmd_offset = len("/etiket")
 
-                # Komut kısmını atla (/etiket )
-                # Mesaj zaten komuttan sonraki kısım olduğu için offset'i ayarla
-                cmd_offset = len("/etiket ")
-                if emoji_start >= cmd_offset:
-                    adj_start = emoji_start - cmd_offset
-                    adj_end = emoji_end - cmd_offset
-                    if adj_start >= 0 and adj_end <= len(clean_message):
-                        # Emoji karakterini mesajdan çıkar
-                        clean_message = clean_message[:adj_start] + clean_message[adj_end:]
+        # Custom emoji entity'lerini bul
+        custom_emoji_entities = [e for e in message_entities if e.type == "custom_emoji"]
 
-                # İlk emoji için HTML tag oluştur
-                if not custom_emoji_html:
-                    custom_emoji_html = f'<tg-emoji emoji-id="{custom_emoji_id}">⭐</tg-emoji> '
+        if custom_emoji_entities:
+            # Entity'leri sondan başa sırala (offset'ler bozulmasın)
+            sorted_entities = sorted(custom_emoji_entities, key=lambda e: e.offset, reverse=True)
 
-    # Mesajı temizle (başındaki/sonundaki boşluklar)
-    clean_message = clean_message.strip()
-    if not clean_message:
-        clean_message = "🎉 Selamlar!"
+            # Orijinal metinden mesaj kısmını al
+            msg_text = original_text[cmd_offset:] if cmd_offset > 0 else message
+
+            # Her emoji'yi HTML formatına çevir
+            for entity in sorted_entities:
+                emoji_start = entity.offset - cmd_offset
+                emoji_end = emoji_start + entity.length
+
+                if emoji_start >= 0 and emoji_end <= len(msg_text):
+                    # Emoji karakterini al
+                    emoji_char = msg_text[emoji_start:emoji_end]
+                    # HTML formatına çevir
+                    emoji_html = f'<tg-emoji emoji-id="{entity.custom_emoji_id}">{emoji_char}</tg-emoji>'
+                    # Metinde değiştir
+                    msg_text = msg_text[:emoji_start] + emoji_html + msg_text[emoji_end:]
+
+            final_message = msg_text.strip()
+
+    # Mesaj boşsa varsayılan
+    if not final_message:
+        final_message = "🎉 Selamlar!"
 
     async def tagging_task():
         try:
@@ -394,11 +399,7 @@ async def start_etiket_tagging(
                 batch = users[i:i + batch_size]
                 mentions = [format_user_mention(u) for u in batch]
 
-                # Premium emoji varsa onu kullan, yoksa sadece mesaj
-                if custom_emoji_html:
-                    text = f"{custom_emoji_html}{clean_message}\n\n" + " ".join(mentions)
-                else:
-                    text = f"{clean_message}\n\n" + " ".join(mentions)
+                text = f"{final_message}\n\n" + " ".join(mentions)
 
                 try:
                     await bot.send_message(
