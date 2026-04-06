@@ -94,30 +94,57 @@ async def track_message(
                         WHERE id = $2
                     """, now, user['id'])
 
-                # Sayaçları güncelle
-                await conn.execute("""
-                    UPDATE telegram_users
-                    SET message_count = message_count + 1,
-                        daily_count = daily_count + 1,
-                        weekly_count = weekly_count + 1,
-                        monthly_count = monthly_count + 1,
-                        username = COALESCE($1, username),
-                        first_name = COALESCE($2, first_name),
-                        last_name = COALESCE($3, last_name),
-                        last_message_at = $4,
-                        updated_at = $4
-                    WHERE id = $5
-                """, username, first_name, last_name, now, user['id'])
+                # Aktivite takibi aktif mi kontrol et
+                activity_enabled = await conn.fetchval("""
+                    SELECT enabled FROM activity_settings WHERE group_id = $1
+                """, group_id)
+
+                # Sayaçları güncelle (activity_count dahil)
+                if activity_enabled:
+                    await conn.execute("""
+                        UPDATE telegram_users
+                        SET message_count = message_count + 1,
+                            daily_count = daily_count + 1,
+                            weekly_count = weekly_count + 1,
+                            monthly_count = monthly_count + 1,
+                            activity_count = activity_count + 1,
+                            username = COALESCE($1, username),
+                            first_name = COALESCE($2, first_name),
+                            last_name = COALESCE($3, last_name),
+                            last_message_at = $4,
+                            updated_at = $4
+                        WHERE id = $5
+                    """, username, first_name, last_name, now, user['id'])
+                else:
+                    await conn.execute("""
+                        UPDATE telegram_users
+                        SET message_count = message_count + 1,
+                            daily_count = daily_count + 1,
+                            weekly_count = weekly_count + 1,
+                            monthly_count = monthly_count + 1,
+                            username = COALESCE($1, username),
+                            first_name = COALESCE($2, first_name),
+                            last_name = COALESCE($3, last_name),
+                            last_message_at = $4,
+                            updated_at = $4
+                        WHERE id = $5
+                    """, username, first_name, last_name, now, user['id'])
 
             else:
-                # Yeni kullanıcı oluştur
+                # Aktivite takibi aktif mi kontrol et
+                activity_enabled = await conn.fetchval("""
+                    SELECT enabled FROM activity_settings WHERE group_id = $1
+                """, group_id)
+
+                # Yeni kullanıcı oluştur (activity_count dahil)
+                activity_count = 1 if activity_enabled else 0
                 await conn.execute("""
                     INSERT INTO telegram_users (
                         telegram_id, group_id, username, first_name, last_name,
-                        message_count, daily_count, weekly_count, monthly_count,
-                        last_message_at, last_daily_reset, last_weekly_reset, last_monthly_reset
-                    ) VALUES ($1, $2, $3, $4, $5, 1, 1, 1, 1, $6, $6, $6, $6)
-                """, telegram_id, group_id, username, first_name, last_name, now)
+                        message_count, daily_count, weekly_count, monthly_count, activity_count,
+                        last_message_at, last_daily_reset, last_weekly_reset, last_monthly_reset, activity_last_reset
+                    ) VALUES ($1, $2, $3, $4, $5, 1, 1, 1, 1, $6, $7, $7, $7, $7, $7)
+                """, telegram_id, group_id, username, first_name, last_name, activity_count, now)
 
             return True
 
