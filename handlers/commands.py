@@ -22,6 +22,10 @@ from services.tagging_service import (
     is_tagging_active, get_tagging_type
 )
 from services.weekly_rewards_service import get_weekly_reward_settings
+from services.activity_service import (
+    get_activity_settings, get_leaderboard_with_rewards,
+    get_activity_type_text, get_period_info, ACTIVITY_TYPES
+)
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
 
@@ -870,6 +874,7 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     .bilgi, /bilgi komutu - Hedef kullanıcının istatistik kartını gösterir
+    SADECE ADMİNLER KULLANABİLİR
     Kullanım:
     - Reply ile: .bilgi (reply)
     - Username ile: .bilgi @username
@@ -884,6 +889,15 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
         return
+
+    # Admin kontrolü - SADECE ADMİNLER KULLANABİLİR
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return  # Admin değilse sessizce çık
 
     target_user = None
     target_id = None
@@ -994,16 +1008,129 @@ def _format_user_card(name: str, username: str, stats: dict) -> str:
 
 
 # ============================================
+# .aktiflik - Aktivite Sıralaması (Admin)
+# ============================================
+
+async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    .aktiflik komutu - Aktivite sıralamasını gösterir
+    SADECE ADMİNLER KULLANABİLİR
+
+    Kullanım:
+    - .aktiflik - Mevcut ayarlara göre sıralama gösterir
+    - .aktiflik günlük - Günlük sıralama
+    - .aktiflik haftalık - Haftalık sıralama
+    - .aktiflik aylık - Aylık sıralama
+    """
+    chat = update.effective_chat
+    user = update.effective_user
+    message = update.effective_message
+
+    if not user or not message:
+        return
+
+    # Sadece gruplarda çalışır
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Admin kontrolü
+    if can_anonymous_admin_use_commands(message):
+        is_admin = True
+    else:
+        is_admin = await is_group_admin(context.bot, chat.id, user.id)
+
+    if not is_admin:
+        return
+
+    # Argümanı kontrol et
+    text = message.text or ""
+    activity_type = None
+
+    if 'günlük' in text.lower() or 'gunluk' in text.lower():
+        activity_type = 'daily'
+    elif 'haftalık' in text.lower() or 'haftalik' in text.lower():
+        activity_type = 'weekly'
+    elif 'aylık' in text.lower() or 'aylik' in text.lower():
+        activity_type = 'monthly'
+    else:
+        # Ayarlardan al
+        settings = await get_activity_settings(chat.id)
+        if settings:
+            activity_type = settings.get('activity_type', 'weekly')
+        else:
+            activity_type = 'weekly'
+
+    # Grup adminlerinin ID'lerini al
+    admin_ids = []
+    try:
+        admins = await context.bot.get_chat_administrators(chat.id)
+        admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
+    except TelegramError:
+        pass
+
+    # Sıralamayı ödüllerle birlikte al
+    leaderboard = await get_leaderboard_with_rewards(chat.id, activity_type, admin_ids)
+
+    if not leaderboard:
+        type_text = get_activity_type_text(activity_type)
+        await message.reply_text(
+            f"📊 <b>{type_text} Aktivite Sıralaması</b>\n\n"
+            f"⚠️ Henüz yeterli veri yok.",
+            parse_mode="HTML"
+        )
+        return
+
+    # Başlık oluştur
+    type_text = get_activity_type_text(activity_type)
+    period_info = get_period_info(activity_type)
+
+    medals = ['🥇', '🥈', '🥉']
+    lines = [
+        f"📊 <b>{type_text} Aktivite Sıralaması</b>",
+        f"📅 {period_info}",
+        ""
+    ]
+
+    for user_data in leaderboard:
+        rank = user_data['rank']
+        medal = medals[rank - 1] if rank <= 3 else f"{rank}."
+        telegram_id = user_data['telegram_id']
+
+        # Görüntülenecek isim
+        if user_data.get('username'):
+            display_name = f"@{user_data['username']}"
+        elif user_data.get('first_name'):
+            display_name = user_data['first_name']
+            if user_data.get('last_name'):
+                display_name += f" {user_data['last_name']}"
+        else:
+            display_name = f"Kullanıcı {str(telegram_id)[-4:]}"
+
+        name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
+        count = user_data.get('message_count', 0)
+        reward = user_data.get('reward')
+
+        if reward:
+            lines.append(f"{medal} {name} - <b>{count}</b> - {reward}")
+        else:
+            lines.append(f"{medal} {name} - <b>{count}</b>")
+
+    lines.append(f"\n💬 {type_text} en aktif {len(leaderboard)} kullanıcı")
+
+    await message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+# ============================================
 # .günlük - Günlük Sıralama (Admin)
 # ============================================
 
 async def gunluk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Günlük mesaj sıralaması (sadece adminler)"""
+    """Günlük mesaj sıralaması (sadece adminler) - 20 kişi"""
     await _leaderboard_command(update, context, 'daily')
 
 
 async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Haftalık mesaj sıralaması + ödüller (sadece adminler)"""
+    """Haftalık mesaj sıralaması + ödüller (sadece adminler) - 20 kişi"""
     chat = update.effective_chat
     user = update.effective_user
     message = update.effective_message
@@ -1056,8 +1183,7 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_ids_list = list(admin_ids) if admin_ids else []
 
     async with db.pool.acquire() as conn:
-        # Kullanıcıları getir (adminler hariç)
-        # Her zaman en fazla 10 kişi göster
+        # Kullanıcıları getir (adminler hariç) - 20 kişi
         if admin_ids_list:
             users = await conn.fetch("""
                 SELECT telegram_id, username, first_name, last_name, weekly_count as count
@@ -1065,7 +1191,7 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 WHERE group_id = $1 AND weekly_count > 0 AND last_weekly_reset >= $2
                   AND telegram_id != ALL($3::BIGINT[])
                 ORDER BY weekly_count DESC
-                LIMIT 10
+                LIMIT 20
             """, chat.id, period_start, admin_ids_list)
         else:
             users = await conn.fetch("""
@@ -1073,7 +1199,7 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 FROM telegram_users
                 WHERE group_id = $1 AND weekly_count > 0 AND last_weekly_reset >= $2
                 ORDER BY weekly_count DESC
-                LIMIT 10
+                LIMIT 20
             """, chat.id, period_start)
 
     if not users:
@@ -1119,12 +1245,12 @@ async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def aylik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Aylık mesaj sıralaması (sadece adminler)"""
+    """Aylık mesaj sıralaması (sadece adminler) - 20 kişi"""
     await _leaderboard_command(update, context, 'monthly')
 
 
 async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str):
-    """Leaderboard komutu helper"""
+    """Leaderboard komutu helper - 20 kişi gösterir"""
     chat = update.effective_chat
     user = update.effective_user
     message = update.effective_message
@@ -1186,8 +1312,7 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
         # Admin ID'lerini liste olarak al
         admin_ids_list = list(admin_ids) if admin_ids else []
 
-        # Sadece bu dönemde mesaj atmış kullanıcıları getir (adminler hariç)
-        # last_X_reset tarihi period_start'tan sonra veya eşit olmalı
+        # Sadece bu dönemde mesaj atmış kullanıcıları getir (adminler hariç) - 20 kişi
         if admin_ids_list:
             users = await conn.fetch(f"""
                 SELECT telegram_id, username, first_name, last_name, {field} as count
@@ -1195,7 +1320,7 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 WHERE group_id = $1 AND {field} > 0 AND {reset_field} >= $2
                   AND telegram_id != ALL($3::BIGINT[])
                 ORDER BY {field} DESC
-                LIMIT 10
+                LIMIT 20
             """, chat.id, period_start, admin_ids_list)
         else:
             users = await conn.fetch(f"""
@@ -1203,7 +1328,7 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 FROM telegram_users
                 WHERE group_id = $1 AND {field} > 0 AND {reset_field} >= $2
                 ORDER BY {field} DESC
-                LIMIT 10
+                LIMIT 20
             """, chat.id, period_start)
 
     if not users:
