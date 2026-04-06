@@ -235,21 +235,54 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await confirm_start_cekilis(query, user_id, context)
 
     # ============================================
-    # HAFTALIK ÖDÜL MENÜSÜ
+    # AKTİVİTE ÖDÜL MENÜSÜ
+    # ============================================
+    elif data == "activity_menu":
+        await show_activity_menu(query, user_id, context)
+
+    elif data == "activity_settings":
+        await show_activity_settings(query, user_id, context)
+
+    elif data.startswith("activity_type_"):
+        activity_type = data.replace("activity_type_", "")
+        await set_activity_type(query, user_id, activity_type, context)
+
+    elif data == "activity_top_menu":
+        await show_activity_top_count_menu(query, user_id, context)
+
+    elif data.startswith("activity_top_"):
+        count = int(data.replace("activity_top_", ""))
+        await set_activity_top_count(query, user_id, count, context)
+
+    elif data == "activity_rewards_menu":
+        await show_activity_rewards_menu(query, user_id, context)
+
+    elif data.startswith("activity_set_reward_"):
+        rank = int(data.replace("activity_set_reward_", ""))
+        await prompt_activity_reward(query, user_id, rank, context)
+
+    elif data == "activity_set_all_rewards":
+        await prompt_all_activity_rewards(query, user_id, context)
+
+    elif data == "activity_toggle":
+        await toggle_activity(query, user_id, context)
+
+    # ============================================
+    # HAFTALIK ÖDÜL MENÜSÜ (Geriye Uyumluluk)
     # ============================================
     elif data == "weekly_rewards_menu":
-        await show_weekly_rewards_menu(query, user_id, context)
+        await show_activity_menu(query, user_id, context)  # Yönlendir
 
     elif data == "weekly_rewards_top_menu":
-        await show_weekly_top_count_menu(query, user_id, context)
+        await show_activity_top_count_menu(query, user_id, context)
 
     elif data.startswith("weekly_rewards_top_"):
         count = int(data.replace("weekly_rewards_top_", ""))
-        await set_weekly_top_count(query, user_id, count, context)
+        await set_activity_top_count(query, user_id, count, context)
 
     elif data.startswith("weekly_set_reward_"):
         rank = int(data.replace("weekly_set_reward_", ""))
-        await prompt_set_reward(query, user_id, rank, context)
+        await prompt_activity_reward(query, user_id, rank, context)
 
     # ============================================
     # BOT BAŞLATMA KONTROLÜ (.ben için)
@@ -296,7 +329,7 @@ async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
     keyboard = [
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
         [InlineKeyboardButton(BUTTONS["CEKILIS_YONETIMI"], callback_data="cekilis_menu")],
-        [InlineKeyboardButton("🏆 Haftalık Ödüller", callback_data="weekly_rewards_menu")],
+        [InlineKeyboardButton("🏆 Aktivite Ödülleri", callback_data="activity_menu")],
         [InlineKeyboardButton(BUTTONS["ROLL_YONETIMI"], callback_data="roll_menu")],
         [InlineKeyboardButton(BUTTONS["ETIKET_YONETIMI"], callback_data="etiket_menu")],
         [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
@@ -316,7 +349,7 @@ async def show_main_menu_message(message, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
         [InlineKeyboardButton(BUTTONS["CEKILIS_YONETIMI"], callback_data="cekilis_menu")],
-        [InlineKeyboardButton("🏆 Haftalık Ödüller", callback_data="weekly_rewards_menu")],
+        [InlineKeyboardButton("🏆 Aktivite Ödülleri", callback_data="activity_menu")],
         [InlineKeyboardButton(BUTTONS["ROLL_YONETIMI"], callback_data="roll_menu")],
         [InlineKeyboardButton(BUTTONS["ETIKET_YONETIMI"], callback_data="etiket_menu")],
         [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
@@ -2125,6 +2158,327 @@ async def prompt_set_reward(query, user_id: int, rank: int, context: ContextType
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+
+
+# ============================================
+# AKTİVİTE MENÜ FONKSİYONLARI
+# ============================================
+
+async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Aktivite ana menüsünü göster"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import (
+        get_activity_settings, get_activity_rewards,
+        get_activity_type_text, ACTIVITY_TYPES, ensure_activity_tables
+    )
+
+    # Tabloların oluşturulduğundan emin ol
+    await ensure_activity_tables()
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        keyboard = [[InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")]]
+        await query.edit_message_text(
+            "❌ <b>Yetkiniz Yok</b>\n\n"
+            "Aktivite ayarları için ana gruptaki admin olmanız gerekiyor.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    if not ACTIVITY_GROUP_ID:
+        keyboard = [[InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")]]
+        await query.edit_message_text(
+            "❌ ACTIVITY_GROUP_ID tanımlı değil.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    # Ayarları getir
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+
+    if settings:
+        activity_type = settings.get('activity_type', 'weekly')
+        enabled = settings.get('enabled', False)
+        top_count = settings.get('top_count', 20)
+    else:
+        activity_type = 'weekly'
+        enabled = False
+        top_count = 20
+
+    type_text = get_activity_type_text(activity_type)
+    status = "✅ Aktif" if enabled else "❌ Pasif"
+
+    # Ödülleri getir
+    rewards = await get_activity_rewards(ACTIVITY_GROUP_ID, activity_type)
+
+    keyboard = [
+        [InlineKeyboardButton(f"📊 Tip: {type_text}", callback_data="activity_settings")],
+        [InlineKeyboardButton(f"👥 Kişi Sayısı: {top_count}", callback_data="activity_top_menu")],
+        [InlineKeyboardButton(f"🎁 Ödülleri Ayarla", callback_data="activity_rewards_menu")],
+        [InlineKeyboardButton(f"{status}", callback_data="activity_toggle")],
+        [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
+    ]
+
+    # Ödül listesi
+    rewards_text = ""
+    if rewards:
+        for r in rewards[:5]:  # İlk 5'i göster
+            rewards_text += f"  {r['rank']}. {r['reward_text']}\n"
+        if len(rewards) > 5:
+            rewards_text += f"  ... ve {len(rewards) - 5} ödül daha\n"
+    else:
+        rewards_text = "  Henüz ödül tanımlanmamış\n"
+
+    text = (
+        "🏆 <b>Aktivite Ödül Sistemi</b>\n\n"
+        f"<b>Durum:</b> {status}\n"
+        f"<b>Tip:</b> {type_text}\n"
+        f"<b>Gösterilecek:</b> {top_count} kişi\n\n"
+        f"<b>Ödüller:</b>\n{rewards_text}\n"
+        "💡 <i>Grupta</i> <code>.aktiflik</code> <i>yazarak sıralamayı görebilirsiniz.</i>\n"
+        "💡 <i>Tip seçerek günlük/haftalık/aylık değiştirebilirsiniz.</i>"
+    )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_activity_settings(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Aktivite tipi seçim menüsü"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings, ACTIVITY_TYPES
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    current = settings.get('activity_type', 'weekly') if settings else 'weekly'
+
+    keyboard = [
+        [InlineKeyboardButton(f"📅 Günlük{' ✓' if current == 'daily' else ''}", callback_data="activity_type_daily")],
+        [InlineKeyboardButton(f"📆 Haftalık{' ✓' if current == 'weekly' else ''}", callback_data="activity_type_weekly")],
+        [InlineKeyboardButton(f"📅 Aylık{' ✓' if current == 'monthly' else ''}", callback_data="activity_type_monthly")],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_menu")],
+    ]
+
+    await query.edit_message_text(
+        "📊 <b>Aktivite Tipi Seçin</b>\n\n"
+        "Sıralama hangi periyotta hesaplansın?\n\n"
+        f"<b>Şu anki:</b> {ACTIVITY_TYPES.get(current, current)}\n\n"
+        "• <b>Günlük:</b> Her gün sıfırlanır\n"
+        "• <b>Haftalık:</b> Her Pazartesi sıfırlanır\n"
+        "• <b>Aylık:</b> Her ayın 1'inde sıfırlanır",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def set_activity_type(query, user_id: int, activity_type: str, context: ContextTypes.DEFAULT_TYPE):
+    """Aktivite tipini ayarla"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import create_or_update_activity_settings, get_activity_type_text
+
+    await create_or_update_activity_settings(ACTIVITY_GROUP_ID, activity_type=activity_type)
+
+    type_text = get_activity_type_text(activity_type)
+    await query.answer(f"✅ Aktivite tipi {type_text} olarak ayarlandı!", show_alert=True)
+
+    await show_activity_menu(query, user_id, context)
+
+
+async def show_activity_top_count_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Kaç kişi gösterileceğini seç"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    current = settings.get('top_count', 20) if settings else 20
+
+    keyboard = [
+        [
+            InlineKeyboardButton(f"10{' ✓' if current == 10 else ''}", callback_data="activity_top_10"),
+            InlineKeyboardButton(f"15{' ✓' if current == 15 else ''}", callback_data="activity_top_15"),
+            InlineKeyboardButton(f"20{' ✓' if current == 20 else ''}", callback_data="activity_top_20"),
+        ],
+        [
+            InlineKeyboardButton(f"25{' ✓' if current == 25 else ''}", callback_data="activity_top_25"),
+            InlineKeyboardButton(f"30{' ✓' if current == 30 else ''}", callback_data="activity_top_30"),
+            InlineKeyboardButton(f"50{' ✓' if current == 50 else ''}", callback_data="activity_top_50"),
+        ],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_menu")],
+    ]
+
+    await query.edit_message_text(
+        "👥 <b>Kaç Kişi Gösterilecek?</b>\n\n"
+        f"Şu anki değer: <b>{current}</b> kişi\n\n"
+        "Sıralamada kaç kişi listelensin?",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def set_activity_top_count(query, user_id: int, count: int, context: ContextTypes.DEFAULT_TYPE):
+    """Kişi sayısını ayarla"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import create_or_update_activity_settings
+
+    await create_or_update_activity_settings(ACTIVITY_GROUP_ID, top_count=count)
+    await query.answer(f"✅ {count} kişi gösterilecek!", show_alert=True)
+
+    await show_activity_menu(query, user_id, context)
+
+
+async def show_activity_rewards_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Ödül ayarlama menüsü"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings, get_activity_rewards, get_activity_type_text
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
+    top_count = settings.get('top_count', 20) if settings else 20
+
+    rewards = await get_activity_rewards(ACTIVITY_GROUP_ID, activity_type)
+    rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
+
+    type_text = get_activity_type_text(activity_type)
+
+    keyboard = [
+        [InlineKeyboardButton("📝 Tümünü Yaz (Alt Alta)", callback_data="activity_set_all_rewards")],
+    ]
+
+    # Her sıra için ödül butonu (max 10 göster)
+    display_count = min(top_count, 10)
+    for i in range(1, display_count + 1):
+        reward = rewards_dict.get(i, "—")
+        if len(reward) > 25:
+            reward = reward[:22] + "..."
+        keyboard.append([
+            InlineKeyboardButton(f"🎁 {i}. {reward}", callback_data=f"activity_set_reward_{i}")
+        ])
+
+    keyboard.append([InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_menu")])
+
+    # Mevcut ödül listesi
+    rewards_text = ""
+    if rewards:
+        for r in rewards:
+            rewards_text += f"  {r['rank']}. {r['reward_text']}\n"
+    else:
+        rewards_text = "  Henüz ödül tanımlanmamış\n"
+
+    text = (
+        f"🎁 <b>{type_text} Ödülleri</b>\n\n"
+        f"<b>Mevcut Ödüller:</b>\n{rewards_text}\n"
+        "💡 <b>Toplu Ödül Girişi:</b>\n"
+        "<i>\"Tümünü Yaz\" ile ödülleri alt alta yazabilirsiniz.</i>\n"
+        "<i>Her satır bir sıranın ödülü olur.</i>"
+    )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def prompt_activity_reward(query, user_id: int, rank: int, context: ContextTypes.DEFAULT_TYPE):
+    """Tek ödül için yazı iste"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings, get_activity_type_text
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
+    type_text = get_activity_type_text(activity_type)
+
+    context.user_data['waiting_for'] = 'activity_reward'
+    context.user_data['activity_reward_rank'] = rank
+    context.user_data['activity_reward_type'] = activity_type
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_rewards_menu")]]
+
+    await query.edit_message_text(
+        f"🎁 <b>{rank}. Sıra Ödülü ({type_text})</b>\n\n"
+        f"Bu sıra için ödül metnini yazın:\n\n"
+        f"<i>Örnek: 50 TL Hediye Çeki</i>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def prompt_all_activity_rewards(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Tüm ödüller için toplu giriş iste"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings, get_activity_type_text
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
+    type_text = get_activity_type_text(activity_type)
+
+    context.user_data['waiting_for'] = 'activity_all_rewards'
+    context.user_data['activity_reward_type'] = activity_type
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_rewards_menu")]]
+
+    await query.edit_message_text(
+        f"🎁 <b>{type_text} Ödülleri (Toplu Giriş)</b>\n\n"
+        f"Ödülleri <b>alt alta</b> yazın.\n"
+        f"Her satır bir sıranın ödülü olacak.\n\n"
+        f"<b>Örnek:</b>\n"
+        f"<code>100 TL Hediye Çeki\n"
+        f"50 TL Hediye Çeki\n"
+        f"25 TL Hediye Çeki\n"
+        f"VIP Üyelik\n"
+        f"Premium Rozet</code>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def toggle_activity(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Aktiviteyi aç/kapat"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings, start_activity_tracking, stop_activity_tracking
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    enabled = settings.get('enabled', False) if settings else False
+    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
+
+    if enabled:
+        await stop_activity_tracking(ACTIVITY_GROUP_ID)
+        await query.answer("❌ Aktivite takibi durduruldu!", show_alert=True)
+    else:
+        await start_activity_tracking(ACTIVITY_GROUP_ID, activity_type)
+        await query.answer("✅ Aktivite takibi başlatıldı!", show_alert=True)
+
+    await show_activity_menu(query, user_id, context)
+
+
+# ============================================
+# HAFTALIK ÖDÜL MENÜ FONKSİYONLARI (Geriye Uyumluluk)
+# ============================================
+
+async def show_weekly_rewards_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Eski haftalık menü - Aktivite menüsüne yönlendir"""
+    await show_activity_menu(query, user_id, context)
+
+
+async def show_weekly_top_count_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Eski kişi sayısı menüsü"""
+    await show_activity_top_count_menu(query, user_id, context)
+
+
+async def set_weekly_top_count(query, user_id: int, count: int, context: ContextTypes.DEFAULT_TYPE):
+    """Eski kişi sayısı ayarı"""
+    await set_activity_top_count(query, user_id, count, context)
+
+
+async def prompt_set_reward(query, user_id: int, rank: int, context: ContextTypes.DEFAULT_TYPE):
+    """Eski ödül tanımlama"""
+    await prompt_activity_reward(query, user_id, rank, context)
 
 
 async def handle_randy_join(query, user_id: int, randy_id: int, context: ContextTypes.DEFAULT_TYPE):
