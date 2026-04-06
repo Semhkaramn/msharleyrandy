@@ -463,7 +463,43 @@ GIVEAWAY = {
 
 
 # ============================================
-# 🏆 HAFTALIK AKTİVİTE ÖDÜL MESAJLARI
+# 🏆 AKTİVİTE ÖDÜL SİSTEMİ MESAJLARI
+# ============================================
+
+ACTIVITY = {
+    "MENU": (
+        "🏆 <b>Aktivite Ödül Sistemi</b>\n\n"
+        "Günlük, haftalık veya aylık en aktif üyelere ödül verilir.\n"
+        "Adminler bu listeye dahil değildir.\n\n"
+        "<b>Mevcut Ayarlar:</b>\n"
+        "• Durum: {status}\n"
+        "• Periyot: {period}\n"
+        "• Top sayısı: {top_count} kişi\n"
+        "• Otomatik sıfırlama: {auto_reset}\n"
+        "• Sonraki sıfırlama: {next_reset}\n\n"
+        "<b>Tanımlı Ödüller:</b>\n{rewards_list}\n\n"
+        "<i>Grupda .aktiflik yazarak sıralamayı görüntüleyebilirsiniz.</i>"
+    ),
+
+    "SET_REWARD_PROMPT": (
+        "🎁 <b>{rank}. Sıra Ödülü</b>\n\n"
+        "Bu sıra için ödül metnini yazın.\n\n"
+        "<i>Örnek: 50 TL Hediye Çeki</i>"
+    ),
+
+    "REWARD_SAVED": "✅ {rank}. sıra ödülü kaydedildi: <b>{reward}</b>",
+
+    "PERIOD_CHANGED": "✅ Aktivite periyodu <b>{period}</b> olarak ayarlandı!",
+
+    "ENABLED": "✅ Aktivite sistemi aktif edildi!",
+    "DISABLED": "❌ Aktivite sistemi kapatıldı!",
+
+    "NO_REWARDS": "Henüz ödül tanımlanmamış.",
+}
+
+
+# ============================================
+# 🏆 HAFTALIK AKTİVİTE ÖDÜL MESAJLARI (ESKİ - GERİYE UYUMLULUK)
 # ============================================
 
 WEEKLY_REWARDS = {
