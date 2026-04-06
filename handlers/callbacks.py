@@ -2165,12 +2165,20 @@ async def prompt_set_reward(query, user_id: int, rank: int, context: ContextType
 # ============================================
 
 async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Aktivite ana menüsünü göster"""
+    """Aktivite ana menüsünü göster - Manuel başlat/durdur sistemi"""
     from config import ACTIVITY_GROUP_ID
     from services.activity_service import (
         get_activity_settings, get_activity_rewards,
-        get_activity_type_text, ACTIVITY_TYPES, ensure_activity_tables
+        get_activity_type_text, ACTIVITY_TYPES, ensure_activity_tables,
+        get_activity_status
     )
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
 
     # Tabloların oluşturulduğundan emin ol
     await ensure_activity_tables()
@@ -2197,36 +2205,53 @@ async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_
         )
         return
 
-    # Ayarları getir
+    # Durumu detaylı getir
+    status_info = await get_activity_status(ACTIVITY_GROUP_ID)
     settings = await get_activity_settings(ACTIVITY_GROUP_ID)
 
-    if settings:
-        activity_type = settings.get('activity_type', 'weekly')
-        enabled = settings.get('enabled', False)
-        top_count = settings.get('top_count', 20)
-    else:
-        activity_type = 'weekly'
-        enabled = False
-        top_count = 20
+    activity_type = status_info.get('activity_type', 'weekly')
+    enabled = status_info.get('enabled', False)
+    top_count = status_info.get('top_count', 20)
+    started_at = status_info.get('started_at')
+    has_data = status_info.get('has_data', False)
 
     type_text = get_activity_type_text(activity_type)
-    status = "✅ Aktif" if enabled else "❌ Pasif"
+
+    # Durum metni
+    if enabled:
+        status = "🟢 Aktif - Sayım Devam Ediyor"
+        toggle_text = "🔴 Durdur"
+    elif has_data:
+        status = "🟡 Durdu - Son Sıralama Mevcut"
+        toggle_text = "🟢 Yeni Başlat (Sıfırla)"
+    else:
+        status = "⚪ Başlatılmadı"
+        toggle_text = "🟢 Başlat"
+
+    # Başlama tarihi
+    if started_at:
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        started_local = started_at.astimezone(TR_TZ)
+        started_text = started_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        started_text = "—"
 
     # Ödülleri getir
     rewards = await get_activity_rewards(ACTIVITY_GROUP_ID, activity_type)
 
     keyboard = [
-        [InlineKeyboardButton(f"📊 Tip: {type_text}", callback_data="activity_settings")],
+        [InlineKeyboardButton(f"📊 Periyod: {type_text}", callback_data="activity_settings")],
         [InlineKeyboardButton(f"👥 Kişi Sayısı: {top_count}", callback_data="activity_top_menu")],
-        [InlineKeyboardButton(f"🎁 Ödülleri Ayarla", callback_data="activity_rewards_menu")],
-        [InlineKeyboardButton(f"{status}", callback_data="activity_toggle")],
+        [InlineKeyboardButton("🎁 Ödülleri Ayarla", callback_data="activity_rewards_menu")],
+        [InlineKeyboardButton(toggle_text, callback_data="activity_toggle")],
         [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
     ]
 
     # Ödül listesi
     rewards_text = ""
     if rewards:
-        for r in rewards[:5]:  # İlk 5'i göster
+        for r in rewards[:5]:
             rewards_text += f"  {r['rank']}. {r['reward_text']}\n"
         if len(rewards) > 5:
             rewards_text += f"  ... ve {len(rewards) - 5} ödül daha\n"
@@ -2236,11 +2261,16 @@ async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_
     text = (
         "🏆 <b>Aktivite Ödül Sistemi</b>\n\n"
         f"<b>Durum:</b> {status}\n"
-        f"<b>Tip:</b> {type_text}\n"
+        f"<b>Periyod:</b> {type_text}\n"
+        f"<b>Başlama:</b> {started_text}\n"
         f"<b>Gösterilecek:</b> {top_count} kişi\n\n"
         f"<b>Ödüller:</b>\n{rewards_text}\n"
-        "💡 <i>Grupta</i> <code>.aktiflik</code> <i>yazarak sıralamayı görebilirsiniz.</i>\n"
-        "💡 <i>Tip seçerek günlük/haftalık/aylık değiştirebilirsiniz.</i>"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💡 <b>Nasıl Çalışır:</b>\n"
+        "• <b>Başlat:</b> Sayaçlar sıfırlanır, yeni sayım başlar\n"
+        "• <b>Durdur:</b> Sayım durur, son sıralama kalır\n"
+        "• <code>.aktiflik</code> ile grupta sıralamayı görün\n"
+        "• <code>.günlük</code> <code>.haftalık</code> <code>.aylık</code> otomatik sıfırlanır"
     )
 
     await query.edit_message_text(
@@ -2439,7 +2469,7 @@ async def prompt_all_activity_rewards(query, user_id: int, context: ContextTypes
 
 
 async def toggle_activity(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Aktiviteyi aç/kapat"""
+    """Aktiviteyi başlat/durdur - Manuel sistem"""
     from config import ACTIVITY_GROUP_ID
     from services.activity_service import get_activity_settings, start_activity_tracking, stop_activity_tracking
 
@@ -2448,11 +2478,19 @@ async def toggle_activity(query, user_id: int, context: ContextTypes.DEFAULT_TYP
     activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
 
     if enabled:
+        # Durdur - veriler kalır
         await stop_activity_tracking(ACTIVITY_GROUP_ID)
-        await query.answer("❌ Aktivite takibi durduruldu!", show_alert=True)
+        await query.answer(
+            "🔴 Aktivite takibi durduruldu!\n\nSon sıralama kaydedildi, .aktiflik ile görüntülenebilir.",
+            show_alert=True
+        )
     else:
+        # Başlat - sayaçlar sıfırlanır, yeni başlangıç
         await start_activity_tracking(ACTIVITY_GROUP_ID, activity_type)
-        await query.answer("✅ Aktivite takibi başlatıldı!", show_alert=True)
+        await query.answer(
+            "🟢 Aktivite takibi başlatıldı!\n\nTüm sayaçlar sıfırlandı, yeni sayım başladı.",
+            show_alert=True
+        )
 
     await show_activity_menu(query, user_id, context)
 
