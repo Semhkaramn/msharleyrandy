@@ -25,7 +25,7 @@ from services.activity_service import (
     get_activity_settings, get_leaderboard_with_rewards,
     get_activity_type_text, get_period_info, get_next_reset_time,
     set_activity_reward, get_activity_rewards, set_activity_type,
-    toggle_activity, ACTIVITY_TYPES
+    toggle_activity, ACTIVITY_TYPES, get_activity_status
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 
@@ -1017,16 +1017,22 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     .aktiflik komutu - Aktivite sıralamasını ÖDÜLLERLE gösterir
     SADECE ADMİNLER KULLANABİLİR
 
-    Kullanım:
-    - .aktiflik - Mevcut ayarlara göre sıralama + ödüller gösterir
-    - .aktiflik günlük - Günlük sıralama + ödüller
-    - .aktiflik haftalık - Haftalık sıralama + ödüller
-    - .aktiflik aylık - Aylık sıralama + ödüller
+    Manuel başlat/durdur sistemi:
+    - Aktifse: Mevcut sayımı gösterir
+    - Durmuşsa: Son sıralamayı gösterir
+    - Başlatılmamışsa: Uyarı verir
     """
     from services.activity_service import (
         get_activity_settings, get_leaderboard_with_rewards,
-        get_activity_type_text, get_period_info, get_next_reset_time
+        get_activity_type_text, get_activity_status
     )
+    from datetime import timezone
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+
+    TR_TZ = ZoneInfo("Europe/Istanbul")
 
     chat = update.effective_chat
     user = update.effective_user
@@ -1048,23 +1054,14 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin:
         return
 
-    # Argümanı kontrol et
-    text = message.text or ""
-    activity_type = None
+    # Durum bilgisini al
+    status_info = await get_activity_status(chat.id)
+    settings = await get_activity_settings(chat.id)
 
-    if 'günlük' in text.lower() or 'gunluk' in text.lower():
-        activity_type = 'daily'
-    elif 'haftalık' in text.lower() or 'haftalik' in text.lower():
-        activity_type = 'weekly'
-    elif 'aylık' in text.lower() or 'aylik' in text.lower():
-        activity_type = 'monthly'
-    else:
-        # Ayarlardan al
-        settings = await get_activity_settings(chat.id)
-        if settings:
-            activity_type = settings.get('activity_type', 'weekly')
-        else:
-            activity_type = 'weekly'
+    activity_type = status_info.get('activity_type', 'weekly')
+    enabled = status_info.get('enabled', False)
+    started_at = status_info.get('started_at')
+    has_data = status_info.get('has_data', False)
 
     # Grup adminlerinin ID'lerini al
     admin_ids = []
@@ -1077,25 +1074,44 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Sıralamayı ödüllerle birlikte al
     leaderboard = await get_leaderboard_with_rewards(chat.id, activity_type, admin_ids)
 
+    type_text = get_activity_type_text(activity_type)
+
     if not leaderboard:
-        type_text = get_activity_type_text(activity_type)
-        await message.reply_text(
-            f"🏆 <b>{type_text} Aktivite Sıralaması</b>\n\n"
-            f"⚠️ Henüz yeterli veri yok.",
-            parse_mode="HTML"
-        )
+        if not has_data:
+            await message.reply_text(
+                f"🏆 <b>{type_text} Aktivite Sıralaması</b>\n\n"
+                f"⚠️ Aktivite takibi henüz başlatılmamış.\n\n"
+                f"💡 Özelden bot menüsünde aktiviteyi başlatabilirsiniz.",
+                parse_mode="HTML"
+            )
+        else:
+            await message.reply_text(
+                f"🏆 <b>{type_text} Aktivite Sıralaması</b>\n\n"
+                f"⚠️ Henüz mesaj atan kullanıcı yok.",
+                parse_mode="HTML"
+            )
         return
 
-    # Başlık oluştur
-    type_text = get_activity_type_text(activity_type)
-    period_info = get_period_info(activity_type)
-    next_reset = get_next_reset_time(activity_type)
+    # Başlama tarihi formatla
+    if started_at:
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+        started_local = started_at.astimezone(TR_TZ)
+        started_text = started_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        started_text = "—"
+
+    # Durum metni
+    if enabled:
+        status_text = "🟢 Aktif"
+    else:
+        status_text = "🟡 Son Sıralama"
 
     medals = ['🥇', '🥈', '🥉']
     lines = [
         f"🏆 <b>{type_text} Aktivite Sıralaması</b>",
-        f"📅 {period_info}",
-        f"⏰ Sıfırlanma: {next_reset}",
+        f"📊 {status_text}",
+        f"📅 Başlangıç: {started_text}",
         ""
     ]
 
