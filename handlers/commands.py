@@ -1076,22 +1076,6 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     type_text = get_activity_type_text(activity_type)
 
-    if not leaderboard:
-        if not has_data:
-            await message.reply_text(
-                f"🏆 <b>{type_text} Aktivite Sıralaması</b>\n\n"
-                f"⚠️ Aktivite takibi henüz başlatılmamış.\n\n"
-                f"💡 Özelden bot menüsünde aktiviteyi başlatabilirsiniz.",
-                parse_mode="HTML"
-            )
-        else:
-            await message.reply_text(
-                f"🏆 <b>{type_text} Aktivite Sıralaması</b>\n\n"
-                f"⚠️ Henüz mesaj atan kullanıcı yok.",
-                parse_mode="HTML"
-            )
-        return
-
     # Başlama tarihi formatla
     if started_at:
         if started_at.tzinfo is None:
@@ -1102,7 +1086,9 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         started_text = "—"
 
     # Durum metni
-    if enabled:
+    if not enabled and not has_data:
+        status_text = "⚪ Başlatılmadı"
+    elif enabled:
         status_text = "🟢 Aktif"
     else:
         status_text = "🟡 Son Sıralama"
@@ -1115,32 +1101,46 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ""
     ]
 
-    for user_data in leaderboard:
-        rank = user_data['rank']
-        medal = medals[rank - 1] if rank <= 3 else f"{rank}."
-        telegram_id = user_data['telegram_id']
-
-        # Görüntülenecek isim
-        if user_data.get('username'):
-            display_name = f"@{user_data['username']}"
-        elif user_data.get('first_name'):
-            display_name = user_data['first_name']
-            if user_data.get('last_name'):
-                display_name += f" {user_data['last_name']}"
+    if not leaderboard:
+        # Liste boş ama yine de düzgün format göster
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+        if not enabled and not has_data:
+            lines.append("⚠️ Aktivite takibi henüz başlatılmamış.")
+            lines.append("")
+            lines.append("💡 Özelden bot menüsünde aktiviteyi başlatın.")
         else:
-            display_name = f"Kullanıcı {str(telegram_id)[-4:]}"
+            lines.append("📭 Henüz listede kimse yok.")
+            lines.append("")
+            lines.append("💡 Mesaj atanlar listeye eklenecek.")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+    else:
+        # Kullanıcıları listele (1 kişi bile olsa göster)
+        for user_data in leaderboard:
+            rank = user_data['rank']
+            medal = medals[rank - 1] if rank <= 3 else f"{rank}."
+            telegram_id = user_data['telegram_id']
 
-        name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
-        count = user_data.get('message_count', 0)
-        reward = user_data.get('reward')
+            # Görüntülenecek isim
+            if user_data.get('username'):
+                display_name = f"@{user_data['username']}"
+            elif user_data.get('first_name'):
+                display_name = user_data['first_name']
+                if user_data.get('last_name'):
+                    display_name += f" {user_data['last_name']}"
+            else:
+                display_name = f"Kullanıcı {str(telegram_id)[-4:]}"
 
-        if reward:
-            lines.append(f"{medal} {name} - <b>{count}</b> mesaj")
-            lines.append(f"    🎁 {reward}")
-        else:
-            lines.append(f"{medal} {name} - <b>{count}</b> mesaj")
+            name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
+            count = user_data.get('message_count', 0)
+            reward = user_data.get('reward')
 
-    lines.append(f"\n💬 {type_text} en aktif {len(leaderboard)} kullanıcı")
+            if reward:
+                lines.append(f"{medal} {name} - <b>{count}</b> mesaj")
+                lines.append(f"    🎁 {reward}")
+            else:
+                lines.append(f"{medal} {name} - <b>{count}</b> mesaj")
+
+        lines.append(f"\n💬 {type_text} en aktif {len(leaderboard)} kullanıcı")
 
     await message.reply_text("\n".join(lines), parse_mode="HTML")
 
