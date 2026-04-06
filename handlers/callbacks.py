@@ -250,6 +250,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "activity_top_menu":
         await show_activity_top_count_menu(query, user_id, context)
 
+    elif data == "activity_top_custom":
+        await prompt_activity_top_custom(query, user_id, context)
+
     elif data.startswith("activity_top_"):
         count = int(data.replace("activity_top_", ""))
         await set_activity_top_count(query, user_id, count, context)
@@ -272,9 +275,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "activity_toggle_cancel":
         await show_activity_menu(query, user_id, context)
-
-    elif data == "activity_top_custom":
-        await prompt_activity_top_custom(query, user_id, context)
 
     # ============================================
     # HAFTALIK ÖDÜL MENÜSÜ (Geriye Uyumluluk)
