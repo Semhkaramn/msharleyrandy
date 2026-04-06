@@ -38,6 +38,7 @@ from handlers.commands import (
     gunluk_command,
     haftalik_command,
     aylik_command,
+    aktiflik_command,
     bitir_command,
     etiket_command,
     naber_command,
@@ -172,8 +173,54 @@ def main():
 
     # .aylık - Aylık sıralama (admin)
     application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]ayl[ıi]k$') & filters.ChatType.GROUPS,
+        filters.Regex(r'^[./!]ayl[ıi]k
+    application.add_handler(CallbackQueryHandler(handle_callback))
+
+    # ========== MESAJ HANDLER ==========
+    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
+    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
+    # Randy reply bitirme ve medya ekleme için gerekli
+    application.add_handler(MessageHandler(
+        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
+         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
+        handle_message
+    ))
+
+    # Bot'u çalıştır (polling mode - Heroku için)
+    logger.info("🚀 Bot başlatılıyor...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
+    main()
+) & filters.ChatType.GROUPS,
         aylik_command
+    ))
+
+    # .aktiflik - Aktivite sıralaması (admin)
+    application.add_handler(MessageHandler(
+        filters.Regex(r'^[./!]aktiflik
+    application.add_handler(CallbackQueryHandler(handle_callback))
+
+    # ========== MESAJ HANDLER ==========
+    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
+    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
+    # Randy reply bitirme ve medya ekleme için gerekli
+    application.add_handler(MessageHandler(
+        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
+         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
+        handle_message
+    ))
+
+    # Bot'u çalıştır (polling mode - Heroku için)
+    logger.info("🚀 Bot başlatılıyor...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
+    main()
+) & filters.ChatType.GROUPS,
+        aktiflik_command
     ))
 
     # ========== CALLBACK HANDLER ==========
