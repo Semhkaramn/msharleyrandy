@@ -1135,10 +1135,9 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reward = user_data.get('reward')
 
             if reward:
-                lines.append(f"{medal} {name} - <b>{count}</b> mesaj")
-                lines.append(f"    🎁 {reward}")
+                lines.append(f"{medal} {name} — <b>{count}</b> mesaj - {reward}")
             else:
-                lines.append(f"{medal} {name} - <b>{count}</b> mesaj")
+                lines.append(f"{medal} {name} — <b>{count}</b> mesaj")
 
         lines.append(f"\n💬 {type_text} en aktif {len(leaderboard)} kullanıcı")
 
