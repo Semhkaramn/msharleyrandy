@@ -60,15 +60,24 @@ class Database:
                     daily_count INT DEFAULT 0,
                     weekly_count INT DEFAULT 0,
                     monthly_count INT DEFAULT 0,
+                    activity_count INT DEFAULT 0,
                     last_message_at TIMESTAMP,
                     last_daily_reset TIMESTAMP DEFAULT NOW(),
                     last_weekly_reset TIMESTAMP DEFAULT NOW(),
                     last_monthly_reset TIMESTAMP DEFAULT NOW(),
+                    activity_last_reset TIMESTAMP DEFAULT NOW(),
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW(),
                     UNIQUE(telegram_id, group_id)
                 )
             """)
+
+            # activity_count ve activity_last_reset kolonlarını ekle (mevcut tablolar için)
+            try:
+                await conn.execute("ALTER TABLE telegram_users ADD COLUMN IF NOT EXISTS activity_count INT DEFAULT 0")
+                await conn.execute("ALTER TABLE telegram_users ADD COLUMN IF NOT EXISTS activity_last_reset TIMESTAMP DEFAULT NOW()")
+            except:
+                pass
 
             # Grup Adminleri Cache
             await conn.execute("""
