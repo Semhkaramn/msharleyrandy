@@ -265,7 +265,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await prompt_all_activity_rewards(query, user_id, context)
 
     elif data == "activity_toggle":
+        await show_activity_toggle_confirm(query, user_id, context)
+
+    elif data == "activity_toggle_confirm":
         await toggle_activity(query, user_id, context)
+
+    elif data == "activity_toggle_cancel":
+        await show_activity_menu(query, user_id, context)
+
+    elif data == "activity_top_custom":
+        await prompt_activity_top_custom(query, user_id, context)
 
     # ============================================
     # HAFTALIK ÖDÜL MENÜSÜ (Geriye Uyumluluk)
@@ -2339,13 +2348,31 @@ async def show_activity_top_count_menu(query, user_id: int, context: ContextType
             InlineKeyboardButton(f"30{' ✓' if current == 30 else ''}", callback_data="activity_top_30"),
             InlineKeyboardButton(f"50{' ✓' if current == 50 else ''}", callback_data="activity_top_50"),
         ],
+        [InlineKeyboardButton("✏️ Manuel Gir", callback_data="activity_top_custom")],
         [InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_menu")],
     ]
 
     await query.edit_message_text(
         "👥 <b>Kaç Kişi Gösterilecek?</b>\n\n"
         f"Şu anki değer: <b>{current}</b> kişi\n\n"
-        "Sıralamada kaç kişi listelensin?",
+        "Sıralamada kaç kişi listelensin?\n\n"
+        "💡 <i>Listede olmayan bir sayı için \"Manuel Gir\" butonunu kullanın.</i>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def prompt_activity_top_custom(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Manuel kişi sayısı girişi için prompt"""
+    context.user_data['waiting_for'] = 'activity_top_custom'
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_top_menu")]]
+
+    await query.edit_message_text(
+        "✏️ <b>Manuel Kişi Sayısı</b>\n\n"
+        "Sıralamada gösterilecek kişi sayısını yazın:\n\n"
+        "<i>Örnek: 35</i>\n\n"
+        "⚠️ <b>Not:</b> 1-100 arası bir sayı giriniz.",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
@@ -2463,6 +2490,57 @@ async def prompt_all_activity_rewards(query, user_id: int, context: ContextTypes
         f"25 TL Hediye Çeki\n"
         f"VIP Üyelik\n"
         f"Premium Rozet</code>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def show_activity_toggle_confirm(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Aktivite başlatma/durdurma için onay ekranı göster"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings, get_activity_status
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    status_info = await get_activity_status(ACTIVITY_GROUP_ID)
+    enabled = status_info.get('enabled', False)
+    has_data = status_info.get('has_data', False)
+
+    if enabled:
+        # Durdurma onayı
+        text = (
+            "🔴 <b>Aktivite Takibini Durdur</b>\n\n"
+            "Aktivite takibini durdurmak istediğinizden emin misiniz?\n\n"
+            "• Son sıralama kaydedilecek\n"
+            "• <code>.aktiflik</code> ile görüntülenebilir\n"
+            "• Veriler silinmeyecek"
+        )
+    else:
+        if has_data:
+            # Yeniden başlatma onayı (veriler sıfırlanacak)
+            text = (
+                "🟢 <b>Aktivite Takibini Yeniden Başlat</b>\n\n"
+                "⚠️ <b>DİKKAT:</b> Tüm sayaçlar sıfırlanacak!\n\n"
+                "Mevcut sıralama silinip yeni sayım başlayacak.\n"
+                "Devam etmek istiyor musunuz?"
+            )
+        else:
+            # İlk kez başlatma
+            text = (
+                "🟢 <b>Aktivite Takibini Başlat</b>\n\n"
+                "Aktivite takibini başlatmak istediğinizden emin misiniz?\n\n"
+                "• Kullanıcı mesajları sayılmaya başlayacak\n"
+                "• <code>.aktiflik</code> ile sıralama görüntülenebilir"
+            )
+
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Evet", callback_data="activity_toggle_confirm"),
+            InlineKeyboardButton("❌ Hayır", callback_data="activity_toggle_cancel"),
+        ]
+    ]
+
+    await query.edit_message_text(
+        text,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
