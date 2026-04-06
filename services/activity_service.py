@@ -201,7 +201,7 @@ async def toggle_activity(group_id: int, enabled: bool) -> bool:
     return await create_or_update_activity_settings(group_id, enabled=enabled)
 
 
-async def get_activity_rewards(group_id: int) -> List[Dict[str, Any]]:
+async def get_activity_rewards(group_id: int, activity_type: str = None) -> List[Dict[str, Any]]:
     """Aktivite ödüllerini getir"""
     try:
         async with db.pool.acquire() as conn:
@@ -256,7 +256,7 @@ async def get_activity_leaderboard(
 ) -> List[Dict[str, Any]]:
     """
     Aktivite sıralamasını getir
-    telegram_users tablosundan daily_count, weekly_count, monthly_count kullanır
+    BAĞIMSIZ activity_count alanını kullanır (günlük/haftalık/aylık'tan farklı)
     """
     try:
         # Ayarları al
@@ -273,51 +273,46 @@ async def get_activity_leaderboard(
         if exclude_admin_ids:
             excluded_ids.extend(exclude_admin_ids)
 
-        # Periyod başlangıcını hesapla
+        # Aktivite periyodunun başlangıcını hesapla
         now_utc = datetime.now(timezone.utc)
         now_tr = now_utc.astimezone(TR_TZ)
 
         if activity_type == 'daily':
-            field = 'daily_count'
-            reset_field = 'last_daily_reset'
             # Bugünün başlangıcı (Türkiye saati 00:00)
             period_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
         elif activity_type == 'weekly':
-            field = 'weekly_count'
-            reset_field = 'last_weekly_reset'
             # Bu haftanın Pazartesi günü 00:00
             days_since_monday = now_tr.weekday()
             period_start_tr = (now_tr - timedelta(days=days_since_monday)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
         else:  # monthly
-            field = 'monthly_count'
-            reset_field = 'last_monthly_reset'
             # Bu ayın 1'i 00:00
             period_start_tr = now_tr.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         period_start = period_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
 
         async with db.pool.acquire() as conn:
+            # BAĞIMSIZ activity_count alanını kullan
             if excluded_ids:
-                users = await conn.fetch(f"""
-                    SELECT telegram_id, username, first_name, last_name, {field} as message_count
+                users = await conn.fetch("""
+                    SELECT telegram_id, username, first_name, last_name, activity_count as message_count
                     FROM telegram_users
                     WHERE group_id = $1
-                      AND {field} > 0
-                      AND {reset_field} >= $2
+                      AND activity_count > 0
+                      AND activity_last_reset >= $2
                       AND telegram_id != ALL($3::BIGINT[])
-                    ORDER BY {field} DESC
+                    ORDER BY activity_count DESC
                     LIMIT $4
                 """, group_id, period_start, excluded_ids, limit)
             else:
-                users = await conn.fetch(f"""
-                    SELECT telegram_id, username, first_name, last_name, {field} as message_count
+                users = await conn.fetch("""
+                    SELECT telegram_id, username, first_name, last_name, activity_count as message_count
                     FROM telegram_users
                     WHERE group_id = $1
-                      AND {field} > 0
-                      AND {reset_field} >= $2
-                    ORDER BY {field} DESC
+                      AND activity_count > 0
+                      AND activity_last_reset >= $2
+                    ORDER BY activity_count DESC
                     LIMIT $3
                 """, group_id, period_start, limit)
 
@@ -518,3 +513,28 @@ def get_next_reset_time(activity_type: str) -> str:
         return next_reset.strftime('%d.%m.%Y %H:%M')
 
     return ""
+
+
+async def start_activity_tracking(group_id: int, activity_type: str = 'weekly') -> bool:
+    """Aktivite takibini başlat"""
+    try:
+        return await create_or_update_activity_settings(
+            group_id,
+            activity_type=activity_type,
+            enabled=True
+        )
+    except Exception as e:
+        print(f"❌ Aktivite takibi başlatma hatası: {e}")
+        return False
+
+
+async def stop_activity_tracking(group_id: int) -> bool:
+    """Aktivite takibini durdur"""
+    try:
+        return await create_or_update_activity_settings(
+            group_id,
+            enabled=False
+        )
+    except Exception as e:
+        print(f"❌ Aktivite takibi durdurma hatası: {e}")
+        return False
