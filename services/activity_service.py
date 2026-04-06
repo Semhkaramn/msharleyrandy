@@ -1,6 +1,7 @@
 """
 🏆 Aktivite Ödül Servisi
 Günlük, Haftalık, Aylık aktivite takibi ve ödül sistemi
+Periyod sonunda otomatik sıfırlama
 """
 
 from datetime import datetime, timedelta, timezone
@@ -36,52 +37,35 @@ async def ensure_activity_tables():
                     activity_type TEXT DEFAULT 'weekly',
                     enabled BOOLEAN DEFAULT FALSE,
                     top_count INT DEFAULT 20,
+                    auto_reset BOOLEAN DEFAULT TRUE,
+                    auto_post BOOLEAN DEFAULT FALSE,
+                    auto_pin BOOLEAN DEFAULT TRUE,
+                    post_hour INT DEFAULT 23,
+                    post_minute INT DEFAULT 0,
+                    last_reset_at TIMESTAMP,
+                    last_posted_at TIMESTAMP,
                     started_at TIMESTAMP,
-                    period_start_day INT DEFAULT 1,
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW()
                 )
             """)
 
-            # Aktivite ödülleri tablosu
+            # Aktivite ödülleri tablosu (periyod bazlı)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS activity_rewards (
                     id SERIAL PRIMARY KEY,
                     group_id BIGINT NOT NULL,
-                    activity_type TEXT NOT NULL,
                     rank INT NOT NULL,
                     reward_text TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW(),
-                    UNIQUE(group_id, activity_type, rank)
-                )
-            """)
-
-            # Aktivite mesaj sayacı tablosu (period bazlı)
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS activity_counts (
-                    id SERIAL PRIMARY KEY,
-                    group_id BIGINT NOT NULL,
-                    telegram_id BIGINT NOT NULL,
-                    username TEXT,
-                    first_name TEXT,
-                    last_name TEXT,
-                    activity_type TEXT NOT NULL,
-                    period_key TEXT NOT NULL,
-                    message_count INT DEFAULT 0,
-                    started_at TIMESTAMP NOT NULL,
-                    last_message_at TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW(),
-                    UNIQUE(group_id, telegram_id, activity_type, period_key)
+                    UNIQUE(group_id, rank)
                 )
             """)
 
             # İndeksler
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_counts_group ON activity_counts(group_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_counts_type ON activity_counts(activity_type)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_counts_period ON activity_counts(period_key)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_settings_group ON activity_settings(group_id)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_rewards_group ON activity_rewards(group_id)")
 
             return True
     except Exception as e:
@@ -111,7 +95,11 @@ async def create_or_update_activity_settings(
     activity_type: str = None,
     enabled: bool = None,
     top_count: int = None,
-    period_start_day: int = None
+    auto_reset: bool = None,
+    auto_post: bool = None,
+    auto_pin: bool = None,
+    post_hour: int = None,
+    post_minute: int = None
 ) -> bool:
     """Aktivite ayarlarını oluştur veya güncelle"""
     try:
@@ -140,9 +128,29 @@ async def create_or_update_activity_settings(
                     values.append(top_count)
                     idx += 1
 
-                if period_start_day is not None:
-                    updates.append(f"period_start_day = ${idx}")
-                    values.append(period_start_day)
+                if auto_reset is not None:
+                    updates.append(f"auto_reset = ${idx}")
+                    values.append(auto_reset)
+                    idx += 1
+
+                if auto_post is not None:
+                    updates.append(f"auto_post = ${idx}")
+                    values.append(auto_post)
+                    idx += 1
+
+                if auto_pin is not None:
+                    updates.append(f"auto_pin = ${idx}")
+                    values.append(auto_pin)
+                    idx += 1
+
+                if post_hour is not None:
+                    updates.append(f"post_hour = ${idx}")
+                    values.append(post_hour)
+                    idx += 1
+
+                if post_minute is not None:
+                    updates.append(f"post_minute = ${idx}")
+                    values.append(post_minute)
                     idx += 1
 
                 if updates:
@@ -159,14 +167,20 @@ async def create_or_update_activity_settings(
                 # Yeni oluştur
                 await conn.execute("""
                     INSERT INTO activity_settings (
-                        group_id, activity_type, enabled, top_count, period_start_day, started_at
-                    ) VALUES ($1, $2, $3, $4, $5, NOW())
+                        group_id, activity_type, enabled, top_count,
+                        auto_reset, auto_post, auto_pin, post_hour, post_minute,
+                        started_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
                 """,
                     group_id,
                     activity_type or 'weekly',
-                    enabled if enabled is not None else False,
+                    enabled if enabled is not None else True,
                     top_count or 20,
-                    period_start_day or 1
+                    auto_reset if auto_reset is not None else True,
+                    auto_post if auto_post is not None else False,
+                    auto_pin if auto_pin is not None else True,
+                    post_hour or 23,
+                    post_minute or 0
                 )
 
             return True
@@ -175,95 +189,62 @@ async def create_or_update_activity_settings(
         return False
 
 
-async def start_activity_tracking(group_id: int, activity_type: str) -> bool:
-    """Aktivite takibini başlat"""
-    try:
-        async with db.pool.acquire() as conn:
-            now = datetime.now(TR_TZ)
-
-            # Ayarları güncelle
-            await conn.execute("""
-                INSERT INTO activity_settings (group_id, activity_type, enabled, started_at, updated_at)
-                VALUES ($1, $2, TRUE, $3, NOW())
-                ON CONFLICT (group_id) DO UPDATE SET
-                    activity_type = $2, enabled = TRUE, started_at = $3, updated_at = NOW()
-            """, group_id, activity_type, now)
-
-            return True
-    except Exception as e:
-        print(f"❌ Aktivite başlatma hatası: {e}")
+async def set_activity_type(group_id: int, activity_type: str) -> bool:
+    """Aktivite tipini ayarla (daily/weekly/monthly)"""
+    if activity_type not in ACTIVITY_TYPES:
         return False
+    return await create_or_update_activity_settings(group_id, activity_type=activity_type, enabled=True)
 
 
-async def stop_activity_tracking(group_id: int) -> bool:
-    """Aktivite takibini durdur"""
+async def toggle_activity(group_id: int, enabled: bool) -> bool:
+    """Aktivite sistemini aç/kapa"""
+    return await create_or_update_activity_settings(group_id, enabled=enabled)
+
+
+async def get_activity_rewards(group_id: int) -> List[Dict[str, Any]]:
+    """Aktivite ödüllerini getir"""
     try:
         async with db.pool.acquire() as conn:
-            await conn.execute("""
-                UPDATE activity_settings
-                SET enabled = FALSE, updated_at = NOW()
+            rewards = await conn.fetch("""
+                SELECT rank, reward_text
+                FROM activity_rewards
                 WHERE group_id = $1
+                ORDER BY rank ASC
             """, group_id)
+
+            return [dict(r) for r in rewards]
+    except Exception as e:
+        print(f"❌ Aktivite ödülleri getirme hatası: {e}")
+        return []
+
+
+async def set_activity_reward(group_id: int, rank: int, reward_text: str) -> bool:
+    """Tek bir ödül ayarla"""
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO activity_rewards (group_id, rank, reward_text, updated_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (group_id, rank) DO UPDATE SET
+                    reward_text = $3, updated_at = NOW()
+            """, group_id, rank, reward_text)
             return True
     except Exception as e:
-        print(f"❌ Aktivite durdurma hatası: {e}")
+        print(f"❌ Ödül kaydetme hatası: {e}")
         return False
 
 
-def get_period_key(activity_type: str, start_date: datetime = None) -> str:
-    """Periyot anahtarı oluştur"""
-    now = datetime.now(TR_TZ)
-
-    if activity_type == 'daily':
-        return now.strftime('%Y-%m-%d')
-    elif activity_type == 'weekly':
-        # Haftanın başlangıcı (Pazartesi)
-        week_start = now - timedelta(days=now.weekday())
-        return week_start.strftime('%Y-W%W')
-    elif activity_type == 'monthly':
-        return now.strftime('%Y-%m')
-
-    return now.strftime('%Y-%m-%d')
-
-
-async def track_activity_message(
-    group_id: int,
-    user_id: int,
-    username: str = None,
-    first_name: str = None,
-    last_name: str = None
-) -> bool:
-    """Aktivite mesajını say"""
+async def delete_activity_reward(group_id: int, rank: int) -> bool:
+    """Ödülü sil"""
     try:
-        # Ayarları kontrol et
-        settings = await get_activity_settings(group_id)
-
-        if not settings or not settings.get('enabled'):
-            return False
-
-        activity_type = settings.get('activity_type', 'weekly')
-        period_key = get_period_key(activity_type)
-        started_at = settings.get('started_at') or datetime.now(TR_TZ)
-
         async with db.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO activity_counts (
-                    group_id, telegram_id, username, first_name, last_name,
-                    activity_type, period_key, message_count, started_at, last_message_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, NOW())
-                ON CONFLICT (group_id, telegram_id, activity_type, period_key) DO UPDATE SET
-                    username = COALESCE($3, activity_counts.username),
-                    first_name = COALESCE($4, activity_counts.first_name),
-                    last_name = COALESCE($5, activity_counts.last_name),
-                    message_count = activity_counts.message_count + 1,
-                    last_message_at = NOW(),
-                    updated_at = NOW()
-            """, group_id, user_id, username, first_name, last_name,
-                activity_type, period_key, started_at)
-
+                DELETE FROM activity_rewards
+                WHERE group_id = $1 AND rank = $2
+            """, group_id, rank)
             return True
     except Exception as e:
-        print(f"❌ Aktivite mesaj sayma hatası: {e}")
+        print(f"❌ Ödül silme hatası: {e}")
         return False
 
 
@@ -273,108 +254,77 @@ async def get_activity_leaderboard(
     limit: int = 20,
     exclude_admin_ids: List[int] = None
 ) -> List[Dict[str, Any]]:
-    """Aktivite sıralamasını getir"""
+    """
+    Aktivite sıralamasını getir
+    telegram_users tablosundan daily_count, weekly_count, monthly_count kullanır
+    """
     try:
         # Ayarları al
         settings = await get_activity_settings(group_id)
 
-        if not activity_type and settings:
-            activity_type = settings.get('activity_type', 'weekly')
-        elif not activity_type:
-            activity_type = 'weekly'
-
-        period_key = get_period_key(activity_type)
+        if not activity_type:
+            if settings:
+                activity_type = settings.get('activity_type', 'weekly')
+            else:
+                activity_type = 'weekly'
 
         # Hariç tutulacak ID'ler
         excluded_ids = list(IGNORED_USER_IDS)
         if exclude_admin_ids:
             excluded_ids.extend(exclude_admin_ids)
 
+        # Periyod başlangıcını hesapla
+        now_utc = datetime.now(timezone.utc)
+        now_tr = now_utc.astimezone(TR_TZ)
+
+        if activity_type == 'daily':
+            field = 'daily_count'
+            reset_field = 'last_daily_reset'
+            # Bugünün başlangıcı (Türkiye saati 00:00)
+            period_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif activity_type == 'weekly':
+            field = 'weekly_count'
+            reset_field = 'last_weekly_reset'
+            # Bu haftanın Pazartesi günü 00:00
+            days_since_monday = now_tr.weekday()
+            period_start_tr = (now_tr - timedelta(days=days_since_monday)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        else:  # monthly
+            field = 'monthly_count'
+            reset_field = 'last_monthly_reset'
+            # Bu ayın 1'i 00:00
+            period_start_tr = now_tr.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        period_start = period_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
+
         async with db.pool.acquire() as conn:
-            users = await conn.fetch("""
-                SELECT telegram_id, username, first_name, last_name, message_count
-                FROM activity_counts
-                WHERE group_id = $1
-                  AND activity_type = $2
-                  AND period_key = $3
-                  AND message_count > 0
-                  AND telegram_id != ALL($4::BIGINT[])
-                ORDER BY message_count DESC
-                LIMIT $5
-            """, group_id, activity_type, period_key, excluded_ids, limit)
+            if excluded_ids:
+                users = await conn.fetch(f"""
+                    SELECT telegram_id, username, first_name, last_name, {field} as message_count
+                    FROM telegram_users
+                    WHERE group_id = $1
+                      AND {field} > 0
+                      AND {reset_field} >= $2
+                      AND telegram_id != ALL($3::BIGINT[])
+                    ORDER BY {field} DESC
+                    LIMIT $4
+                """, group_id, period_start, excluded_ids, limit)
+            else:
+                users = await conn.fetch(f"""
+                    SELECT telegram_id, username, first_name, last_name, {field} as message_count
+                    FROM telegram_users
+                    WHERE group_id = $1
+                      AND {field} > 0
+                      AND {reset_field} >= $2
+                    ORDER BY {field} DESC
+                    LIMIT $3
+                """, group_id, period_start, limit)
 
             return [dict(u) for u in users]
     except Exception as e:
         print(f"❌ Aktivite sıralaması getirme hatası: {e}")
         return []
-
-
-async def get_activity_rewards(group_id: int, activity_type: str = None) -> List[Dict[str, Any]]:
-    """Aktivite ödüllerini getir"""
-    try:
-        settings = await get_activity_settings(group_id)
-
-        if not activity_type and settings:
-            activity_type = settings.get('activity_type', 'weekly')
-        elif not activity_type:
-            activity_type = 'weekly'
-
-        async with db.pool.acquire() as conn:
-            rewards = await conn.fetch("""
-                SELECT rank, reward_text
-                FROM activity_rewards
-                WHERE group_id = $1 AND activity_type = $2
-                ORDER BY rank ASC
-            """, group_id, activity_type)
-
-            return [dict(r) for r in rewards]
-    except Exception as e:
-        print(f"❌ Aktivite ödülleri getirme hatası: {e}")
-        return []
-
-
-async def set_activity_rewards(group_id: int, activity_type: str, rewards_text: str) -> bool:
-    """
-    Aktivite ödüllerini toplu ayarla
-    rewards_text: Satır satır ödüller (1. satır = 1. sıra)
-    """
-    try:
-        lines = [line.strip() for line in rewards_text.strip().split('\n') if line.strip()]
-
-        async with db.pool.acquire() as conn:
-            # Önce mevcut ödülleri sil
-            await conn.execute("""
-                DELETE FROM activity_rewards
-                WHERE group_id = $1 AND activity_type = $2
-            """, group_id, activity_type)
-
-            # Yeni ödülleri ekle
-            for rank, reward in enumerate(lines, 1):
-                await conn.execute("""
-                    INSERT INTO activity_rewards (group_id, activity_type, rank, reward_text)
-                    VALUES ($1, $2, $3, $4)
-                """, group_id, activity_type, rank, reward)
-
-            return True
-    except Exception as e:
-        print(f"❌ Aktivite ödülleri kaydetme hatası: {e}")
-        return False
-
-
-async def set_single_reward(group_id: int, activity_type: str, rank: int, reward_text: str) -> bool:
-    """Tek bir ödül ayarla"""
-    try:
-        async with db.pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO activity_rewards (group_id, activity_type, rank, reward_text, updated_at)
-                VALUES ($1, $2, $3, $4, NOW())
-                ON CONFLICT (group_id, activity_type, rank) DO UPDATE SET
-                    reward_text = $4, updated_at = NOW()
-            """, group_id, activity_type, rank, reward_text)
-            return True
-    except Exception as e:
-        print(f"❌ Ödül kaydetme hatası: {e}")
-        return False
 
 
 async def get_leaderboard_with_rewards(
@@ -385,10 +335,11 @@ async def get_leaderboard_with_rewards(
     """Sıralamayı ödüllerle birlikte getir"""
     settings = await get_activity_settings(group_id)
 
-    if not activity_type and settings:
-        activity_type = settings.get('activity_type', 'weekly')
-    elif not activity_type:
-        activity_type = 'weekly'
+    if not activity_type:
+        if settings:
+            activity_type = settings.get('activity_type', 'weekly')
+        else:
+            activity_type = 'weekly'
 
     top_count = settings.get('top_count', 20) if settings else 20
 
@@ -396,7 +347,7 @@ async def get_leaderboard_with_rewards(
     users = await get_activity_leaderboard(group_id, activity_type, top_count, exclude_admin_ids)
 
     # Ödülleri al
-    rewards = await get_activity_rewards(group_id, activity_type)
+    rewards = await get_activity_rewards(group_id)
     rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
 
     # Birleştir
@@ -409,65 +360,119 @@ async def get_leaderboard_with_rewards(
     return result
 
 
-async def get_user_activity_stats(user_id: int, group_id: int) -> Dict[str, int]:
-    """Kullanıcının aktivite istatistiklerini getir"""
+async def get_user_activity_rank(user_id: int, group_id: int, activity_type: str = None) -> int:
+    """Kullanıcının aktivite sıralamasındaki yerini getir"""
     try:
-        now = datetime.now(TR_TZ)
+        settings = await get_activity_settings(group_id)
 
-        async with db.pool.acquire() as conn:
-            # Günlük
-            daily_key = get_period_key('daily')
-            daily = await conn.fetchval("""
-                SELECT message_count FROM activity_counts
-                WHERE group_id = $1 AND telegram_id = $2
-                AND activity_type = 'daily' AND period_key = $3
-            """, group_id, user_id, daily_key) or 0
-
-            # Haftalık
-            weekly_key = get_period_key('weekly')
-            weekly = await conn.fetchval("""
-                SELECT message_count FROM activity_counts
-                WHERE group_id = $1 AND telegram_id = $2
-                AND activity_type = 'weekly' AND period_key = $3
-            """, group_id, user_id, weekly_key) or 0
-
-            # Aylık
-            monthly_key = get_period_key('monthly')
-            monthly = await conn.fetchval("""
-                SELECT message_count FROM activity_counts
-                WHERE group_id = $1 AND telegram_id = $2
-                AND activity_type = 'monthly' AND period_key = $3
-            """, group_id, user_id, monthly_key) or 0
-
-            return {
-                'daily': daily,
-                'weekly': weekly,
-                'monthly': monthly
-            }
-    except Exception as e:
-        print(f"❌ Kullanıcı aktivite istatistikleri hatası: {e}")
-        return {'daily': 0, 'weekly': 0, 'monthly': 0}
-
-
-async def reset_activity_counts(group_id: int, activity_type: str = None) -> bool:
-    """Aktivite sayaçlarını sıfırla (sadece adminler)"""
-    try:
-        async with db.pool.acquire() as conn:
-            if activity_type:
-                period_key = get_period_key(activity_type)
-                await conn.execute("""
-                    DELETE FROM activity_counts
-                    WHERE group_id = $1 AND activity_type = $2 AND period_key = $3
-                """, group_id, activity_type, period_key)
+        if not activity_type:
+            if settings:
+                activity_type = settings.get('activity_type', 'weekly')
             else:
+                activity_type = 'weekly'
+
+        # Periyod başlangıcını hesapla
+        now_utc = datetime.now(timezone.utc)
+        now_tr = now_utc.astimezone(TR_TZ)
+
+        if activity_type == 'daily':
+            field = 'daily_count'
+            reset_field = 'last_daily_reset'
+            period_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif activity_type == 'weekly':
+            field = 'weekly_count'
+            reset_field = 'last_weekly_reset'
+            days_since_monday = now_tr.weekday()
+            period_start_tr = (now_tr - timedelta(days=days_since_monday)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        else:
+            field = 'monthly_count'
+            reset_field = 'last_monthly_reset'
+            period_start_tr = now_tr.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        period_start = period_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
+
+        async with db.pool.acquire() as conn:
+            # Kullanıcının mesaj sayısını al
+            user_count = await conn.fetchval(f"""
+                SELECT {field} FROM telegram_users
+                WHERE telegram_id = $1 AND group_id = $2 AND {reset_field} >= $3
+            """, user_id, group_id, period_start)
+
+            if not user_count:
+                return 0
+
+            # Kaç kişi önde
+            rank = await conn.fetchval(f"""
+                SELECT COUNT(*) + 1 FROM telegram_users
+                WHERE group_id = $1 AND {field} > $2 AND {reset_field} >= $3
+            """, group_id, user_count, period_start)
+
+            return rank or 0
+    except Exception as e:
+        print(f"❌ Kullanıcı sıralama hatası: {e}")
+        return 0
+
+
+async def check_and_reset_period(group_id: int) -> bool:
+    """
+    Periyod kontrolü yap ve gerekirse sıfırla
+    Bu fonksiyon scheduler tarafından çağrılır
+    """
+    try:
+        settings = await get_activity_settings(group_id)
+        if not settings or not settings.get('enabled') or not settings.get('auto_reset'):
+            return False
+
+        activity_type = settings.get('activity_type', 'weekly')
+        last_reset = settings.get('last_reset_at')
+
+        now_utc = datetime.now(timezone.utc)
+        now_tr = now_utc.astimezone(TR_TZ)
+
+        should_reset = False
+
+        if activity_type == 'daily':
+            # Her gün gece yarısı
+            if not last_reset:
+                should_reset = True
+            else:
+                last_reset_tr = last_reset.astimezone(TR_TZ) if last_reset.tzinfo else last_reset.replace(tzinfo=timezone.utc).astimezone(TR_TZ)
+                should_reset = last_reset_tr.date() < now_tr.date()
+
+        elif activity_type == 'weekly':
+            # Her Pazartesi gece yarısı
+            if not last_reset:
+                should_reset = True
+            else:
+                last_reset_tr = last_reset.astimezone(TR_TZ) if last_reset.tzinfo else last_reset.replace(tzinfo=timezone.utc).astimezone(TR_TZ)
+                last_monday = last_reset_tr.date() - timedelta(days=last_reset_tr.weekday())
+                current_monday = now_tr.date() - timedelta(days=now_tr.weekday())
+                should_reset = last_monday < current_monday
+
+        elif activity_type == 'monthly':
+            # Her ayın 1'i gece yarısı
+            if not last_reset:
+                should_reset = True
+            else:
+                last_reset_tr = last_reset.astimezone(TR_TZ) if last_reset.tzinfo else last_reset.replace(tzinfo=timezone.utc).astimezone(TR_TZ)
+                should_reset = (last_reset_tr.year, last_reset_tr.month) < (now_tr.year, now_tr.month)
+
+        if should_reset:
+            # Sıfırlama zamanını güncelle
+            async with db.pool.acquire() as conn:
                 await conn.execute("""
-                    DELETE FROM activity_counts
+                    UPDATE activity_settings
+                    SET last_reset_at = NOW(), updated_at = NOW()
                     WHERE group_id = $1
                 """, group_id)
 
             return True
+
+        return False
     except Exception as e:
-        print(f"❌ Aktivite sıfırlama hatası: {e}")
+        print(f"❌ Periyod sıfırlama kontrolü hatası: {e}")
         return False
 
 
@@ -488,5 +493,28 @@ def get_period_info(activity_type: str) -> str:
         return f"{week_start.strftime('%d.%m')} - {week_end.strftime('%d.%m.%Y')}"
     elif activity_type == 'monthly':
         return now.strftime('%B %Y')
+
+    return ""
+
+
+def get_next_reset_time(activity_type: str) -> str:
+    """Bir sonraki sıfırlama zamanını döndür"""
+    now = datetime.now(TR_TZ)
+
+    if activity_type == 'daily':
+        next_reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return next_reset.strftime('%d.%m.%Y %H:%M')
+    elif activity_type == 'weekly':
+        days_until_monday = (7 - now.weekday()) % 7
+        if days_until_monday == 0:
+            days_until_monday = 7
+        next_reset = (now + timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return next_reset.strftime('%d.%m.%Y %H:%M')
+    elif activity_type == 'monthly':
+        if now.month == 12:
+            next_reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            next_reset = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        return next_reset.strftime('%d.%m.%Y %H:%M')
 
     return ""
