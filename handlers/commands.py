@@ -1071,8 +1071,8 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except TelegramError:
         pass
 
-    # Sıralamayı ödüllerle birlikte al
-    leaderboard = await get_leaderboard_with_rewards(chat.id, activity_type, admin_ids)
+    # Sıralamayı ödüllerle birlikte al - HER ZAMAN 20 KİŞİ GÖSTER
+    leaderboard = await get_leaderboard_with_rewards(chat.id, activity_type, admin_ids, limit=20)
 
     type_text = get_activity_type_text(activity_type)
 
