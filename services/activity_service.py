@@ -306,9 +306,14 @@ async def get_activity_leaderboard(
 async def get_leaderboard_with_rewards(
     group_id: int,
     activity_type: str = None,
-    exclude_admin_ids: List[int] = None
+    exclude_admin_ids: List[int] = None,
+    limit: int = None
 ) -> List[Dict[str, Any]]:
-    """Sıralamayı ödüllerle birlikte getir"""
+    """Sıralamayı ödüllerle birlikte getir
+
+    Args:
+        limit: Gösterilecek kişi sayısı. None ise settings'den alınır.
+    """
     settings = await get_activity_settings(group_id)
 
     if not activity_type:
@@ -317,7 +322,11 @@ async def get_leaderboard_with_rewards(
         else:
             activity_type = 'weekly'
 
-    top_count = settings.get('top_count', 20) if settings else 20
+    # Limit belirtilmişse onu kullan, değilse settings'den al
+    if limit is not None:
+        top_count = limit
+    else:
+        top_count = settings.get('top_count', 20) if settings else 20
 
     # Sıralamayı al
     users = await get_activity_leaderboard(group_id, activity_type, top_count, exclude_admin_ids)
