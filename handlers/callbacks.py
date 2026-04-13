@@ -3,6 +3,7 @@
 Buton tıklamalarını yönetir
 """
 
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError
@@ -32,8 +33,123 @@ from services.giveaway_service import (
 from utils.admin_check import is_group_admin, is_activity_group_admin
 
 
+# ============================================
+# CALLBACK ROUTER - Direkt Eşleşmeler
+# ============================================
+# Format: "callback_data": (handler_func_name, needs_user_id, extra_args)
+
+DIRECT_CALLBACKS = {
+    # Menü kontrolleri
+    "close_menu": ("close_menu", False, None),
+    "main_menu": ("show_main_menu", False, None),
+
+    # Randy menüsü
+    "randy_menu": ("start_randy_settings", True, None),
+    "randy_settings": ("start_randy_settings", True, None),
+    "randy_message": ("prompt_message", True, None),
+    "randy_requirement": ("show_requirement_menu", True, None),
+    "randy_msg_count": ("prompt_message_count", True, None),
+    "randy_winners": ("show_winner_count_menu", True, None),
+    "randy_media": ("show_media_menu", True, None),
+    "randy_channels": ("show_channels_menu", True, None),
+    "randy_channels_clear": ("clear_channels", True, None),
+    "randy_pin": ("toggle_pin", True, None),
+    "randy_preview": ("show_preview", True, None),
+    "randy_save": ("save_draft", True, None),
+    "randy_cancel": ("cancel_and_go_main", True, None),
+    "randy_back": ("go_back_to_randy_settings", True, None),
+
+    # Roll menüsü
+    "roll_menu": ("show_roll_menu", False, None),
+
+    # Etiket menüsü
+    "etiket_menu": ("show_etiket_menu", True, None),
+    "auto_tag_menu": ("show_auto_tag_menu", True, None),
+    "auto_tag_toggle": ("toggle_auto_tag_setting", True, None),
+
+    # GPT menüsü
+    "gpt_menu": ("show_gpt_menu", True, None),
+
+    # İstatistikler
+    "stats_menu": ("show_stats_menu", False, None),
+
+    # Çekiliş menüsü
+    "cekilis_menu": ("show_cekilis_menu", True, None),
+    "cekilis_settings": ("show_cekilis_settings", True, None),
+    "cekilis_active": ("show_active_cekilis", True, None),
+    "cekilis_past": ("show_past_cekilisler", True, None),
+    "cekilis_top_winners": ("show_top_winners", True, None),
+    "cekilis_create": ("start_cekilis_create", True, None),
+    "cekilis_cancel": ("cancel_active_cekilis", True, None),
+    "cekilis_toggle_pin_ann": ("toggle_cekilis_setting", True, ("pin_announcement",)),
+    "cekilis_toggle_pin_win": ("toggle_cekilis_setting", True, ("pin_winner_message",)),
+    "cekilis_toggle_notify_admin": ("toggle_cekilis_setting", True, ("notify_admin_group",)),
+    "cekilis_toggle_pin_admin": ("toggle_cekilis_setting", True, ("pin_in_admin_group",)),
+    "cekilis_set_admin_group": ("prompt_admin_group", True, None),
+    "cekilis_duration_menu": ("show_duration_menu", True, None),
+    "cekilis_winners_menu": ("show_winners_menu", True, None),
+    "cekilis_limit_menu": ("show_limit_menu", True, None),
+    "cekilis_confirm_start": ("confirm_start_cekilis", True, None),
+
+    # Aktivite ödül menüsü
+    "activity_menu": ("show_activity_menu", True, None),
+    "activity_settings": ("show_activity_settings", True, None),
+    "activity_top_menu": ("show_activity_top_count_menu", True, None),
+    "activity_top_custom": ("prompt_activity_top_custom", True, None),
+    "activity_rewards_menu": ("show_activity_rewards_menu", True, None),
+    "activity_set_all_rewards": ("prompt_all_activity_rewards", True, None),
+    "activity_toggle": ("show_activity_toggle_confirm", True, None),
+    "activity_toggle_confirm": ("toggle_activity", True, None),
+    "activity_toggle_cancel": ("show_activity_menu", True, None),
+
+    # Haftalık ödül (geriye uyumluluk)
+    "weekly_rewards_menu": ("show_activity_menu", True, None),
+    "weekly_rewards_top_menu": ("show_activity_top_count_menu", True, None),
+}
+
+# ============================================
+# CALLBACK ROUTER - Pattern Eşleşmeleri
+# ============================================
+# Format: (regex_pattern, handler_func_name, value_type)
+
+PATTERN_CALLBACKS = [
+    # Randy patterns
+    (r"^randy_group_(\d+)$", "select_group", "int"),
+    (r"^randy_req_(.+)$", "select_requirement", "str"),
+    (r"^randy_win_(\d+)$", "select_winner_count", "int"),
+    (r"^randy_media_(.+)$", "select_media_type", "str"),
+    (r"^randy_channel_remove_(\d+)$", "remove_channel", "int"),
+    (r"^randy_join_(\d+)$", "handle_randy_join", "int"),
+
+    # Etiket patterns
+    (r"^auto_tag_interval_(\d+)$", "set_auto_tag_interval", "int"),
+
+    # GPT patterns
+    (r"^gpt_toggle_(\d+)$", "toggle_gpt_for_group", "int"),
+
+    # Çekiliş patterns
+    (r"^cekilis_set_duration_(\d+)$", "set_cekilis_duration", "int"),
+    (r"^cekilis_set_winners_(\d+)$", "set_cekilis_winners", "int"),
+    (r"^cekilis_set_limit_(\d+)$", "set_cekilis_limit", "int"),
+    (r"^cekilis_detail_(\d+)$", "show_cekilis_detail", "int"),
+
+    # Aktivite patterns
+    (r"^activity_type_(.+)$", "set_activity_type", "str"),
+    (r"^activity_top_(\d+)$", "set_activity_top_count", "int"),
+    (r"^activity_set_reward_(\d+)$", "prompt_activity_reward", "int"),
+
+    # Haftalık ödül patterns (geriye uyumluluk)
+    (r"^weekly_rewards_top_(\d+)$", "set_activity_top_count", "int"),
+    (r"^weekly_set_reward_(\d+)$", "prompt_activity_reward", "int"),
+
+    # Kullanıcı işlemleri
+    (r"^check_started_(\d+)$", "handle_check_started", "int"),
+    (r"^ben_stats_(\d+)$", "handle_ben_stats", "int"),
+]
+
+
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ana callback handler"""
+    """Ana callback handler - Router Pattern ile"""
     query = update.callback_query
     data = query.data
     user_id = query.from_user.id
@@ -47,265 +163,36 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.message:
         context.user_data['menu_message_id'] = query.message.message_id
 
-    # ============================================
-    # MENÜ KAPAT
-    # ============================================
-    if data == "close_menu":
-        await close_menu(query, context)
+    # 1. Direkt eşleşme kontrolü
+    if data in DIRECT_CALLBACKS:
+        handler_name, needs_user_id, extra_args = DIRECT_CALLBACKS[data]
+        handler = globals()[handler_name]
+
+        if extra_args:
+            # Ekstra argümanlar varsa (örn: toggle_cekilis_setting)
+            await handler(query, user_id, *extra_args, context)
+        elif needs_user_id:
+            await handler(query, user_id, context)
+        else:
+            await handler(query, context)
         return
 
-    # ============================================
-    # ANA MENÜ
-    # ============================================
-    if data == "main_menu":
-        await show_main_menu(query, context)
-
-    # ============================================
-    # RANDY MENÜSÜ - Direkt ayarlara git
-    # ============================================
-    elif data == "randy_menu":
-        await start_randy_settings(query, user_id, context)
-
-    elif data == "randy_settings":
-        await start_randy_settings(query, user_id, context)
-
-    elif data.startswith("randy_group_"):
-        group_id = int(data.replace("randy_group_", ""))
-        await select_group(query, user_id, group_id, context)
-
-    elif data == "randy_message":
-        await prompt_message(query, user_id, context)
-
-    elif data == "randy_requirement":
-        await show_requirement_menu(query, user_id, context)
-
-    elif data.startswith("randy_req_"):
-        req_type = data.replace("randy_req_", "")
-        await select_requirement(query, user_id, req_type, context)
-
-    elif data == "randy_msg_count":
-        await prompt_message_count(query, user_id, context)
-
-    elif data == "randy_winners":
-        await show_winner_count_menu(query, user_id, context)
-
-    elif data.startswith("randy_win_"):
-        count = int(data.replace("randy_win_", ""))
-        await select_winner_count(query, user_id, count, context)
-
-    elif data == "randy_media":
-        await show_media_menu(query, user_id, context)
-
-    elif data.startswith("randy_media_"):
-        media_type = data.replace("randy_media_", "")
-        await select_media_type(query, user_id, media_type, context)
-
-    elif data == "randy_channels":
-        await show_channels_menu(query, user_id, context)
-
-    elif data == "randy_channels_clear":
-        await clear_channels(query, user_id, context)
-
-    elif data.startswith("randy_channel_remove_"):
-        channel_id = int(data.replace("randy_channel_remove_", ""))
-        await remove_channel(query, user_id, channel_id, context)
-
-    elif data == "randy_pin":
-        await toggle_pin(query, user_id, context)
-
-    elif data == "randy_preview":
-        await show_preview(query, user_id, context)
-
-    elif data == "randy_save":
-        await save_draft(query, user_id, context)
-
-    elif data == "randy_cancel":
-        await cancel_and_go_main(query, user_id, context)
-
-    elif data == "randy_back":
-        await go_back_to_randy_settings(query, user_id, context)
-
-    elif data.startswith("randy_join_"):
-        randy_id = int(data.replace("randy_join_", ""))
-        await handle_randy_join(query, user_id, randy_id, context)
-
-    # ============================================
-    # ROLL MENÜSÜ
-    # ============================================
-    elif data == "roll_menu":
-        await show_roll_menu(query, context)
-
-    # ============================================
-    # ETİKET MENÜSÜ
-    # ============================================
-    elif data == "etiket_menu":
-        await show_etiket_menu(query, user_id, context)
-
-    elif data == "auto_tag_menu":
-        await show_auto_tag_menu(query, user_id, context)
-
-    elif data == "auto_tag_toggle":
-        await toggle_auto_tag_setting(query, user_id, context)
-
-    elif data.startswith("auto_tag_interval_"):
-        interval = int(data.replace("auto_tag_interval_", ""))
-        await set_auto_tag_interval(query, user_id, interval, context)
-
-    # ============================================
-    # GPT MENÜSÜ
-    # ============================================
-    elif data == "gpt_menu":
-        await show_gpt_menu(query, user_id, context)
-
-    elif data.startswith("gpt_toggle_"):
-        group_id = int(data.replace("gpt_toggle_", ""))
-        await toggle_gpt_for_group(query, user_id, group_id, context)
-
-    # ============================================
-    # İSTATİSTİKLER MENÜSÜ
-    # ============================================
-    elif data == "stats_menu":
-        await show_stats_menu(query, context)
-
-    # ============================================
-    # ÇEKİLİŞ MENÜSÜ
-    # ============================================
-    elif data == "cekilis_menu":
-        await show_cekilis_menu(query, user_id, context)
-
-    elif data == "cekilis_settings":
-        await show_cekilis_settings(query, user_id, context)
-
-    elif data == "cekilis_active":
-        await show_active_cekilis(query, user_id, context)
-
-    elif data == "cekilis_past":
-        await show_past_cekilisler(query, user_id, context)
-
-    elif data == "cekilis_top_winners":
-        await show_top_winners(query, user_id, context)
-
-    elif data == "cekilis_create":
-        await start_cekilis_create(query, user_id, context)
-
-    elif data == "cekilis_cancel":
-        await cancel_active_cekilis(query, user_id, context)
-
-    elif data.startswith("cekilis_set_duration_"):
-        hours = int(data.replace("cekilis_set_duration_", ""))
-        await set_cekilis_duration(query, user_id, hours, context)
-
-    elif data.startswith("cekilis_set_winners_"):
-        count = int(data.replace("cekilis_set_winners_", ""))
-        await set_cekilis_winners(query, user_id, count, context)
-
-    elif data.startswith("cekilis_set_limit_"):
-        limit = int(data.replace("cekilis_set_limit_", ""))
-        await set_cekilis_limit(query, user_id, limit, context)
-
-    elif data == "cekilis_toggle_pin_ann":
-        await toggle_cekilis_setting(query, user_id, "pin_announcement", context)
-
-    elif data == "cekilis_toggle_pin_win":
-        await toggle_cekilis_setting(query, user_id, "pin_winner_message", context)
-
-    elif data == "cekilis_toggle_notify_admin":
-        await toggle_cekilis_setting(query, user_id, "notify_admin_group", context)
-
-    elif data == "cekilis_toggle_pin_admin":
-        await toggle_cekilis_setting(query, user_id, "pin_in_admin_group", context)
-
-    elif data == "cekilis_set_admin_group":
-        await prompt_admin_group(query, user_id, context)
-
-    elif data.startswith("cekilis_detail_"):
-        giveaway_id = int(data.replace("cekilis_detail_", ""))
-        await show_cekilis_detail(query, user_id, giveaway_id, context)
-
-    elif data == "cekilis_duration_menu":
-        await show_duration_menu(query, user_id, context)
-
-    elif data == "cekilis_winners_menu":
-        await show_winners_menu(query, user_id, context)
-
-    elif data == "cekilis_limit_menu":
-        await show_limit_menu(query, user_id, context)
-
-    elif data == "cekilis_confirm_start":
-        await confirm_start_cekilis(query, user_id, context)
-
-    # ============================================
-    # AKTİVİTE ÖDÜL MENÜSÜ
-    # ============================================
-    elif data == "activity_menu":
-        await show_activity_menu(query, user_id, context)
-
-    elif data == "activity_settings":
-        await show_activity_settings(query, user_id, context)
-
-    elif data.startswith("activity_type_"):
-        activity_type = data.replace("activity_type_", "")
-        await set_activity_type(query, user_id, activity_type, context)
-
-    elif data == "activity_top_menu":
-        await show_activity_top_count_menu(query, user_id, context)
-
-    elif data == "activity_top_custom":
-        await prompt_activity_top_custom(query, user_id, context)
-
-    elif data.startswith("activity_top_"):
-        count = int(data.replace("activity_top_", ""))
-        await set_activity_top_count(query, user_id, count, context)
-
-    elif data == "activity_rewards_menu":
-        await show_activity_rewards_menu(query, user_id, context)
-
-    elif data.startswith("activity_set_reward_"):
-        rank = int(data.replace("activity_set_reward_", ""))
-        await prompt_activity_reward(query, user_id, rank, context)
-
-    elif data == "activity_set_all_rewards":
-        await prompt_all_activity_rewards(query, user_id, context)
-
-    elif data == "activity_toggle":
-        await show_activity_toggle_confirm(query, user_id, context)
-
-    elif data == "activity_toggle_confirm":
-        await toggle_activity(query, user_id, context)
-
-    elif data == "activity_toggle_cancel":
-        await show_activity_menu(query, user_id, context)
-
-    # ============================================
-    # HAFTALIK ÖDÜL MENÜSÜ (Geriye Uyumluluk)
-    # ============================================
-    elif data == "weekly_rewards_menu":
-        await show_activity_menu(query, user_id, context)  # Yönlendir
-
-    elif data == "weekly_rewards_top_menu":
-        await show_activity_top_count_menu(query, user_id, context)
-
-    elif data.startswith("weekly_rewards_top_"):
-        count = int(data.replace("weekly_rewards_top_", ""))
-        await set_activity_top_count(query, user_id, count, context)
-
-    elif data.startswith("weekly_set_reward_"):
-        rank = int(data.replace("weekly_set_reward_", ""))
-        await prompt_activity_reward(query, user_id, rank, context)
-
-    # ============================================
-    # BOT BAŞLATMA KONTROLÜ (.ben için)
-    # ============================================
-    elif data.startswith("check_started_"):
-        target_user_id = int(data.replace("check_started_", ""))
-        await handle_check_started(query, user_id, target_user_id, context)
-
-    # ============================================
-    # .BEN STATS CALLBACK
-    # ============================================
-    elif data.startswith("ben_stats_"):
-        target_user_id = int(data.replace("ben_stats_", ""))
-        await handle_ben_stats(query, user_id, target_user_id, context)
+    # 2. Pattern eşleşme kontrolü
+    for pattern, handler_name, value_type in PATTERN_CALLBACKS:
+        match = re.match(pattern, data)
+        if match:
+            handler = globals()[handler_name]
+            value = match.group(1)
+
+            # Değeri uygun tipe çevir
+            if value_type == "int":
+                value = int(value)
+
+            await handler(query, user_id, value, context)
+            return
+
+    # 3. Bilinmeyen callback - loglama için
+    print(f"⚠️ Bilinmeyen callback: {data}")
 
 
 # ============================================
