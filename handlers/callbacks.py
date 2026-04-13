@@ -1338,7 +1338,7 @@ async def handle_ben_stats(query, user_id: int, target_user_id: int, context: Co
 
         if stats.get('randy_participated', 0) > 0:
             win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
-            win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
+            win_rate_line = f"    Oran  ➜  <b>%{win_rate:.1f}</b>"
         else:
             win_rate_line = ""
 
@@ -1356,8 +1356,10 @@ async def handle_ben_stats(query, user_id: int, target_user_id: int, context: Co
             randy_participated=stats.get('randy_participated', 0),
             randy_won=stats.get('randy_won', 0),
             win_rate_line=win_rate_line,
+            daily_rank=stats.get('daily_rank', '-'),
             weekly_rank=stats.get('weekly_rank', '-'),
-            daily_avg=stats.get('daily_avg', 0)
+            monthly_rank=stats.get('monthly_rank', '-'),
+            activity_rank=stats.get('activity_rank', '-')
         )
 
         # Mention ekle
