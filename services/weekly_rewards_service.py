@@ -12,6 +12,10 @@ except ImportError:
 
 from database import db
 from config import IGNORED_USER_IDS, ACTIVITY_GROUP_ID
+from utils.logger import get_logger
+
+# Logger
+logger = get_logger(__name__)
 
 # Türkiye saat dilimi
 TR_TZ = ZoneInfo("Europe/Istanbul")
@@ -32,7 +36,7 @@ async def get_weekly_reward_settings(group_id: int) -> Optional[Dict[str, Any]]:
                 return dict(settings)
             return None
     except Exception as e:
-        print(f"❌ Haftalık ödül ayarları getirme hatası: {e}")
+        logger.error(f"Haftalık ödül ayarları getirme hatası: {e}")
         return None
 
 
@@ -61,7 +65,7 @@ async def create_or_update_weekly_settings(
             """, group_id, enabled, top_count, auto_post_sunday, auto_pin, post_hour, post_minute)
             return True
     except Exception as e:
-        print(f"❌ Haftalık ödül ayarları kaydetme hatası: {e}")
+        logger.error(f"Haftalık ödül ayarları kaydetme hatası: {e}")
         return False
 
 
@@ -79,7 +83,7 @@ async def get_rewards_for_group(group_id: int) -> List[Dict[str, Any]]:
             """, group_id)
             return [dict(r) for r in rewards]
     except Exception as e:
-        print(f"❌ Ödüller getirme hatası: {e}")
+        logger.error(f"Ödüller getirme hatası: {e}")
         return []
 
 
@@ -97,7 +101,7 @@ async def set_reward(group_id: int, rank: int, reward_text: str) -> bool:
             """, group_id, rank, reward_text)
             return True
     except Exception as e:
-        print(f"❌ Ödül kaydetme hatası: {e}")
+        logger.error(f"Ödül kaydetme hatası: {e}")
         return False
 
 
@@ -113,7 +117,7 @@ async def delete_reward(group_id: int, rank: int) -> bool:
             """, group_id, rank)
             return True
     except Exception as e:
-        print(f"❌ Ödül silme hatası: {e}")
+        logger.error(f"Ödül silme hatası: {e}")
         return False
 
 
@@ -162,7 +166,7 @@ async def get_top_active_users(
 
             return [dict(u) for u in users]
     except Exception as e:
-        print(f"❌ Aktif kullanıcılar getirme hatası: {e}")
+        logger.error(f"Aktif kullanıcılar getirme hatası: {e}")
         return []
 
 
@@ -233,7 +237,7 @@ async def save_weekly_history(
 
             return True
     except Exception as e:
-        print(f"❌ Haftalık geçmiş kaydetme hatası: {e}")
+        logger.error(f"Haftalık geçmiş kaydetme hatası: {e}")
         return False
 
 
@@ -255,7 +259,7 @@ async def has_posted_this_week(group_id: int) -> bool:
             settings.get('last_posted_year') == year
         )
     except Exception as e:
-        print(f"❌ Haftalık kontrol hatası: {e}")
+        logger.error(f"Haftalık kontrol hatası: {e}")
         return False
 
 
@@ -267,7 +271,7 @@ async def get_group_admin_ids(bot, group_id: int) -> List[int]:
         admins = await bot.get_chat_administrators(group_id)
         return [admin.user.id for admin in admins if not admin.user.is_bot]
     except Exception as e:
-        print(f"❌ Admin listesi alma hatası: {e}")
+        logger.error(f"Admin listesi alma hatası: {e}")
         return []
 
 
@@ -285,7 +289,7 @@ async def toggle_weekly_rewards(group_id: int, enabled: bool) -> bool:
             """, group_id, enabled)
             return True
     except Exception as e:
-        print(f"❌ Haftalık ödül toggle hatası: {e}")
+        logger.error(f"Haftalık ödül toggle hatası: {e}")
         return False
 
 
@@ -303,7 +307,7 @@ async def update_auto_pin(group_id: int, auto_pin: bool) -> bool:
             """, group_id, auto_pin)
             return True
     except Exception as e:
-        print(f"❌ Auto pin güncelleme hatası: {e}")
+        logger.error(f"Auto pin güncelleme hatası: {e}")
         return False
 
 
@@ -321,7 +325,7 @@ async def update_post_time(group_id: int, hour: int, minute: int = 0) -> bool:
             """, group_id, hour, minute)
             return True
     except Exception as e:
-        print(f"❌ Paylaşım saati güncelleme hatası: {e}")
+        logger.error(f"Paylaşım saati güncelleme hatası: {e}")
         return False
 
 
@@ -339,5 +343,5 @@ async def update_top_count(group_id: int, count: int) -> bool:
             """, group_id, count)
             return True
     except Exception as e:
-        print(f"❌ Top count güncelleme hatası: {e}")
+        logger.error(f"Top count güncelleme hatası: {e}")
         return False
