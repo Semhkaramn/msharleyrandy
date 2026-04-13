@@ -9,6 +9,9 @@ from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
 from config import IGNORED_USER_IDS
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 from templates import ROLL, format_roll_list
 from services.message_service import track_message
 from services.roll_service import (
@@ -64,9 +67,9 @@ async def handle_member_update(update: Update, context: ContextTypes.DEFAULT_TYP
         # Kullanıcı gruptan çıktı veya banlandı - veritabanından sil
         try:
             await remove_user_from_db(chat.id, user.id)
-            print(f"🚪 Üye ayrıldı/banlandı: {user.first_name} ({user.id}) - Grup: {chat.title} ({chat.id})")
+            logger.info(f"🚪 Üye ayrıldı/banlandı: {user.first_name} ({user.id}) - Grup: {chat.title} ({chat.id})")
         except Exception as e:
-            print(f"❌ Üye silme hatası: {e}")
+            logger.error(f"❌ Üye silme hatası: {e}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
