@@ -16,6 +16,9 @@ from typing import Optional, Dict, Any, List, Tuple
 from database import db
 from telegram import Bot
 from telegram.error import TelegramError, BadRequest
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Aktif çekiliş task'ları
 # {giveaway_id: asyncio.Task}
@@ -39,7 +42,7 @@ async def get_giveaway_settings(group_id: int) -> Optional[Dict[str, Any]]:
             """, group_id)
             return dict(settings) if settings else None
     except Exception as e:
-        print(f"❌ Çekiliş ayarları getirme hatası: {e}")
+        logger.error(f"❌ Çekiliş ayarları getirme hatası: {e}")
         return None
 
 
@@ -81,7 +84,7 @@ async def save_giveaway_settings(
                 pin_in_admin_group, notify_admin_group, winner_message_template)
             return True
     except Exception as e:
-        print(f"❌ Çekiliş ayarları kaydetme hatası: {e}")
+        logger.error(f"❌ Çekiliş ayarları kaydetme hatası: {e}")
         return False
 
 
@@ -109,7 +112,7 @@ async def update_giveaway_setting(group_id: int, **kwargs) -> bool:
             # Ayarları güncelle (sadece izin verilen alanlar)
             for key, value in kwargs.items():
                 if key not in ALLOWED_FIELDS:
-                    print(f"⚠️ Geçersiz alan adı: {key}")
+                    logger.warning(f"⚠️ Geçersiz alan adı: {key}")
                     continue
                 await conn.execute(f"""
                     UPDATE giveaway_settings SET {key} = $1, updated_at = NOW()
@@ -118,7 +121,7 @@ async def update_giveaway_setting(group_id: int, **kwargs) -> bool:
 
             return True
     except Exception as e:
-        print(f"❌ Çekiliş ayarı güncelleme hatası: {e}")
+        logger.error(f"❌ Çekiliş ayarı güncelleme hatası: {e}")
         return False
 
 
@@ -191,7 +194,7 @@ async def create_giveaway(
             }
 
     except Exception as e:
-        print(f"❌ Çekiliş oluşturma hatası: {e}")
+        logger.error(f"❌ Çekiliş oluşturma hatası: {e}")
         return False, None
 
 
@@ -273,7 +276,7 @@ async def get_active_giveaway(group_id: int) -> Optional[Dict[str, Any]]:
             """, group_id)
             return dict(giveaway) if giveaway else None
     except Exception as e:
-        print(f"❌ Aktif çekiliş getirme hatası: {e}")
+        logger.error(f"❌ Aktif çekiliş getirme hatası: {e}")
         return None
 
 
@@ -286,7 +289,7 @@ async def get_giveaway_by_id(giveaway_id: int) -> Optional[Dict[str, Any]]:
             """, giveaway_id)
             return dict(giveaway) if giveaway else None
     except Exception as e:
-        print(f"❌ Çekiliş getirme hatası: {e}")
+        logger.error(f"❌ Çekiliş getirme hatası: {e}")
         return None
 
 
@@ -301,7 +304,7 @@ async def get_giveaway_win_times(giveaway_id: int) -> List[Dict[str, Any]]:
             """, giveaway_id)
             return [dict(t) for t in times]
     except Exception as e:
-        print(f"❌ Kazanma zamanları getirme hatası: {e}")
+        logger.error(f"❌ Kazanma zamanları getirme hatası: {e}")
         return []
 
 
@@ -327,7 +330,7 @@ async def get_pending_win_slot(group_id: int) -> Optional[Dict[str, Any]]:
 
             return dict(slot) if slot else None
     except Exception as e:
-        print(f"❌ Bekleyen slot getirme hatası: {e}")
+        logger.error(f"❌ Bekleyen slot getirme hatası: {e}")
         return None
 
 
@@ -358,7 +361,7 @@ async def check_user_win_eligibility(group_id: int, user_id: int, max_wins: int)
 
             return win_count < max_wins
     except Exception as e:
-        print(f"❌ Kazanma limiti kontrol hatası: {e}")
+        logger.error(f"❌ Kazanma limiti kontrol hatası: {e}")
         return True
 
 
@@ -409,7 +412,7 @@ async def record_winner(
 
             return True
     except Exception as e:
-        print(f"❌ Kazanan kaydetme hatası: {e}")
+        logger.error(f"❌ Kazanan kaydetme hatası: {e}")
         return False
 
 
@@ -423,7 +426,7 @@ async def end_giveaway(giveaway_id: int) -> bool:
             """, giveaway_id)
             return True
     except Exception as e:
-        print(f"❌ Çekiliş sonlandırma hatası: {e}")
+        logger.error(f"❌ Çekiliş sonlandırma hatası: {e}")
         return False
 
 
@@ -437,7 +440,7 @@ async def cancel_giveaway(giveaway_id: int) -> bool:
             """, giveaway_id)
             return True
     except Exception as e:
-        print(f"❌ Çekiliş iptal hatası: {e}")
+        logger.error(f"❌ Çekiliş iptal hatası: {e}")
         return False
 
 
@@ -457,7 +460,7 @@ async def get_past_giveaways(group_id: int, limit: int = 10) -> List[Dict[str, A
             """, group_id, limit)
             return [dict(g) for g in giveaways]
     except Exception as e:
-        print(f"❌ Geçmiş çekilişler hatası: {e}")
+        logger.error(f"❌ Geçmiş çekilişler hatası: {e}")
         return []
 
 
@@ -472,7 +475,7 @@ async def get_giveaway_winners(giveaway_id: int) -> List[Dict[str, Any]]:
             """, giveaway_id)
             return [dict(w) for w in winners]
     except Exception as e:
-        print(f"❌ Kazananlar getirme hatası: {e}")
+        logger.error(f"❌ Kazananlar getirme hatası: {e}")
         return []
 
 
@@ -486,7 +489,7 @@ async def get_user_total_wins(group_id: int, user_id: int) -> int:
             """, group_id, user_id)
             return count or 0
     except Exception as e:
-        print(f"❌ Kullanıcı kazanma sayısı hatası: {e}")
+        logger.error(f"❌ Kullanıcı kazanma sayısı hatası: {e}")
         return 0
 
 
@@ -505,7 +508,7 @@ async def get_top_winners(group_id: int, limit: int = 10) -> List[Dict[str, Any]
             """, group_id, limit)
             return [dict(w) for w in winners]
     except Exception as e:
-        print(f"❌ En çok kazananlar hatası: {e}")
+        logger.error(f"❌ En çok kazananlar hatası: {e}")
         return []
 
 
@@ -563,7 +566,7 @@ async def start_giveaway_watcher(giveaway_id: int, group_id: int, bot: Bot):
                             parse_mode="HTML"
                         )
                     except TelegramError as e:
-                        print(f"❌ Çekiliş bitiş mesajı hatası: {e}")
+                        logger.error(f"❌ Çekiliş bitiş mesajı hatası: {e}")
 
                 # Çekilişi bitir
                 await end_giveaway(giveaway_id)
@@ -571,7 +574,7 @@ async def start_giveaway_watcher(giveaway_id: int, group_id: int, bot: Bot):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            print(f"❌ Çekiliş watcher hatası: {e}")
+            logger.error(f"❌ Çekiliş watcher hatası: {e}")
         finally:
             active_giveaway_tasks.pop(giveaway_id, None)
 
@@ -600,10 +603,10 @@ async def restart_active_giveaways(bot: Bot):
 
             for giveaway in active_giveaways:
                 await start_giveaway_watcher(giveaway['id'], giveaway['group_id'], bot)
-                print(f"🎁 Çekiliş watcher yeniden başlatıldı: {giveaway['id']}")
+                logger.info(f"🎁 Çekiliş watcher yeniden başlatıldı: {giveaway['id']}")
 
     except Exception as e:
-        print(f"❌ Aktif çekilişleri yeniden başlatma hatası: {e}")
+        logger.error(f"❌ Aktif çekilişleri yeniden başlatma hatası: {e}")
 
 
 # ============================================
@@ -679,7 +682,7 @@ async def update_announcement_message_id(giveaway_id: int, message_id: int) -> b
             """, message_id, giveaway_id)
             return True
     except Exception as e:
-        print(f"❌ Duyuru mesaj ID güncelleme hatası: {e}")
+        logger.error(f"❌ Duyuru mesaj ID güncelleme hatası: {e}")
         return False
 
 
@@ -692,5 +695,5 @@ async def update_slot_reply_message_id(slot_id: int, reply_message_id: int) -> b
             """, reply_message_id, slot_id)
             return True
     except Exception as e:
-        print(f"❌ Slot reply mesaj ID güncelleme hatası: {e}")
+        logger.error(f"❌ Slot reply mesaj ID güncelleme hatası: {e}")
         return False
