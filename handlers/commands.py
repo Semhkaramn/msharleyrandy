@@ -172,7 +172,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     if stats.get('randy_participated', 0) > 0:
                         win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
-                        win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
+                        win_rate_line = f"    Oran  ➜  <b>%{win_rate:.1f}</b>"
                     else:
                         win_rate_line = ""
 
@@ -186,8 +186,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         randy_participated=stats.get('randy_participated', 0),
                         randy_won=stats.get('randy_won', 0),
                         win_rate_line=win_rate_line,
+                        daily_rank=stats.get('daily_rank', '-'),
                         weekly_rank=stats.get('weekly_rank', '-'),
-                        daily_avg=stats.get('daily_avg', 0)
+                        monthly_rank=stats.get('monthly_rank', '-'),
+                        activity_rank=stats.get('activity_rank', '-')
                     )
                 else:
                     text = STATS["KAYIT_YOK"]
@@ -809,7 +811,7 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if stats.get('randy_participated', 0) > 0:
                 win_rate = (stats.get('randy_won', 0) / stats['randy_participated']) * 100
-                win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
+                win_rate_line = f"    Oran  ➜  <b>%{win_rate:.1f}</b>"
             else:
                 win_rate_line = ""
 
@@ -823,8 +825,10 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 randy_participated=stats.get('randy_participated', 0),
                 randy_won=stats.get('randy_won', 0),
                 win_rate_line=win_rate_line,
+                daily_rank=stats.get('daily_rank', '-'),
                 weekly_rank=stats.get('weekly_rank', '-'),
-                daily_avg=stats.get('daily_avg', 0)
+                monthly_rank=stats.get('monthly_rank', '-'),
+                activity_rank=stats.get('activity_rank', '-')
             )
         else:
             stats_text = STATS["KAYIT_YOK"]
@@ -923,15 +927,15 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Regex ile yakalandıysa mesaj metninden parse et
             text = message.text or ""
             import re
-            match = re.search(r'^[.!/]bilgi\s+@?(\w+)', text, re.IGNORECASE)
+            match = re.search(r'^[.!/]inf\s+@?(\w+)', text, re.IGNORECASE)
             if match:
                 username_arg = match.group(1)
 
         if not username_arg:
             await message.reply_text(
                 "❌ <b>Kullanım:</b>\n\n"
-                "• Birine reply yaparak: <code>.bilgi</code>\n"
-                "• Username ile: <code>.bilgi @username</code>",
+                "• Birine reply yaparak: <code>.inf</code>\n"
+                "• Username ile: <code>.inf @username</code>",
                 parse_mode="HTML"
             )
             return
@@ -989,7 +993,7 @@ def _format_user_card(name: str, username: str, stats: dict) -> str:
     # Kazanma oranı
     if stats['randy_participated'] > 0:
         win_rate = (stats['randy_won'] / stats['randy_participated']) * 100
-        win_rate_line = f"┃ 📊 Oran                  <b>%{win_rate:.1f}</b>"
+        win_rate_line = f"    Oran  ➜  <b>%{win_rate:.1f}</b>"
     else:
         win_rate_line = ""
 
@@ -1003,8 +1007,10 @@ def _format_user_card(name: str, username: str, stats: dict) -> str:
         randy_participated=stats.get('randy_participated', 0),
         randy_won=stats.get('randy_won', 0),
         win_rate_line=win_rate_line,
+        daily_rank=stats.get('daily_rank', '-'),
         weekly_rank=stats.get('weekly_rank', '-'),
-        daily_avg=stats.get('daily_avg', 0)
+        monthly_rank=stats.get('monthly_rank', '-'),
+        activity_rank=stats.get('activity_rank', '-')
     )
 
 
