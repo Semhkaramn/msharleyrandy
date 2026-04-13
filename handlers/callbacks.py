@@ -116,19 +116,19 @@ DIRECT_CALLBACKS = {
 # Format: (regex_pattern, handler_func_name, value_type)
 
 PATTERN_CALLBACKS = [
-    # Randy patterns
-    (r"^randy_group_(\d+)$", "select_group", "int"),
+    # Randy patterns (grup ID'leri negatif olabilir)
+    (r"^randy_group_(-?\d+)$", "select_group", "int"),
     (r"^randy_req_(.+)$", "select_requirement", "str"),
     (r"^randy_win_(\d+)$", "select_winner_count", "int"),
     (r"^randy_media_(.+)$", "select_media_type", "str"),
-    (r"^randy_channel_remove_(\d+)$", "remove_channel", "int"),
+    (r"^randy_channel_remove_(-?\d+)$", "remove_channel", "int"),
     (r"^randy_join_(\d+)$", "handle_randy_join", "int"),
 
     # Etiket patterns
     (r"^auto_tag_interval_(\d+)$", "set_auto_tag_interval", "int"),
 
-    # GPT patterns
-    (r"^gpt_toggle_(\d+)$", "toggle_gpt_for_group", "int"),
+    # GPT patterns (grup ID'leri negatif olabilir)
+    (r"^gpt_toggle_(-?\d+)$", "toggle_gpt_for_group", "int"),
 
     # Çekiliş patterns
     (r"^cekilis_set_duration_(\d+)$", "set_cekilis_duration", "int"),
@@ -145,9 +145,9 @@ PATTERN_CALLBACKS = [
     (r"^weekly_rewards_top_(\d+)$", "set_activity_top_count", "int"),
     (r"^weekly_set_reward_(\d+)$", "prompt_activity_reward", "int"),
 
-    # Kullanıcı işlemleri
+    # Kullanıcı işlemleri (grup ID'leri negatif olabilir)
     (r"^check_started_(\d+)$", "handle_check_started", "int"),
-    (r"^ben_stats_(\d+)$", "handle_ben_stats", "int"),
+    (r"^ben_stats_(-?\d+)$", "handle_ben_stats", "int"),
 ]
 
 
