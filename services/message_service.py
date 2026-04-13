@@ -29,6 +29,7 @@ async def track_message(
 ) -> bool:
     """
     Kullanıcı mesajını kaydet ve sayaçları güncelle
+    SADECE ACTIVITY_GROUP_ID için çalışır!
 
     Args:
         telegram_id: Telegram kullanıcı ID
@@ -40,6 +41,12 @@ async def track_message(
     Returns:
         bool: Başarılı ise True
     """
+    from config import ACTIVITY_GROUP_ID
+
+    # Sadece aktif grup için mesaj kaydet
+    if ACTIVITY_GROUP_ID and group_id != ACTIVITY_GROUP_ID:
+        return False
+
     # Sistem hesaplarını sayma
     if telegram_id in IGNORED_USER_IDS:
         return False
@@ -103,6 +110,8 @@ async def track_message(
                 """, group_id)
 
                 # Sayaçları güncelle (activity_count dahil)
+                # NOT: Kullanıcı bilgileri (username, first_name, last_name) her zaman güncellenir
+                # Bu sayede kullanıcı ismini değiştirdiğinde data'da da güncellenir
                 if activity_enabled:
                     await conn.execute("""
                         UPDATE telegram_users
@@ -111,9 +120,9 @@ async def track_message(
                             weekly_count = weekly_count + 1,
                             monthly_count = monthly_count + 1,
                             activity_count = activity_count + 1,
-                            username = COALESCE($1, username),
-                            first_name = COALESCE($2, first_name),
-                            last_name = COALESCE($3, last_name),
+                            username = $1,
+                            first_name = $2,
+                            last_name = $3,
                             last_message_at = $4,
                             updated_at = $4
                         WHERE id = $5
@@ -125,9 +134,9 @@ async def track_message(
                             daily_count = daily_count + 1,
                             weekly_count = weekly_count + 1,
                             monthly_count = monthly_count + 1,
-                            username = COALESCE($1, username),
-                            first_name = COALESCE($2, first_name),
-                            last_name = COALESCE($3, last_name),
+                            username = $1,
+                            first_name = $2,
+                            last_name = $3,
                             last_message_at = $4,
                             updated_at = $4
                         WHERE id = $5
