@@ -29,7 +29,7 @@ from services.giveaway_service import (
     create_giveaway, start_giveaway_watcher, update_announcement_message_id
 )
 from services.chat_control_service import close_chat, open_chat
-from services.gpt_service import get_gpt_response, is_gpt_enabled, is_harley_mention
+from services.gpt_service import get_gpt_response, is_gpt_enabled, is_harley_mention, turkish_lower
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
 from config import BOT_USERNAME
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
