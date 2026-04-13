@@ -16,3 +16,6 @@ backports.zoneinfo;python_version<"3.9"
 
 # Cache utilities
 cachetools==5.3.3
+
+# Database migrations
+alembic==1.13.1
