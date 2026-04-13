@@ -883,8 +883,7 @@ async def show_roll_menu(query, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_etiket_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Etiket menüsünü göster - komutlar ve açıklamalar + otomatik etiket butonu"""
-    from services.tagging_service import get_auto_tag_settings
-    from services.tag_exclusion_service import get_excluded_users
+    from services.tagging_service import get_auto_tag_settings, get_excluded_users
     from config import ACTIVITY_GROUP_ID
 
     # Otomatik etiket durumunu kontrol et
@@ -1065,7 +1064,7 @@ async def set_auto_tag_interval(query, user_id: int, interval: int, context: Con
 
 async def show_tag_excluded_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Etiketlenmeyecek kullanıcılar menüsünü göster"""
-    from services.tag_exclusion_service import get_excluded_users, format_excluded_users_list
+    from services.tagging_service import get_excluded_users, format_excluded_users_list
     from config import ACTIVITY_GROUP_ID
 
     # Admin kontrolü
@@ -1159,7 +1158,7 @@ async def prompt_add_excluded_user(query, user_id: int, context: ContextTypes.DE
 
 async def remove_excluded_user_callback(query, user_id: int, telegram_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Hariç tutma listesinden kullanıcı sil"""
-    from services.tag_exclusion_service import remove_excluded_user
+    from services.tagging_service import remove_excluded_user
     from config import ACTIVITY_GROUP_ID
 
     # Admin kontrolü
