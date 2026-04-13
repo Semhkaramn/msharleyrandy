@@ -13,6 +13,9 @@ except ImportError:
 
 from database import db
 from config import IGNORED_USER_IDS, ACTIVITY_GROUP_ID
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Türkiye saat dilimi
 TR_TZ = ZoneInfo("Europe/Istanbul")
@@ -69,7 +72,7 @@ async def ensure_activity_tables():
 
             return True
     except Exception as e:
-        print(f"❌ Aktivite tabloları oluşturma hatası: {e}")
+        logger.error(f"❌ Aktivite tabloları oluşturma hatası: {e}")
         return False
 
 
@@ -86,7 +89,7 @@ async def get_activity_settings(group_id: int) -> Optional[Dict[str, Any]]:
                 return dict(settings)
             return None
     except Exception as e:
-        print(f"❌ Aktivite ayarları getirme hatası: {e}")
+        logger.error(f"❌ Aktivite ayarları getirme hatası: {e}")
         return None
 
 
@@ -192,7 +195,7 @@ async def create_or_update_activity_settings(
 
             return True
     except Exception as e:
-        print(f"❌ Aktivite ayarları kaydetme hatası: {e}")
+        logger.error(f"❌ Aktivite ayarları kaydetme hatası: {e}")
         return False
 
 
@@ -221,7 +224,7 @@ async def get_activity_rewards(group_id: int, activity_type: str = None) -> List
 
             return [dict(r) for r in rewards]
     except Exception as e:
-        print(f"❌ Aktivite ödülleri getirme hatası: {e}")
+        logger.error(f"❌ Aktivite ödülleri getirme hatası: {e}")
         return []
 
 
@@ -237,7 +240,7 @@ async def set_activity_reward(group_id: int, rank: int, reward_text: str) -> boo
             """, group_id, rank, reward_text)
             return True
     except Exception as e:
-        print(f"❌ Ödül kaydetme hatası: {e}")
+        logger.error(f"❌ Ödül kaydetme hatası: {e}")
         return False
 
 
@@ -251,7 +254,7 @@ async def delete_activity_reward(group_id: int, rank: int) -> bool:
             """, group_id, rank)
             return True
     except Exception as e:
-        print(f"❌ Ödül silme hatası: {e}")
+        logger.error(f"❌ Ödül silme hatası: {e}")
         return False
 
 
@@ -299,7 +302,7 @@ async def get_activity_leaderboard(
 
             return [dict(u) for u in users]
     except Exception as e:
-        print(f"❌ Aktivite sıralaması getirme hatası: {e}")
+        logger.error(f"❌ Aktivite sıralaması getirme hatası: {e}")
         return []
 
 
@@ -366,7 +369,7 @@ async def get_user_activity_rank(user_id: int, group_id: int, activity_type: str
 
             return rank or 0
     except Exception as e:
-        print(f"❌ Kullanıcı sıralama hatası: {e}")
+        logger.error(f"❌ Kullanıcı sıralama hatası: {e}")
         return 0
 
 
@@ -440,7 +443,7 @@ async def start_activity_tracking(group_id: int, activity_type: str = 'weekly') 
             started_at=now
         )
     except Exception as e:
-        print(f"❌ Aktivite takibi başlatma hatası: {e}")
+        logger.error(f"❌ Aktivite takibi başlatma hatası: {e}")
         return False
 
 
@@ -456,7 +459,7 @@ async def stop_activity_tracking(group_id: int) -> bool:
             enabled=False
         )
     except Exception as e:
-        print(f"❌ Aktivite takibi durdurma hatası: {e}")
+        logger.error(f"❌ Aktivite takibi durdurma hatası: {e}")
         return False
 
 
@@ -497,7 +500,7 @@ async def get_activity_status(group_id: int) -> Dict[str, Any]:
             'has_data': has_data
         }
     except Exception as e:
-        print(f"❌ Aktivite durumu getirme hatası: {e}")
+        logger.error(f"❌ Aktivite durumu getirme hatası: {e}")
         return {
             'enabled': False,
             'started_at': None,
