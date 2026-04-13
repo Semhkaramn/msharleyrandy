@@ -329,9 +329,102 @@ async def get_user_randy_stats(telegram_id: int) -> Dict[str, Any]:
         return {"participated": 0, "won": 0}
 
 
+async def get_user_rankings(telegram_id: int, group_id: int) -> Dict[str, Any]:
+    """
+    Kullanıcının günlük, haftalık, aylık ve aktiflik sıralamalarını getir
+
+    Args:
+        telegram_id: Telegram kullanıcı ID
+        group_id: Grup ID
+
+    Returns:
+        dict: Sıralama bilgileri
+    """
+    try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now_tr = _get_tr_time(now)
+
+        # Dönem başlangıç tarihleri
+        daily_start_tr = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
+        daily_start = daily_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
+
+        days_since_monday = now_tr.weekday()
+        monday_tr = (now_tr - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        weekly_start = monday_tr.astimezone(timezone.utc).replace(tzinfo=None)
+
+        month_start_tr = now_tr.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        monthly_start = month_start_tr.astimezone(timezone.utc).replace(tzinfo=None)
+
+        async with db.pool.acquire() as conn:
+            # Günlük sıralama
+            daily_rank = await conn.fetchval("""
+                SELECT COUNT(*) + 1 FROM telegram_users
+                WHERE group_id = $1 AND daily_count > (
+                    SELECT COALESCE(daily_count, 0) FROM telegram_users
+                    WHERE telegram_id = $2 AND group_id = $1
+                ) AND last_daily_reset >= $3
+            """, group_id, telegram_id, daily_start)
+
+            # Haftalık sıralama
+            weekly_rank = await conn.fetchval("""
+                SELECT COUNT(*) + 1 FROM telegram_users
+                WHERE group_id = $1 AND weekly_count > (
+                    SELECT COALESCE(weekly_count, 0) FROM telegram_users
+                    WHERE telegram_id = $2 AND group_id = $1
+                ) AND last_weekly_reset >= $3
+            """, group_id, telegram_id, weekly_start)
+
+            # Aylık sıralama
+            monthly_rank = await conn.fetchval("""
+                SELECT COUNT(*) + 1 FROM telegram_users
+                WHERE group_id = $1 AND monthly_count > (
+                    SELECT COALESCE(monthly_count, 0) FROM telegram_users
+                    WHERE telegram_id = $2 AND group_id = $1
+                ) AND last_monthly_reset >= $3
+            """, group_id, telegram_id, monthly_start)
+
+            # Aktiflik sıralama (activity_count kullanılır)
+            activity_rank = await conn.fetchval("""
+                SELECT COUNT(*) + 1 FROM telegram_users
+                WHERE group_id = $1 AND activity_count > (
+                    SELECT COALESCE(activity_count, 0) FROM telegram_users
+                    WHERE telegram_id = $2 AND group_id = $1
+                )
+            """, group_id, telegram_id)
+
+            # Kullanıcı kayıtlı mı kontrol et
+            user_exists = await conn.fetchval("""
+                SELECT 1 FROM telegram_users WHERE telegram_id = $1 AND group_id = $2
+            """, telegram_id, group_id)
+
+            if not user_exists:
+                return {
+                    "daily_rank": "-",
+                    "weekly_rank": "-",
+                    "monthly_rank": "-",
+                    "activity_rank": "-"
+                }
+
+            return {
+                "daily_rank": daily_rank or "-",
+                "weekly_rank": weekly_rank or "-",
+                "monthly_rank": monthly_rank or "-",
+                "activity_rank": activity_rank or "-"
+            }
+
+    except Exception as e:
+        print(f"❌ Sıralama hesaplama hatası: {e}")
+        return {
+            "daily_rank": "-",
+            "weekly_rank": "-",
+            "monthly_rank": "-",
+            "activity_rank": "-"
+        }
+
+
 async def get_full_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[str, Any]]:
     """
-    Kullanıcının tüm istatistiklerini getir (mesaj + randy)
+    Kullanıcının tüm istatistiklerini getir (mesaj + randy + sıralamalar)
 
     Args:
         telegram_id: Telegram kullanıcı ID
@@ -346,6 +439,9 @@ async def get_full_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[
     # Randy istatistikleri
     randy_stats = await get_user_randy_stats(telegram_id)
 
+    # Sıralama bilgileri
+    rankings = await get_user_rankings(telegram_id, group_id)
+
     if not message_stats:
         # Kullanıcı kayıtlı değil ama Randy istatistikleri olabilir
         return {
@@ -358,13 +454,15 @@ async def get_full_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[
             "monthly": 0,
             "last_message_at": None,
             "randy_participated": randy_stats["participated"],
-            "randy_won": randy_stats["won"]
+            "randy_won": randy_stats["won"],
+            **rankings
         }
 
     return {
         **message_stats,
         "randy_participated": randy_stats["participated"],
-        "randy_won": randy_stats["won"]
+        "randy_won": randy_stats["won"],
+        **rankings
     }
 
 
