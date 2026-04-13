@@ -191,24 +191,39 @@ async def get_verified_group_users(bot: Bot, group_id: int) -> List[Dict[str, An
         List[Dict]: Grupta olan aktif kullanıcı listesi
     """
     all_users = await get_group_users(group_id)
+
+    if not all_users:
+        return []
+
+    # Tüm kullanıcıları paralel olarak kontrol et (N+1 sorunu çözümü)
+    check_tasks = [
+        check_user_in_group(bot, group_id, user['telegram_id'])
+        for user in all_users
+    ]
+    results = await asyncio.gather(*check_tasks, return_exceptions=True)
+
     verified_users = []
-    removed_count = 0
+    users_to_remove = []
 
-    for user in all_users:
-        user_id = user['telegram_id']
-
-        # Kullanıcının grupta olup olmadığını kontrol et
-        is_in_group = await check_user_in_group(bot, group_id, user_id)
+    for user, is_in_group in zip(all_users, results):
+        # Hata durumunda kullanıcıyı tutmaya devam et
+        if isinstance(is_in_group, Exception):
+            verified_users.append(user)
+            continue
 
         if is_in_group:
             verified_users.append(user)
         else:
-            # Grupta olmayan kullanıcıyı veritabanından sil
-            await remove_user_from_db(group_id, user_id)
-            removed_count += 1
+            users_to_remove.append(user['telegram_id'])
 
-    if removed_count > 0:
-        print(f"🧹 Temizlik: {removed_count} kullanıcı gruptan çıkmış/banlanmış - silindi (Grup: {group_id})")
+    # Grupta olmayan kullanıcıları paralel olarak sil
+    if users_to_remove:
+        remove_tasks = [
+            remove_user_from_db(group_id, user_id)
+            for user_id in users_to_remove
+        ]
+        await asyncio.gather(*remove_tasks, return_exceptions=True)
+        print(f"🧹 Temizlik: {len(users_to_remove)} kullanıcı gruptan çıkmış/banlanmış - silindi (Grup: {group_id})")
 
     return verified_users
 
@@ -226,20 +241,37 @@ async def cleanup_group_users(bot: Bot, group_id: int) -> int:
         int: Silinen kullanıcı sayısı
     """
     all_users = await get_group_users(group_id)
-    removed_count = 0
 
-    for user in all_users:
-        user_id = user['telegram_id']
-        is_in_group = await check_user_in_group(bot, group_id, user_id)
+    if not all_users:
+        return 0
+
+    # Tüm kullanıcıları paralel olarak kontrol et (N+1 sorunu çözümü)
+    check_tasks = [
+        check_user_in_group(bot, group_id, user['telegram_id'])
+        for user in all_users
+    ]
+    results = await asyncio.gather(*check_tasks, return_exceptions=True)
+
+    users_to_remove = []
+
+    for user, is_in_group in zip(all_users, results):
+        # Hata durumunda kullanıcıyı silme
+        if isinstance(is_in_group, Exception):
+            continue
 
         if not is_in_group:
-            await remove_user_from_db(group_id, user_id)
-            removed_count += 1
+            users_to_remove.append(user['telegram_id'])
 
-    if removed_count > 0:
-        print(f"🧹 Manuel Temizlik: {removed_count} kullanıcı silindi (Grup: {group_id})")
+    # Grupta olmayan kullanıcıları paralel olarak sil
+    if users_to_remove:
+        remove_tasks = [
+            remove_user_from_db(group_id, user_id)
+            for user_id in users_to_remove
+        ]
+        await asyncio.gather(*remove_tasks, return_exceptions=True)
+        print(f"🧹 Manuel Temizlik: {len(users_to_remove)} kullanıcı silindi (Grup: {group_id})")
 
-    return removed_count
+    return len(users_to_remove)
 
 
 async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
