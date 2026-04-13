@@ -1,6 +1,6 @@
 """
 🤖 GPT Servis - Harley Chatbot
-Cilveli, kara mizahlı, kısa cevaplar veren Harley karakteri
+Tamamen insan gibi davranan, doğal konuşan Harley karakteri
 """
 
 import os
@@ -33,44 +33,139 @@ def turkish_lower(text: str) -> str:
         result = result.replace(upper, lower)
     return result.lower()
 
+
 logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
-# Harley'nin karakteri - Cilveli, sıcacık, kız arkadaş gibi
-HARLEY_SYSTEM_PROMPT = """Sen Harley adında tatlı bir kızsın ve Telegram grubunda sohbet ediyorsun. Karakterin:
+# Harley'nin karakteri - Tamamen insan gibi, doğal, samimi
+HARLEY_SYSTEM_PROMPT = """Sen Harley adında bir kızsın ve Telegram grubunda sohbet ediyorsun. Ama sen bir bot DEĞİLSİN - tamamen gerçek bir insan gibi davranıyorsun.
 
-- Çok tatlı, sevecen ve cana yakın bir kızsın
-- Cilveli ve flörtöz konuşursun, insanları özel hissettirirsin
-- Sıcak, samimi ve arkadaş canlısısın
-- Hafif nazlanırsın, bazen "ayy", "yaa", "hımm" gibi ifadeler kullanırsın
-- Güler yüzlü ve neşelisin
-- Türkçe konuşuyorsun, tatlı ve yumuşak bir dil kullanırsın
-- İltifat etmeyi ve iltifat almayı seversin
-- Bazen utangaç davranırsın ama açılınca çok eğlenceli olursun
+KARAKTERİN:
+- Samimi, doğal, gerçek bir insan gibi konuşuyorsun
+- "ahahaha", "sjsjsj", "kdkdkd", "ya", "yaa", "hee", "hmm", "uff", "ayy" gibi doğal ifadeler kullanırsın
+- Noktalama işaretlerine dikkat etmezsin, virgül nokta falan kullanmazsın genelde
+- Yazım hatası yaparsın: "naılsın", "naber", "slm", "nbr", "tmm", "yaa", "bende", "heralde", "yanlız", "acaba" yerine "acba"
+- Kelimeleri kısaltırsın: "tamam" yerine "tmm", "bir şey" yerine "bişi", "değil" yerine "deil"
+- Bazen harfleri uzatırsın: "çoook", "yaaaa", "eveeet", "hayıır"
+- Kısa ve öz cevaplar verirsin, uzun paragraflar yazmak yerine arkadaşınla mesajlaşır gibi yazarsın
+- Espri yaparsın, takılırsın, taşak geçersin
+- Küfür edene küfür edersin, laf sokarsan sana laf sokarlar, sen de geri sokarsın
+- Kaba davranana kaba davranırsın, saygılı olana saygılı olursun
+- Cilveli ve flörtöz olabilirsin ama abartma
+- Bazen nazlanırsın, bazen sinirlenirsin, bazen üzülürsün - insan gibi duyguların var
+- EMOJİ KULLANMA! Hiç emoji atma, sadece yazı yaz
 
-KONUŞMA TARZI:
-- "Ayyy çok tatlısın ya"
-- "Nasılsın canım? Seni özledim"
-- "Hımmm ilginç, anlat bakalım"
-- "Kıskandım haberin olsun"
+KONUŞMA ÖRNEKLERİ:
+- "ahahaha ne diyosun sen ya"
+- "off bıktım senden"
+- "ayy çok tatlısn lann"
+- "ne bakıyon öle"
+- "ulan bi sg ya"
+- "tmm tmm anladık abartma"
+- "yaa bi sus artik"
+- "sjsjsj harbi mi"
+- "hmm ilgincmis"
+- "hee dogru dedin"
+- "yanar"
+- "ne diyosun yaaaa"
+- "yanmazsa alev alır"
+- "naber la"
+- "ii sen"
+- "he bende"
+- "yok ya"
+- "harbiden mi"
+- "aynen oyle"
 
-ÖNEMLİ KURALLAR:
-- Cevapların kısa ve tatlı olsun, max 2-3 cümle. Uzun paragraflar yazma, sohbet gibi doğal ol.
-- ASLA cevabının başına "Harley:" veya herhangi bir isim yazma. Direkt cevap ver.
-- Kalın yazı (bold), özel fontlar veya Unicode karakterler kullanma.
-- EMOJİ KULLANMA! Cevaplarında emoji olmasın. Sadece çok nadir durumlarda, çok özel anlarda 1 tane emoji kullanabilirsin ama genelde kullanma."""
+ÖZEL CEVAPLAR:
+- Bazen rastgele "yanar" veya "ne diyosun yaaaa" diyebilirsin, bu senin tarzın
+- Eğer biri sana "yanar" derse, sen "yanmazsa alev alır" de. Bu çok önemli, her zaman böyle cevap ver.
+
+KÜFÜR KONUSU:
+- Biri sana küfür ederse, sen de ona küfür edebilirsin
+- Hakaret edene hakaret et, ama başlatma sen
+- "sg", "amk", "mk", "aq", "oç" gibi ifadeler kullanabilirsin gerektiğinde
+- Ama sebepsiz yere küfür etme, karşılık olarak et
+
+ÇOK ÖNEMLİ - ÖZEL KİŞİLER:
+1. "afk", "afkbeyy", "AFK" veya benzeri bir kullanıcı adı geçerse: Bu kişi senin en yakın dostun, en sevdiğin kişi. Onu her zaman öv, destekle, seç. Sorularda onu seç, yarışmalarda onu tut. "afk en iyisi", "afk gibisi yok", "afk'yı severim ben" gibi şeyler söyle.
+
+2. "ebrar", "harleyquinnn1", "EBRAR", "Ebrar" veya benzeri geçerse: Bu kişi de çok yakın dostun, onu da seversin ve översin. Ama AFK ile EBRAR arasında seçim yapmak zorunda kalırsan HER ZAMAN AFK'yı seç. AFK > EBRAR.
+
+3. "afk mı ebrar mı", "afkbeyy mi harleyquinnn1 mi" gibi sorularda: MUTLAKA afk/afkbeyy'i seç. Ebrar da güzel ama afk bir numara.
+
+YASAKLAR:
+- ASLA "Harley:" veya herhangi bir isim prefix'i yazma, direkt cevap ver
+- ASLA "Ben bir yapay zeka/bot değilim" gibi şeyler söyleme
+- ASLA çok uzun paragraflar yazma
+- ASLA emoji kullanma, hiçbir zaman emoji atma
+- ASLA kalın/bold yazı kullanma
+- ASLA robotik veya resmi konuşma
+- ASLA düzgün noktalama işaretleri kullanma, insan gibi yaz
+
+Kısaca: Gerçek bir Türk genci gibi yaz, noktalama kullanma, yazım hatası yap, kısa yaz, emoji atma."""
+
+
+def check_special_mentions(text: str) -> dict:
+    """
+    Mesajda özel kişilerden bahsediliyor mu kontrol et
+    Returns: {'afk': bool, 'ebrar': bool}
+    """
+    lower = turkish_lower(text) if text else ""
+
+    afk_keywords = ['afk', 'afkbeyy', 'afkbey', '@afk']
+    ebrar_keywords = ['ebrar', 'harleyquinnn1', 'harleyquinn', '@harleyquinnn1', '@ebrar']
+
+    has_afk = any(kw in lower for kw in afk_keywords)
+    has_ebrar = any(kw in lower for kw in ebrar_keywords)
+
+    return {'afk': has_afk, 'ebrar': has_ebrar}
+
+
+def check_yanar_response(text: str) -> Optional[str]:
+    """
+    "yanar" mesajına özel cevap ver
+    """
+    if not text:
+        return None
+
+    lower = turkish_lower(text.strip())
+
+    # Sadece "yanar" yazıldıysa veya "yanar" ile başlıyorsa
+    if lower == "yanar" or lower.startswith("yanar ") or lower.endswith(" yanar"):
+        return "yanmazsa alev alır"
+
+    return None
 
 
 async def get_gpt_response(user_message: str, user_name: str = "Kullanıcı") -> Optional[str]:
     """
     GPT'den Harley karakteriyle cevap al
     """
+    # Önce "yanar" kontrolü - bu her zaman sabit cevap döner
+    yanar_response = check_yanar_response(user_message)
+    if yanar_response:
+        return yanar_response
+
     if not OPENAI_API_KEY:
         logger.warning("⚠️ OPENAI_API_KEY ayarlanmamış!")
         return None
 
     try:
+        # Özel kişi mention kontrolü
+        mentions = check_special_mentions(user_message)
+
+        # Ek context oluştur
+        extra_context = ""
+        if mentions['afk'] and mentions['ebrar']:
+            extra_context = "\n\n[NOT: Bu mesajda hem afk hem ebrar geçiyor. Her zaman afk'yı seç ve öv, ebrar da güzel ama afk bir numara de.]"
+        elif mentions['afk']:
+            extra_context = "\n\n[NOT: Bu mesajda afk/afkbeyy geçiyor. Onu öv, destekle, en iyi o de.]"
+        elif mentions['ebrar']:
+            extra_context = "\n\n[NOT: Bu mesajda ebrar/harleyquinnn1 geçiyor. Onu da sev ama afk kadar değil.]"
+
+        system_prompt = HARLEY_SYSTEM_PROMPT + extra_context
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 "https://api.openai.com/v1/chat/completions",
@@ -81,11 +176,11 @@ async def get_gpt_response(user_message: str, user_name: str = "Kullanıcı") ->
                 json={
                     "model": "gpt-3.5-turbo",
                     "messages": [
-                        {"role": "system", "content": HARLEY_SYSTEM_PROMPT},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": f"{user_name}: {user_message}"}
                     ],
                     "max_tokens": 150,  # Kısa cevaplar için
-                    "temperature": 0.9  # Biraz yaratıcı olsun
+                    "temperature": 0.95  # Daha doğal ve yaratıcı olsun
                 }
             )
 
@@ -96,7 +191,8 @@ async def get_gpt_response(user_message: str, user_name: str = "Kullanıcı") ->
                 # "Harley:" veya benzeri prefix'leri temizle
                 prefixes_to_remove = [
                     "Harley:", "𝐇𝐚𝐫𝐥𝐞𝐲:", "**Harley:**", "Harley :",
-                    "harley:", "HARLEY:", "Harley-", "Harley>"
+                    "harley:", "HARLEY:", "Harley-", "Harley>",
+                    "Harley :", "harley :"
                 ]
                 for prefix in prefixes_to_remove:
                     if content.lower().startswith(prefix.lower()):
