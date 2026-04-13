@@ -632,6 +632,15 @@ async def check_and_award_winner(
     if is_bot:
         return None
 
+    # Adminler çekilişe katılamaz
+    try:
+        from utils.admin_check import is_group_admin
+        is_admin = await is_group_admin(bot, group_id, user_id)
+        if is_admin:
+            return None
+    except Exception as e:
+        logger.warning(f"⚠️ Çekiliş admin kontrolü hatası: {e}")
+
     # Aktif çekiliş var mı?
     giveaway = await get_active_giveaway(group_id)
     if not giveaway:
