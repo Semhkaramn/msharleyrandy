@@ -1351,7 +1351,7 @@ async def check_giveaway_winner(
                     pass
 
         except TelegramError as e:
-            print(f"❌ Kazanan mesajı gönderme hatası: {e}")
+            logger.error(f"Kazanan mesajı gönderme hatası: {e}")
 
         # Yönetim grubuna bildirim
         if result.get('notify_admin_group', True):
@@ -1398,10 +1398,10 @@ async def check_giveaway_winner(
                             pass
 
                 except TelegramError as e:
-                    print(f"❌ Admin bildirim hatası: {e}")
+                    logger.error(f"Admin bildirim hatası: {e}")
 
     except Exception as e:
-        print(f"❌ Çekiliş kazanan kontrolü hatası: {e}")
+        logger.error(f"Çekiliş kazanan kontrolü hatası: {e}")
 
 
 def _format_steps(steps: list, session_info: dict = None) -> str:
