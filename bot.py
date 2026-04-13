@@ -23,6 +23,7 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
+    ChatMemberHandler,
     filters,
     ContextTypes
 )
@@ -44,7 +45,7 @@ from handlers.commands import (
     naber_command,
     dur_command
 )
-from handlers.messages import handle_message
+from handlers.messages import handle_message, handle_member_update
 from handlers.callbacks import handle_callback
 
 # Logging ayarları
@@ -185,6 +186,13 @@ def main():
 
     # ========== CALLBACK HANDLER ==========
     application.add_handler(CallbackQueryHandler(handle_callback))
+
+    # ========== ÜYE AYRILMA/BANLANMA HANDLER ==========
+    # Kullanıcı gruptan ayrıldığında veya banlandığında veritabanından silinir
+    application.add_handler(ChatMemberHandler(
+        handle_member_update,
+        ChatMemberHandler.CHAT_MEMBER
+    ))
 
     # ========== MESAJ HANDLER ==========
     # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
