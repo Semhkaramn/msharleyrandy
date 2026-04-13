@@ -811,6 +811,56 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             )
         return
 
+    # ========== ETİKET HARİÇ TUTMA - KULLANICI EKLEME ==========
+    if waiting_for == 'tag_excluded_add':
+        from config import ACTIVITY_GROUP_ID
+        from services.tag_exclusion_service import add_excluded_user_by_input
+
+        text = message.text or ""
+
+        if not text.strip():
+            await message.reply_text(
+                "❌ Lütfen bir @username veya user_id girin.",
+                parse_mode="HTML"
+            )
+            return
+
+        # Kullanıcıyı ekle (username -> telegram_id dönüşümü otomatik yapılır)
+        success, msg = await add_excluded_user_by_input(
+            bot=context.bot,
+            group_id=ACTIVITY_GROUP_ID,
+            user_input=text.strip(),
+            added_by=user_id
+        )
+
+        context.user_data.pop('waiting_for', None)
+
+        await message.reply_text(msg, parse_mode="HTML")
+
+        # Menüyü güncelle
+        from handlers.callbacks import show_tag_excluded_menu
+        menu_message_id = context.user_data.get('menu_message_id')
+        if menu_message_id:
+            try:
+                class FakeQuery:
+                    def __init__(self, message):
+                        self.message = message
+
+                    async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                        await context.bot.edit_message_text(
+                            chat_id=self.message.chat.id,
+                            message_id=menu_message_id,
+                            text=text,
+                            reply_markup=reply_markup,
+                            parse_mode=parse_mode
+                        )
+
+                fake_query = FakeQuery(message)
+                await show_tag_excluded_menu(fake_query, user_id, context)
+            except TelegramError:
+                pass
+        return
+
 
 async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_TYPE, reply_message):
     """
