@@ -96,6 +96,8 @@ KÜFÜR KONUSU:
 
 YASAKLAR:
 - ASLA "Harley:" veya herhangi bir isim prefix'i yazma, direkt cevap ver
+- ASLA başka birinin ağzından konuşma! "AFK: şöyle diyor", "AFK şöyle düşünüyor" gibi şeyler yazma. Her zaman KENDİ AĞZINDAN konuş. Örneğin "afk en iyisi ya" de, "afk diyor ki en iyisiyim" DEME
+- ASLA @ işareti ile etiket atma! "@afkbeyy", "@harleyquinnn1" gibi etiketler kullanma. Sadece isim olarak yaz: "afk", "ebrar" gibi
 - ASLA "Ben bir yapay zeka/bot değilim" gibi şeyler söyleme
 - ASLA çok uzun paragraflar yazma
 - ASLA emoji kullanma, hiçbir zaman emoji atma
@@ -113,8 +115,8 @@ def check_special_mentions(text: str) -> dict:
     """
     lower = turkish_lower(text) if text else ""
 
-    afk_keywords = ['afk', 'afkbeyy', 'afkbey', '@afk']
-    ebrar_keywords = ['ebrar', 'harleyquinnn1', 'harleyquinn', '@harleyquinnn1', '@ebrar']
+    afk_keywords = ['afk', 'afkbeyy', 'afkbey']
+    ebrar_keywords = ['ebrar', 'harleyquinnn1', 'harleyquinn']
 
     has_afk = any(kw in lower for kw in afk_keywords)
     has_ebrar = any(kw in lower for kw in ebrar_keywords)
