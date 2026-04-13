@@ -324,7 +324,7 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     channels_list.append(f'<a href="https://t.me/{activity_chat.username}">{activity_chat.title or activity_chat.username}</a>')
                 elif activity_chat.title:
                     channels_list.append(activity_chat.title)
-            except:
+            except TelegramError:
                 pass
 
         # Eklenen zorunlu kanalları al
@@ -558,7 +558,7 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 channels_list.append(f'<a href="https://t.me/{activity_chat.username}">{activity_chat.title or activity_chat.username}</a>')
             elif activity_chat.title:
                 channels_list.append(activity_chat.title)
-        except:
+        except TelegramError:
             pass
 
     # Eklenen zorunlu kanalları al
