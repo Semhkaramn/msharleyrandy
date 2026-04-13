@@ -12,7 +12,10 @@ from typing import List, Dict, Any, Optional
 from database import db
 from telegram import Bot
 from telegram.error import RetryAfter, TelegramError, BadRequest
+from utils.logger import get_logger
 
+# Logger
+logger = get_logger(__name__)
 
 # Aktif etiketleme işlemleri (grup bazlı)
 # {group_id: {"type": "etiket"|"naber", "active": True, "task": asyncio.Task}}
@@ -168,10 +171,10 @@ async def remove_user_from_db(group_id: int, user_id: int) -> bool:
                 DELETE FROM telegram_users
                 WHERE group_id = $1 AND telegram_id = $2
             """, group_id, user_id)
-            print(f"🗑️ Kullanıcı silindi: {user_id} (Grup: {group_id})")
+            logger.info(f"Kullanıcı silindi: {user_id} (Grup: {group_id})")
             return True
     except Exception as e:
-        print(f"❌ Kullanıcı silme hatası: {e}")
+        logger.error(f"Kullanıcı silme hatası: {e}")
         return False
 
 
@@ -223,7 +226,7 @@ async def get_verified_group_users(bot: Bot, group_id: int) -> List[Dict[str, An
             for user_id in users_to_remove
         ]
         await asyncio.gather(*remove_tasks, return_exceptions=True)
-        print(f"🧹 Temizlik: {len(users_to_remove)} kullanıcı gruptan çıkmış/banlanmış - silindi (Grup: {group_id})")
+        logger.info(f"Temizlik: {len(users_to_remove)} kullanıcı gruptan çıkmış/banlanmış - silindi (Grup: {group_id})")
 
     return verified_users
 
@@ -269,7 +272,7 @@ async def cleanup_group_users(bot: Bot, group_id: int) -> int:
             for user_id in users_to_remove
         ]
         await asyncio.gather(*remove_tasks, return_exceptions=True)
-        print(f"🧹 Manuel Temizlik: {len(users_to_remove)} kullanıcı silindi (Grup: {group_id})")
+        logger.info(f"Manuel Temizlik: {len(users_to_remove)} kullanıcı silindi (Grup: {group_id})")
 
     return len(users_to_remove)
 
@@ -295,7 +298,7 @@ async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
 
             return [dict(u) for u in users]
     except Exception as e:
-        print(f"❌ Kullanıcı listesi getirme hatası: {e}")
+        logger.error(f"Kullanıcı listesi getirme hatası: {e}")
         return []
 
 
@@ -483,7 +486,7 @@ async def start_etiket_tagging(
             # İlk komutu sil
             try:
                 await initial_message.delete()
-            except:
+            except TelegramError:
                 pass
 
             # 5'erli gruplar halinde etiketle (kullanıcılar zaten karıştırıldı)
@@ -509,7 +512,7 @@ async def start_etiket_tagging(
                 except RetryAfter as e:
                     # Flood control - bekle ve tekrar dene
                     wait_time = e.retry_after + 2
-                    print(f"⏳ Flood control, {wait_time} saniye bekleniyor...")
+                    logger.info(f"Flood control, {wait_time} saniye bekleniyor...")
                     await asyncio.sleep(wait_time)
                     # Tekrar dene
                     try:
@@ -521,7 +524,7 @@ async def start_etiket_tagging(
                     except Exception:
                         pass
                 except TelegramError as e:
-                    print(f"❌ Etiket mesaj gönderme hatası: {e}")
+                    logger.error(f"Etiket mesaj gönderme hatası: {e}")
 
                 # Flood önleme - mesajlar arası bekleme (artırıldı)
                 await asyncio.sleep(4)
@@ -533,7 +536,7 @@ async def start_etiket_tagging(
             # İptal edildi
             pass
         except Exception as e:
-            print(f"❌ Etiketleme hatası: {e}")
+            logger.error(f"Etiketleme hatası: {e}")
             active_tagging_sessions.pop(group_id, None)
 
     # Task'ı başlat
@@ -586,7 +589,7 @@ async def start_naber_tagging(
             # İlk komutu sil
             try:
                 await initial_message.delete()
-            except:
+            except TelegramError:
                 pass
 
             # Mesajları karıştır (her seferinde farklı sıra)
@@ -618,7 +621,7 @@ async def start_naber_tagging(
                 except RetryAfter as e:
                     # Flood control - bekle ve tekrar dene
                     wait_time = e.retry_after + 2
-                    print(f"⏳ Flood control, {wait_time} saniye bekleniyor...")
+                    logger.info(f"Flood control, {wait_time} saniye bekleniyor...")
                     await asyncio.sleep(wait_time)
                     # Tekrar dene
                     try:
@@ -630,7 +633,7 @@ async def start_naber_tagging(
                     except Exception:
                         pass
                 except TelegramError as e:
-                    print(f"❌ Naber mesaj gönderme hatası: {e}")
+                    logger.error(f"Naber mesaj gönderme hatası: {e}")
 
                 # Flood önleme - mesajlar arası bekleme (artırıldı)
                 await asyncio.sleep(4)
@@ -642,7 +645,7 @@ async def start_naber_tagging(
             # İptal edildi
             pass
         except Exception as e:
-            print(f"❌ Naber hatası: {e}")
+            logger.error(f"Naber hatası: {e}")
             active_tagging_sessions.pop(group_id, None)
 
     # Task'ı başlat
@@ -681,7 +684,7 @@ async def get_auto_tag_settings(group_id: int) -> Optional[Dict[str, Any]]:
             """, group_id)
             return dict(settings) if settings else None
     except Exception as e:
-        print(f"❌ Otomatik etiket ayarları getirme hatası: {e}")
+        logger.error(f"Otomatik etiket ayarları getirme hatası: {e}")
         return None
 
 
@@ -710,7 +713,7 @@ async def set_auto_tag_settings(
             """, group_id, enabled, interval_minutes, tag_type)
             return True
     except Exception as e:
-        print(f"❌ Otomatik etiket ayarları kaydetme hatası: {e}")
+        logger.error(f"Otomatik etiket ayarları kaydetme hatası: {e}")
         return False
 
 
@@ -749,7 +752,7 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
     """
     # Zaten çalışan bir görev var mı?
     if group_id in auto_tagging_tasks and auto_tagging_tasks[group_id].get('active'):
-        print(f"ℹ️ Otomatik etiket zaten çalışıyor: {group_id}")
+        logger.info(f"Otomatik etiket zaten çalışıyor: {group_id}")
         return
 
     async def auto_tag_loop():
@@ -762,7 +765,7 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
 
                 if not settings or not settings['enabled']:
                     # Devre dışı bırakıldı, görevi sonlandır
-                    print(f"🛑 Otomatik etiket devre dışı: {group_id}")
+                    logger.info(f"Otomatik etiket devre dışı: {group_id}")
                     break
 
                 # Aktif manuel etiketleme var mı kontrol et
@@ -776,7 +779,7 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
                         selected_user = random.choice(users)
 
                         tag_count += 1
-                        print(f"🏷️ Otomatik Etiket #{tag_count} | Grup: {group_id} | 1/{total_users} kullanıcı")
+                        logger.info(f"Otomatik Etiket #{tag_count} | Grup: {group_id} | 1/{total_users} kullanıcı")
 
                         # Seçilen kullanıcıya rastgele mesaj gönder
                         mention = format_user_mention(selected_user)
@@ -788,39 +791,39 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
                                 f"{mention} {random_msg}",
                                 parse_mode="HTML"
                             )
-                            print(f"✅ Otomatik Etiket #{tag_count} tamamlandı")
+                            logger.info(f"Otomatik Etiket #{tag_count} tamamlandı")
                         except BadRequest as e:
                             # Kullanıcı bulunamadı veya engellenmiş
                             # NOT: Artık kullanıcıyı SİLMİYORUZ, sadece log yazıyoruz
                             if "user not found" in str(e).lower() or "blocked" in str(e).lower():
-                                print(f"⚠️ Kullanıcıya ulaşılamadı (etiketleme atlandı): {selected_user['telegram_id']}")
+                                logger.warning(f"Kullanıcıya ulaşılamadı (etiketleme atlandı): {selected_user['telegram_id']}")
                             else:
-                                print(f"❌ Otomatik etiket hatası: {e}")
+                                logger.error(f"Otomatik etiket hatası: {e}")
                         except TelegramError as e:
-                            print(f"❌ Otomatik etiket hatası: {e}")
+                            logger.error(f"Otomatik etiket hatası: {e}")
                     else:
-                        print(f"⚠️ Otomatik etiket: Grup {group_id}'de kullanıcı yok")
+                        logger.warning(f"Otomatik etiket: Grup {group_id}'de kullanıcı yok")
                 else:
-                    print(f"⏸️ Manuel etiketleme aktif, otomatik etiket bekliyor...")
+                    logger.info(f"Manuel etiketleme aktif, otomatik etiket bekliyor...")
 
                 # Sonraki etiketleme için bekle
                 # interval_minutes'a rastgele ±2 dakika ekle (daha doğal görünsün)
                 wait_minutes = interval_minutes + random.randint(-2, 2)
                 wait_minutes = max(3, wait_minutes)  # Minimum 3 dakika
 
-                print(f"⏰ Sonraki otomatik etiket: {wait_minutes} dakika sonra")
+                logger.info(f"Sonraki otomatik etiket: {wait_minutes} dakika sonra")
                 await asyncio.sleep(wait_minutes * 60)
 
             except asyncio.CancelledError:
-                print(f"🛑 Otomatik etiket görevi iptal edildi: {group_id}")
+                logger.info(f"Otomatik etiket görevi iptal edildi: {group_id}")
                 break
             except Exception as e:
-                print(f"❌ Otomatik etiket döngü hatası: {e}")
+                logger.error(f"Otomatik etiket döngü hatası: {e}")
                 await asyncio.sleep(60)  # Hata durumunda 1 dakika bekle
 
         # Görev bitti, temizle
         auto_tagging_tasks.pop(group_id, None)
-        print(f"🏁 Otomatik etiket görevi sonlandı: {group_id} (Toplam: {tag_count} etiketleme)")
+        logger.info(f"Otomatik etiket görevi sonlandı: {group_id} (Toplam: {tag_count} etiketleme)")
 
     # Görevi başlat
     task = asyncio.create_task(auto_tag_loop())
@@ -829,7 +832,7 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
         'task': task,
         'interval': interval_minutes
     }
-    print(f"🚀 Otomatik etiket başlatıldı: Grup {group_id}, Aralık: {interval_minutes} dk")
+    logger.info(f"Otomatik etiket başlatıldı: Grup {group_id}, Aralık: {interval_minutes} dk")
 
 
 def stop_auto_tagging(group_id: int) -> bool:
