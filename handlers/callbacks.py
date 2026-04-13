@@ -2611,5 +2611,8 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
             show_alert=True
         )
 
+    elif code == "admin_katilamaz":
+        await query.answer(RANDY["ADMIN_KATILAMAZ"], show_alert=True)
+
     else:
         await query.answer(ERRORS["GENEL"], show_alert=True)
