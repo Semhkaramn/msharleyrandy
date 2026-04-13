@@ -814,7 +814,7 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
     # ========== ETİKET HARİÇ TUTMA - KULLANICI EKLEME ==========
     if waiting_for == 'tag_excluded_add':
         from config import ACTIVITY_GROUP_ID
-        from services.tag_exclusion_service import add_excluded_user_by_input
+        from services.tagging_service import add_excluded_user_by_input
 
         text = message.text or ""
 
