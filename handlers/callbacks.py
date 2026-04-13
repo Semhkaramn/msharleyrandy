@@ -69,6 +69,8 @@ DIRECT_CALLBACKS = {
     "etiket_menu": ("show_etiket_menu", True, None),
     "auto_tag_menu": ("show_auto_tag_menu", True, None),
     "auto_tag_toggle": ("toggle_auto_tag_setting", True, None),
+    "tag_excluded_menu": ("show_tag_excluded_menu", True, None),
+    "tag_excluded_add": ("prompt_add_excluded_user", True, None),
 
     # GPT menüsü
     "gpt_menu": ("show_gpt_menu", True, None),
@@ -126,6 +128,7 @@ PATTERN_CALLBACKS = [
 
     # Etiket patterns
     (r"^auto_tag_interval_(\d+)$", "set_auto_tag_interval", "int"),
+    (r"^tag_excluded_remove_(\d+)$", "remove_excluded_user_callback", "int"),
 
     # GPT patterns (grup ID'leri negatif olabilir)
     (r"^gpt_toggle_(-?\d+)$", "toggle_gpt_for_group", "int"),
@@ -881,17 +884,25 @@ async def show_roll_menu(query, context: ContextTypes.DEFAULT_TYPE):
 async def show_etiket_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Etiket menüsünü göster - komutlar ve açıklamalar + otomatik etiket butonu"""
     from services.tagging_service import get_auto_tag_settings
+    from services.tag_exclusion_service import get_excluded_users
     from config import ACTIVITY_GROUP_ID
 
     # Otomatik etiket durumunu kontrol et
     auto_tag_status = "❌ Kapalı"
+    excluded_count = 0
+
     if ACTIVITY_GROUP_ID:
         settings = await get_auto_tag_settings(ACTIVITY_GROUP_ID)
         if settings and settings.get('enabled'):
             auto_tag_status = "✅ Açık"
 
+        # Hariç tutulan kullanıcı sayısı
+        excluded_users = await get_excluded_users(ACTIVITY_GROUP_ID)
+        excluded_count = len(excluded_users)
+
     keyboard = [
         [InlineKeyboardButton(f"🤖 Otomatik Etiket ({auto_tag_status})", callback_data="auto_tag_menu")],
+        [InlineKeyboardButton(f"🚫 Etiketlenmeyecekler ({excluded_count})", callback_data="tag_excluded_menu")],
         [InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")],
     ]
 
@@ -1046,6 +1057,131 @@ async def set_auto_tag_interval(query, user_id: int, interval: int, context: Con
 
     # Menüyü yenile
     await show_auto_tag_menu(query, user_id, context)
+
+
+# ============================================
+# ETİKET HARİÇ TUTMA FONKSİYONLARI
+# ============================================
+
+async def show_tag_excluded_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Etiketlenmeyecek kullanıcılar menüsünü göster"""
+    from services.tag_exclusion_service import get_excluded_users, format_excluded_users_list
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="etiket_menu")]]
+        await query.edit_message_text(
+            "❌ <b>Yetkiniz Yok</b>\n\n"
+            "Bu ayarlar için ana gruptaki admin olmanız gerekiyor.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    if not ACTIVITY_GROUP_ID:
+        keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="etiket_menu")]]
+        await query.edit_message_text(
+            "❌ <b>Grup Tanımlı Değil</b>\n\n"
+            "ACTIVITY_GROUP_ID ayarlanmamış.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
+    # Hariç tutulan kullanıcıları getir
+    excluded_users = await get_excluded_users(ACTIVITY_GROUP_ID)
+
+    # Kullanıcı listesi
+    users_text = format_excluded_users_list(excluded_users)
+
+    # Silme butonları oluştur
+    keyboard = []
+
+    # Kullanıcı silme butonları
+    for user in excluded_users[:10]:  # Max 10 göster
+        telegram_id = user['telegram_id']
+        username = user.get('username')
+        first_name = user.get('first_name')
+
+        display = f"@{username}" if username else first_name or str(telegram_id)
+        keyboard.append([
+            InlineKeyboardButton(f"❌ {display}", callback_data=f"tag_excluded_remove_{telegram_id}")
+        ])
+
+    # Ekle butonu
+    keyboard.append([InlineKeyboardButton("➕ Kullanıcı Ekle", callback_data="tag_excluded_add")])
+    keyboard.append([InlineKeyboardButton(BUTTONS["GERI"], callback_data="etiket_menu")])
+
+    text = (
+        "🚫 <b>Etiketlenmeyecek Kullanıcılar</b>\n\n"
+        f"{users_text}\n\n"
+        "💡 <i>Bu listedeki kullanıcılar etiketleme işlemlerinde (</i><code>/etiket</code><i>, </i><code>/naber</code><i>, otomatik etiket) atlanır.</i>\n\n"
+        "⚠️ <i>Username değişse bile ID kaydedildiği için doğru çalışır.</i>"
+    )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def prompt_add_excluded_user(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Hariç tutulacak kullanıcı için input iste"""
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        await query.answer("❌ Yetkiniz yok!", show_alert=True)
+        return
+
+    context.user_data['waiting_for'] = 'tag_excluded_add'
+    context.user_data['active_group_id'] = ACTIVITY_GROUP_ID
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="tag_excluded_menu")]]
+
+    await query.edit_message_text(
+        "👤 <b>Etiketlenmeyecek Kullanıcı Ekle</b>\n\n"
+        "Kullanıcının <b>@username</b> veya <b>user_id</b> bilgisini gönderin.\n\n"
+        "💡 <i>Username gönderseniz bile sistem ID olarak kaydedecektir.</i>\n\n"
+        "📝 <b>Örnekler:</b>\n"
+        "• <code>@kullaniciadi</code>\n"
+        "• <code>123456789</code>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def remove_excluded_user_callback(query, user_id: int, telegram_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Hariç tutma listesinden kullanıcı sil"""
+    from services.tag_exclusion_service import remove_excluded_user
+    from config import ACTIVITY_GROUP_ID
+
+    # Admin kontrolü
+    is_admin = await is_activity_group_admin(context.bot, user_id)
+
+    if not is_admin:
+        await query.answer("❌ Yetkiniz yok!", show_alert=True)
+        return
+
+    if not ACTIVITY_GROUP_ID:
+        await query.answer("❌ Grup tanımlı değil!", show_alert=True)
+        return
+
+    success, msg = await remove_excluded_user(ACTIVITY_GROUP_ID, telegram_id)
+
+    if success:
+        await query.answer("✅ Kullanıcı listeden çıkarıldı!", show_alert=True)
+    else:
+        await query.answer(msg, show_alert=True)
+
+    # Menüyü yenile
+    await show_tag_excluded_menu(query, user_id, context)
 
 
 # ============================================
