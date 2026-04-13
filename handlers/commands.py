@@ -8,6 +8,9 @@ from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
 from database import db
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 from templates import MENU, STATS, BUTTONS, ERRORS, RANDY as RANDY_TEMPLATES, format_winner_list, get_period_text
 from services.message_service import get_user_stats, get_full_user_stats, is_user_registered
 from services.randy_service import (
@@ -635,7 +638,7 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     except TelegramError as e:
-        print(f"❌ Randy mesajı güncelleme hatası: {e}")
+        logger.error(f"❌ Randy mesajı güncelleme hatası: {e}")
 
 
 # ============================================
@@ -957,7 +960,7 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     return
         except Exception as e:
-            print(f"❌ Kullanıcı arama hatası: {e}")
+            logger.error(f"❌ Kullanıcı arama hatası: {e}")
             await message.reply_text("❌ Bir hata oluştu.", parse_mode="HTML")
             return
 
@@ -1115,7 +1118,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             removed_count += 1
 
     if removed_count > 0:
-        print(f"🧹 Aktivite temizliği: {removed_count} kullanıcı silindi (Grup: {chat.id})")
+        logger.info(f"🧹 Aktivite temizliği: {removed_count} kullanıcı silindi (Grup: {chat.id})")
 
     # Sıralama numaralarını yeniden ata
     for i, user_data in enumerate(verified_leaderboard, 1):
@@ -1309,7 +1312,7 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
             removed_count += 1
 
     if removed_count > 0:
-        print(f"🧹 Sıralama temizliği: {removed_count} kullanıcı silindi (Grup: {chat.id})")
+        logger.info(f"🧹 Sıralama temizliği: {removed_count} kullanıcı silindi (Grup: {chat.id})")
 
     if not verified_users:
         no_data = f"{title}\n\n⚠️ Henüz mesaj atan kullanıcı yok."
