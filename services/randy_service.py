@@ -592,6 +592,16 @@ async def join_randy(
         if randy['status'] != STATUS_ACTIVE:
             return False, "aktif_degil"
 
+        # Admin kontrolü - Adminler katılamaz
+        if bot and randy.get('group_id'):
+            try:
+                from utils.admin_check import is_group_admin
+                is_admin = await is_group_admin(bot, randy['group_id'], user_id)
+                if is_admin:
+                    return False, "admin_katilamaz"
+            except Exception as e:
+                logger.warning(f"⚠️ Admin kontrolü hatası: {e}")
+
         async with db.pool.acquire() as conn:
             # Zaten GERÇEKTEN katılmış mı? (username veya first_name dolu olanlar gerçek katılımcı)
             existing = await conn.fetchrow("""
