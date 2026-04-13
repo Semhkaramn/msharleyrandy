@@ -873,16 +873,16 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================
-# .bilgi / /bilgi - Kullanıcı Bilgisi (Admin)
+# .inf / /inf - Kullanıcı Bilgisi (Admin)
 # ============================================
 
 async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    .bilgi, /bilgi komutu - Hedef kullanıcının istatistik kartını gösterir
+    .inf, /inf komutu - Hedef kullanıcının istatistik kartını gösterir
     SADECE ADMİNLER KULLANABİLİR
     Kullanım:
-    - Reply ile: .bilgi (reply)
-    - Username ile: .bilgi @username
+    - Reply ile: .inf (reply)
+    - Username ile: .inf @username
     """
     chat = update.effective_chat
     user = update.effective_user
