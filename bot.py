@@ -156,60 +156,7 @@ def main():
     # .inf, /inf - Kullanıcı bilgisi (reply veya @username ile)
     application.add_handler(CommandHandler("inf", bilgi_command))
     application.add_handler(MessageHandler(
-        filters.Regex(r'^[.!]inf(\s+@?\w+)?
-
-    # .günlük - Günlük sıralama (admin)
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]g[üu]nl[üu]k$') & filters.ChatType.GROUPS,
-        gunluk_command
-    ))
-
-    # .haftalık - Haftalık sıralama (admin) - ödülleri de gösterir
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]haftal[ıi]k$') & filters.ChatType.GROUPS,
-        haftalik_command
-    ))
-
-    # .aylık - Aylık sıralama (admin)
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]ayl[ıi]k$') & filters.ChatType.GROUPS,
-        aylik_command
-    ))
-
-    # .aktiflik - Aktivite sıralaması (admin)
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]aktiflik$') & filters.ChatType.GROUPS,
-        aktiflik_command
-    ))
-
-    # ========== CALLBACK HANDLER ==========
-    application.add_handler(CallbackQueryHandler(handle_callback))
-
-    # ========== ÜYE AYRILMA/BANLANMA HANDLER ==========
-    # Kullanıcı gruptan ayrıldığında veya banlandığında veritabanından silinir
-    application.add_handler(ChatMemberHandler(
-        handle_member_update,
-        ChatMemberHandler.CHAT_MEMBER
-    ))
-
-    # ========== MESAJ HANDLER ==========
-    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
-    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
-    # Randy reply bitirme ve medya ekleme için gerekli
-    application.add_handler(MessageHandler(
-        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
-         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
-        handle_message
-    ))
-
-    # Bot'u çalıştır (polling mode - Heroku için)
-    logger.info("🚀 Bot başlatılıyor...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-if __name__ == "__main__":
-    main()
-) & filters.ChatType.GROUPS,
+        filters.Regex(r'^[.!]inf(\s+@?\w+)?$') & filters.ChatType.GROUPS,
         bilgi_command
     ))
 
