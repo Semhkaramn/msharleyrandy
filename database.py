@@ -8,6 +8,9 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from config import DATABASE_URL
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Database:
@@ -25,13 +28,13 @@ class Database:
             command_timeout=60
         )
         await self._create_tables()
-        print("✅ Veritabanına bağlanıldı")
+        logger.info("✅ Veritabanına bağlanıldı")
 
     async def close(self):
         """Bağlantı havuzunu kapat"""
         if self.pool:
             await self.pool.close()
-            print("🔌 Veritabanı bağlantısı kapatıldı")
+            logger.info("🔌 Veritabanı bağlantısı kapatıldı")
 
     async def _create_tables(self):
         """Tabloları oluştur"""
@@ -77,7 +80,7 @@ class Database:
                 await conn.execute("ALTER TABLE telegram_users ADD COLUMN IF NOT EXISTS activity_count INT DEFAULT 0")
                 await conn.execute("ALTER TABLE telegram_users ADD COLUMN IF NOT EXISTS activity_last_reset TIMESTAMP DEFAULT NOW()")
             except Exception as e:
-                print(f"⚠️ Kolon ekleme hatası (muhtemelen zaten mevcut): {e}")
+                logger.warning(f"⚠️ Kolon ekleme hatası (muhtemelen zaten mevcut): {e}")
 
             # Grup Adminleri Cache
             await conn.execute("""
@@ -379,7 +382,7 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_weekly_rewards_group ON weekly_rewards(group_id)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_weekly_reward_history ON weekly_reward_history(group_id, year, week_number)")
 
-            print("✅ Tablolar oluşturuldu")
+            logger.info("✅ Tablolar oluşturuldu")
 
 
 # Singleton instance
