@@ -12,6 +12,9 @@ except ImportError:
 
 from database import db
 from config import IGNORED_USER_IDS
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Türkiye saat dilimi
 TR_TZ = ZoneInfo("Europe/Istanbul")
@@ -149,7 +152,7 @@ async def track_message(
             return True
 
     except Exception as e:
-        print(f"❌ Mesaj kaydetme hatası: {e}")
+        logger.error(f"❌ Mesaj kaydetme hatası: {e}")
         return False
 
 
@@ -210,7 +213,7 @@ async def get_user_stats(telegram_id: int, group_id: int) -> Optional[Dict[str, 
             }
 
     except Exception as e:
-        print(f"❌ İstatistik getirme hatası: {e}")
+        logger.error(f"❌ İstatistik getirme hatası: {e}")
         return None
 
 
@@ -325,7 +328,7 @@ async def get_user_randy_stats(telegram_id: int) -> Dict[str, Any]:
                 "won": won or 0
             }
     except Exception as e:
-        print(f"❌ Randy istatistik hatası: {e}")
+        logger.error(f"❌ Randy istatistik hatası: {e}")
         return {"participated": 0, "won": 0}
 
 
@@ -413,7 +416,7 @@ async def get_user_rankings(telegram_id: int, group_id: int) -> Dict[str, Any]:
             }
 
     except Exception as e:
-        print(f"❌ Sıralama hesaplama hatası: {e}")
+        logger.error(f"❌ Sıralama hesaplama hatası: {e}")
         return {
             "daily_rank": "-",
             "weekly_rank": "-",
@@ -486,5 +489,5 @@ async def is_user_registered(telegram_id: int, group_id: int) -> bool:
             """, telegram_id, group_id)
             return exists is not None
     except Exception as e:
-        print(f"❌ Kullanıcı kontrol hatası: {e}")
+        logger.error(f"❌ Kullanıcı kontrol hatası: {e}")
         return False
