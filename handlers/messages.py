@@ -29,7 +29,7 @@ from services.giveaway_service import (
     create_giveaway, start_giveaway_watcher, update_announcement_message_id
 )
 from services.chat_control_service import close_chat, open_chat
-from services.gpt_service import get_gpt_response, is_gpt_enabled, is_harley_mention, turkish_lower
+from services.gpt_service import get_gpt_response, is_gpt_enabled, is_harley_mention, turkish_lower, should_skip_gpt
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands
 from config import BOT_USERNAME
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -965,7 +965,9 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # 1. Harley'den bahsediliyor mu?
     if is_harley_mention(text):
-        should_respond_gpt = True
+        # Randy, çekiliş, aktiflik vb. mesajlarda GPT çalışmasın
+        if not should_skip_gpt(text):
+            should_respond_gpt = True
 
     # 2. Bot mesajına reply yapılıyor mu?
     if message.reply_to_message:
@@ -974,7 +976,11 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
             # Kendi botumuz mu kontrol et
             bot_info = await context.bot.get_me()
             if reply_from.id == bot_info.id:
-                should_respond_gpt = True
+                # Reply yapılan mesajın içeriğini al
+                reply_text = message.reply_to_message.text or message.reply_to_message.caption or ""
+                # Randy, çekiliş, aktiflik vb. mesajlarına reply yapılıyorsa GPT çalışmasın
+                if not should_skip_gpt(reply_text):
+                    should_respond_gpt = True
 
     if should_respond_gpt and text:
         # GPT bu grup için açık mı?
