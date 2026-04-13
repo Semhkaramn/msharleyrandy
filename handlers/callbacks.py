@@ -7,6 +7,9 @@ import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 from templates import (
     MENU, RANDY, BUTTONS, ERRORS, SUCCESS, GIVEAWAY, STATS,
@@ -192,7 +195,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     # 3. Bilinmeyen callback - loglama için
-    print(f"⚠️ Bilinmeyen callback: {data}")
+    logger.warning(f"⚠️ Bilinmeyen callback: {data}")
 
 
 # ============================================
@@ -306,7 +309,7 @@ async def start_randy_settings(query, user_id: int, context: ContextTypes.DEFAUL
                 'title': chat.title or f"Grup {ACTIVITY_GROUP_ID}"
             }]
         except Exception as e:
-            print(f"❌ Grup bilgisi alma hatası: {e}")
+            logger.error(f"❌ Grup bilgisi alma hatası: {e}")
             # Kullanıcıya hata durumunu bildir
             keyboard = [[InlineKeyboardButton(BUTTONS["ANA_MENU"], callback_data="main_menu")]]
             await query.edit_message_text(
@@ -1906,7 +1909,7 @@ async def confirm_start_cekilis(query, user_id: int, context: ContextTypes.DEFAU
                 pass
 
     except TelegramError as e:
-        print(f"❌ Çekiliş duyuru hatası: {e}")
+        logger.error(f"❌ Çekiliş duyuru hatası: {e}")
 
     # Context'i temizle
     context.user_data.pop('cekilis_prize', None)
