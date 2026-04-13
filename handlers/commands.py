@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
 from database import db
-from templates import MENU, STATS, BUTTONS, ERRORS
+from templates import MENU, STATS, BUTTONS, ERRORS, RANDY as RANDY_TEMPLATES, format_winner_list, get_period_text
 from services.message_service import get_user_stats, get_full_user_stats, is_user_registered
 from services.randy_service import (
     get_active_randy, start_randy, end_randy,
@@ -68,8 +68,6 @@ async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_
     winner_count = randy['winner_count']
 
     # Randy'yi bitir (varsayılan kazanan sayısı ile)
-    from templates import RANDY as RANDY_TEMPLATES, format_winner_list
-
     success, winners = await end_randy_with_count(randy['id'], winner_count)
 
     if not success:
@@ -309,7 +307,6 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # Randy mesajını oluştur
-        from templates import RANDY as RANDY_TEMPLATES, get_period_text
         from services.randy_service import get_randy_channels
         from config import ACTIVITY_GROUP_ID
 
@@ -545,7 +542,6 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     participant_count = await get_participant_count(randy['id'])
 
     # Randy mesajını güncelle
-    from templates import RANDY as RANDY_TEMPLATES, get_period_text
     from config import ACTIVITY_GROUP_ID
 
     # Zorunlu kanalları al (activity dahil)
@@ -707,8 +703,6 @@ async def bitir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _finish_randy(context, chat_id: int, randy: dict):
     """Randy'yi bitir ve sonuçları orijinal mesajda göster"""
-    from templates import RANDY as RANDY_TEMPLATES, format_winner_list
-
     participant_count = await get_participant_count(randy['id'])
     winner_count = randy['winner_count']
 
