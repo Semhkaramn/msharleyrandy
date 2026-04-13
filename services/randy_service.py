@@ -8,6 +8,9 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 from database import db
 from services.message_service import get_user_stats, check_message_requirement
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Status tipleri
 STATUS_DRAFT = 'draft'
@@ -52,7 +55,7 @@ async def create_draft(creator_id: int, group_id: int = None) -> int:
             return draft_id
 
     except Exception as e:
-        print(f"❌ Taslak oluşturma hatası: {e}")
+        logger.error(f"❌ Taslak oluşturma hatası: {e}")
         return 0
 
 
@@ -90,7 +93,7 @@ async def get_draft(creator_id: int, group_id: int = None) -> Optional[Dict[str,
             return None
 
     except Exception as e:
-        print(f"❌ Taslak getirme hatası: {e}")
+        logger.error(f"❌ Taslak getirme hatası: {e}")
         return None
 
 
@@ -135,7 +138,7 @@ async def get_or_create_group_draft(creator_id: int, group_id: int) -> Optional[
             return None
 
     except Exception as e:
-        print(f"❌ Grup taslağı getirme/oluşturma hatası: {e}")
+        logger.error(f"❌ Grup taslağı getirme/oluşturma hatası: {e}")
         return None
 
 
@@ -187,7 +190,7 @@ async def update_draft(creator_id: int, group_id: int = None, **kwargs) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Taslak güncelleme hatası: {e}")
+        logger.error(f"❌ Taslak güncelleme hatası: {e}")
         return False
 
 
@@ -232,7 +235,7 @@ async def delete_draft(creator_id: int, group_id: int = None) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Taslak silme hatası: {e}")
+        logger.error(f"❌ Taslak silme hatası: {e}")
         return False
 
 # ============================================
@@ -283,7 +286,7 @@ async def add_channel_to_draft(
             return True, "Kanal eklendi"
 
     except Exception as e:
-        print(f"❌ Kanal ekleme hatası: {e}")
+        logger.error(f"❌ Kanal ekleme hatası: {e}")
         return False, str(e)
 
 
@@ -313,7 +316,7 @@ async def remove_channel_from_draft(creator_id: int, channel_id: int, group_id: 
             return True
 
     except Exception as e:
-        print(f"❌ Kanal silme hatası: {e}")
+        logger.error(f"❌ Kanal silme hatası: {e}")
         return False
 
 
@@ -344,7 +347,7 @@ async def get_draft_channels(creator_id: int, group_id: int = None) -> List[Dict
             return [dict(c) for c in channels]
 
     except Exception as e:
-        print(f"❌ Kanal listesi hatası: {e}")
+        logger.error(f"❌ Kanal listesi hatası: {e}")
         return []
 
 
@@ -372,7 +375,7 @@ async def clear_draft_channels(creator_id: int, group_id: int = None) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Kanal temizleme hatası: {e}")
+        logger.error(f"❌ Kanal temizleme hatası: {e}")
         return False
 
 
@@ -390,7 +393,7 @@ async def get_randy_channels(randy_id: int) -> List[Dict]:
             return [dict(c) for c in channels]
 
     except Exception as e:
-        print(f"❌ Randy kanal listesi hatası: {e}")
+        logger.error(f"❌ Randy kanal listesi hatası: {e}")
         return []
 
 # ============================================
@@ -413,7 +416,7 @@ async def get_group_draft(group_id: int) -> Optional[Dict[str, Any]]:
             return None
 
     except Exception as e:
-        print(f"❌ Grup ayarları getirme hatası: {e}")
+        logger.error(f"❌ Grup ayarları getirme hatası: {e}")
         return None
 
 
@@ -440,7 +443,7 @@ async def get_randy_by_message_id(group_id: int, message_id: int) -> Optional[Di
             return None
 
     except Exception as e:
-        print(f"❌ Randy mesaj ID ile getirme hatası: {e}")
+        logger.error(f"❌ Randy mesaj ID ile getirme hatası: {e}")
         return None
 
 
@@ -522,7 +525,7 @@ async def start_randy(group_id: int, creator_id: int, message_id: int = None) ->
             }
 
     except Exception as e:
-        print(f"❌ Randy başlatma hatası: {e}")
+        logger.error(f"❌ Randy başlatma hatası: {e}")
         return False, None
 
 
@@ -539,7 +542,7 @@ async def get_active_randy(group_id: int) -> Optional[Dict[str, Any]]:
             return None
 
     except Exception as e:
-        print(f"❌ Aktif Randy getirme hatası: {e}")
+        logger.error(f"❌ Aktif Randy getirme hatası: {e}")
         return None
 
 
@@ -556,7 +559,7 @@ async def get_randy_by_id(randy_id: int) -> Optional[Dict[str, Any]]:
             return None
 
     except Exception as e:
-        print(f"❌ Randy getirme hatası: {e}")
+        logger.error(f"❌ Randy getirme hatası: {e}")
         return None
 
 
@@ -620,12 +623,12 @@ async def join_randy(
                                 else:
                                     activity_name = activity_chat.title or "Ana Grup"
                             except Exception as e:
-                                print(f"⚠️ Activity grup bilgisi alınamadı: {e}")
+                                logger.warning(f"⚠️ Activity grup bilgisi alınamadı: {e}")
                                 activity_name = "Ana Grup"
                             not_member_channels.append(activity_name)
                     except Exception as e:
                         # Activity group kontrolü başarısız - bot gruba erişemiyor olabilir
-                        print(f"⚠️ Activity grup üyelik kontrolü hatası: {e}")
+                        logger.warning(f"⚠️ Activity grup üyelik kontrolü hatası: {e}")
                         check_errors.append("Ana Grup (erişim sorunu)")
 
                 # Sonra eklenen zorunlu kanalları kontrol et
@@ -639,7 +642,7 @@ async def join_randy(
                     except Exception as e:
                         # Kanal kontrolü başarısız - bot kanala erişemiyor olabilir
                         channel_name = f"@{channel['channel_username']}" if channel.get('channel_username') else (channel.get('channel_title') or f"Kanal {channel['channel_id']}")
-                        print(f"⚠️ Kanal üyelik kontrolü hatası ({channel_name}): {e}")
+                        logger.warning(f"⚠️ Kanal üyelik kontrolü hatası ({channel_name}): {e}")
                         check_errors.append(f"{channel_name} (erişim sorunu)")
 
                 # Üyelik kontrolü geçemeyen kanallar varsa
@@ -648,7 +651,7 @@ async def join_randy(
 
                 # Erişim sorunu olan kanallar varsa (geçici olarak izin ver ama logla)
                 if check_errors:
-                    print(f"⚠️ Bazı kanallar kontrol edilemedi (kullanıcı {user_id}): {check_errors}")
+                    logger.warning(f"⚠️ Bazı kanallar kontrol edilemedi (kullanıcı {user_id}): {check_errors}")
 
             # Şart kontrolü
             if randy['requirement_type'] != 'none':
@@ -691,7 +694,7 @@ async def join_randy(
             return True, "basarili"
 
     except Exception as e:
-        print(f"❌ Randy katılım hatası: {e}")
+        logger.error(f"❌ Randy katılım hatası: {e}")
         return False, "hata"
 
 
@@ -706,7 +709,7 @@ async def get_participant_count(randy_id: int) -> int:
             return count or 0
 
     except Exception as e:
-        print(f"❌ Katılımcı sayısı hatası: {e}")
+        logger.error(f"❌ Katılımcı sayısı hatası: {e}")
         return 0
 
 
@@ -761,7 +764,7 @@ async def end_randy(randy_id: int) -> Tuple[bool, List[Dict]]:
             return True, winners
 
     except Exception as e:
-        print(f"❌ Randy sonlandırma hatası: {e}")
+        logger.error(f"❌ Randy sonlandırma hatası: {e}")
         return False, []
 
 
@@ -821,7 +824,7 @@ async def end_randy_with_count(randy_id: int, winner_count: int) -> Tuple[bool, 
             return True, winners
 
     except Exception as e:
-        print(f"❌ Randy sonlandırma hatası (count): {e}")
+        logger.error(f"❌ Randy sonlandırma hatası (count): {e}")
         return False, []
 
 async def track_post_randy_message(
@@ -879,7 +882,7 @@ async def track_post_randy_message(
             return True
 
     except Exception as e:
-        print(f"❌ Post-Randy mesaj takip hatası: {e}")
+        logger.error(f"❌ Post-Randy mesaj takip hatası: {e}")
         return False
 
 async def update_randy_message_id(randy_id: int, message_id: int) -> bool:
@@ -892,7 +895,7 @@ async def update_randy_message_id(randy_id: int, message_id: int) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Randy mesaj ID güncelleme hatası: {e}")
+        logger.error(f"❌ Randy mesaj ID güncelleme hatası: {e}")
         return False
 
 
@@ -915,7 +918,7 @@ async def update_randy_winner_count(randy_id: int, winner_count: int) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Randy kazanan sayısı güncelleme hatası: {e}")
+        logger.error(f"❌ Randy kazanan sayısı güncelleme hatası: {e}")
         return False
 
 
@@ -939,7 +942,7 @@ async def update_draft_winner_count(group_id: int, winner_count: int) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Taslak kazanan sayısı güncelleme hatası: {e}")
+        logger.error(f"❌ Taslak kazanan sayısı güncelleme hatası: {e}")
         return False
 
 
@@ -966,7 +969,7 @@ async def get_user_admin_groups(creator_id: int, bot=None) -> List[Dict]:
             return [dict(g) for g in groups]
 
     except Exception as e:
-        print(f"❌ Admin grupları getirme hatası: {e}")
+        logger.error(f"❌ Admin grupları getirme hatası: {e}")
         return []
 
 
@@ -983,7 +986,7 @@ async def register_group(group_id: int, title: str) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Grup kayıt hatası: {e}")
+        logger.error(f"❌ Grup kayıt hatası: {e}")
         return False
 
 
@@ -1000,5 +1003,5 @@ async def update_group_admin(group_id: int, user_id: int, is_admin: bool) -> boo
             return True
 
     except Exception as e:
-        print(f"❌ Admin güncelleme hatası: {e}")
+        logger.error(f"❌ Admin güncelleme hatası: {e}")
         return False
