@@ -8,7 +8,10 @@ from telegram import Bot, ChatMember
 from telegram.error import TelegramError
 from cachetools import TTLCache
 from config import ADMIN_CACHE_TTL, IGNORED_USER_IDS, ACTIVITY_GROUP_ID
+from utils.logger import get_logger
 
+# Logger
+logger = get_logger(__name__)
 
 # Admin cache: TTLCache ile otomatik temizleme (max 1000 entry, ADMIN_CACHE_TTL süre)
 _admin_cache: TTLCache[Tuple[int, int], bool] = TTLCache(maxsize=1000, ttl=ADMIN_CACHE_TTL)
@@ -46,7 +49,7 @@ async def is_group_admin(bot: Bot, group_id: int, user_id: int) -> bool:
         return is_admin
 
     except TelegramError as e:
-        print(f"❌ Admin kontrolü hatası: {e}")
+        logger.error(f"Admin kontrolü hatası: {e}")
         return False
 
 
@@ -64,7 +67,7 @@ async def is_activity_group_admin(bot: Bot, user_id: int) -> bool:
     """
     if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
         # ACTIVITY_GROUP_ID ayarlanmamış, herkes ayar yapabilir
-        print("⚠️ ACTIVITY_GROUP_ID ayarlanmamış!")
+        logger.warning("ACTIVITY_GROUP_ID ayarlanmamış!")
         return True
 
     return await is_group_admin(bot, ACTIVITY_GROUP_ID, user_id)
