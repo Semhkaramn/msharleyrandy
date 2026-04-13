@@ -19,7 +19,7 @@ from services.randy_service import (
 )
 from services.tagging_service import (
     start_etiket_tagging, start_naber_tagging, stop_tagging,
-    is_tagging_active, get_tagging_type
+    is_tagging_active, get_tagging_type, check_user_in_group, remove_user_from_db
 )
 from services.activity_service import (
     get_activity_settings, get_leaderboard_with_rewards,
@@ -1016,6 +1016,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     .aktiflik komutu - Aktivite sıralamasını ÖDÜLLERLE gösterir
     SADECE ADMİNLER KULLANABİLİR
+    Grupta olmayan kullanıcılar otomatik filtrelenir ve silinir.
 
     Manuel başlat/durdur sistemi:
     - Aktifse: Mevcut sayımı gösterir
@@ -1071,8 +1072,8 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except TelegramError:
         pass
 
-    # Sıralamayı ödüllerle birlikte al - HER ZAMAN 20 KİŞİ GÖSTER
-    leaderboard = await get_leaderboard_with_rewards(chat.id, activity_type, admin_ids, limit=20)
+    # Sıralamayı ödüllerle birlikte al - daha fazla kişi getir (filtreleme için)
+    leaderboard = await get_leaderboard_with_rewards(chat.id, activity_type, admin_ids, limit=40)
 
     type_text = get_activity_type_text(activity_type)
 
@@ -1093,6 +1094,33 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         status_text = "🟡 Son Sıralama"
 
+    # Kullanıcıları filtrele - grupta olmayanları sil
+    verified_leaderboard = []
+    removed_count = 0
+
+    for user_data in leaderboard:
+        if len(verified_leaderboard) >= 20:
+            break  # 20 kişiye ulaştık
+
+        telegram_id = user_data['telegram_id']
+
+        # Kullanıcının grupta olup olmadığını kontrol et
+        is_in_group = await check_user_in_group(context.bot, chat.id, telegram_id)
+
+        if is_in_group:
+            verified_leaderboard.append(user_data)
+        else:
+            # Grupta olmayan kullanıcıyı veritabanından sil
+            await remove_user_from_db(chat.id, telegram_id)
+            removed_count += 1
+
+    if removed_count > 0:
+        print(f"🧹 Aktivite temizliği: {removed_count} kullanıcı silindi (Grup: {chat.id})")
+
+    # Sıralama numaralarını yeniden ata
+    for i, user_data in enumerate(verified_leaderboard, 1):
+        user_data['rank'] = i
+
     medals = ['🥇', '🥈', '🥉']
     lines = [
         f"🏆 <b>{type_text} Aktivite Sıralaması</b>",
@@ -1101,7 +1129,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ""
     ]
 
-    if not leaderboard:
+    if not verified_leaderboard:
         # Liste boş ama yine de düzgün format göster
         lines.append("━━━━━━━━━━━━━━━━━━━━━━")
         if not enabled and not has_data:
@@ -1115,7 +1143,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("━━━━━━━━━━━━━━━━━━━━━━")
     else:
         # Kullanıcıları listele (1 kişi bile olsa göster)
-        for user_data in leaderboard:
+        for user_data in verified_leaderboard:
             rank = user_data['rank']
             medal = medals[rank - 1] if rank <= 3 else f"{rank}."
             telegram_id = user_data['telegram_id']
@@ -1139,7 +1167,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 lines.append(f"{medal} {name} — <b>{count}</b> mesaj")
 
-        lines.append(f"\n💬 {type_text} en aktif {len(leaderboard)} kullanıcı")
+        lines.append(f"\n💬 {type_text} en aktif {len(verified_leaderboard)} kullanıcı")
 
     await message.reply_text("\n".join(lines), parse_mode="HTML")
 
@@ -1164,7 +1192,9 @@ async def aylik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str):
-    """Leaderboard komutu helper - 20 kişi gösterir (ödül YOK, sadece mesaj sayısı)"""
+    """Leaderboard komutu helper - 20 kişi gösterir (ödül YOK, sadece mesaj sayısı)
+    Grupta olmayan kullanıcılar otomatik filtrelenir ve silinir.
+    """
     chat = update.effective_chat
     user = update.effective_user
     message = update.effective_message
@@ -1231,7 +1261,10 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
         # Admin ID'lerini liste olarak al
         admin_ids_list = list(admin_ids) if admin_ids else []
 
-        # Sadece bu dönemde mesaj atmış kullanıcıları getir (adminler hariç) - 20 kişi
+        # Daha fazla kullanıcı getir (filtreleme sonrası 20 kalması için)
+        fetch_limit = 40
+
+        # Sadece bu dönemde mesaj atmış kullanıcıları getir (adminler hariç)
         if admin_ids_list:
             users = await conn.fetch(f"""
                 SELECT telegram_id, username, first_name, last_name, {field} as count
@@ -1239,7 +1272,7 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 WHERE group_id = $1 AND {field} > 0 AND {reset_field} >= $2
                   AND telegram_id != ALL($3::BIGINT[])
                 ORDER BY {field} DESC
-                LIMIT 20
+                LIMIT {fetch_limit}
             """, chat.id, period_start, admin_ids_list)
         else:
             users = await conn.fetch(f"""
@@ -1247,7 +1280,7 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 FROM telegram_users
                 WHERE group_id = $1 AND {field} > 0 AND {reset_field} >= $2
                 ORDER BY {field} DESC
-                LIMIT 20
+                LIMIT {fetch_limit}
             """, chat.id, period_start)
 
     if not users:
@@ -1255,10 +1288,38 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await message.reply_text(no_data, parse_mode="HTML")
         return
 
+    # Kullanıcıları filtrele - grupta olmayanları sil
+    verified_users = []
+    removed_count = 0
+
+    for u in users:
+        if len(verified_users) >= 20:
+            break  # 20 kişiye ulaştık
+
+        telegram_id = u['telegram_id']
+
+        # Kullanıcının grupta olup olmadığını kontrol et
+        is_in_group = await check_user_in_group(context.bot, chat.id, telegram_id)
+
+        if is_in_group:
+            verified_users.append(u)
+        else:
+            # Grupta olmayan kullanıcıyı veritabanından sil
+            await remove_user_from_db(chat.id, telegram_id)
+            removed_count += 1
+
+    if removed_count > 0:
+        print(f"🧹 Sıralama temizliği: {removed_count} kullanıcı silindi (Grup: {chat.id})")
+
+    if not verified_users:
+        no_data = f"{title}\n\n⚠️ Henüz mesaj atan kullanıcı yok."
+        await message.reply_text(no_data, parse_mode="HTML")
+        return
+
     medals = ['🥇', '🥈', '🥉']
     lines = [title, ""]
 
-    for i, u in enumerate(users):
+    for i, u in enumerate(verified_users):
         medal = medals[i] if i < 3 else f"{i + 1}."
         telegram_id = u['telegram_id']
 
@@ -1277,7 +1338,7 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
         lines.append(f"{medal} {name} — <b>{u['count']}</b> mesaj")
 
-    lines.append(f"\n💬 {period_text} en aktif {len(users)} kullanıcı")
+    lines.append(f"\n💬 {period_text} en aktif {len(verified_users)} kullanıcı")
 
     await message.reply_text("\n".join(lines), parse_mode="HTML")
 
