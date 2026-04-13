@@ -220,9 +220,9 @@ async def close_menu(query, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop('waiting_for', None)
 
 
-async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
-    """Ana menüyü göster"""
-    keyboard = [
+def _get_main_menu_keyboard() -> InlineKeyboardMarkup:
+    """Ana menü keyboard'unu döndür - tek yerde tanımla"""
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
         [InlineKeyboardButton(BUTTONS["CEKILIS_YONETIMI"], callback_data="cekilis_menu")],
         [InlineKeyboardButton("🏆 Aktivite Ödülleri", callback_data="activity_menu")],
@@ -231,31 +231,23 @@ async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
         [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
         [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
         [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="close_menu")],
-    ]
+    ])
 
+
+async def show_main_menu(query, context: ContextTypes.DEFAULT_TYPE = None):
+    """Ana menüyü göster"""
     await query.edit_message_text(
         MENU["ANA_MENU"],
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=_get_main_menu_keyboard(),
         parse_mode="HTML"
     )
 
 
 async def show_main_menu_message(message, context: ContextTypes.DEFAULT_TYPE):
     """Ana menüyü mesaj olarak göster (ilk kez)"""
-    keyboard = [
-        [InlineKeyboardButton(BUTTONS["RANDY_YONETIMI"], callback_data="randy_menu")],
-        [InlineKeyboardButton(BUTTONS["CEKILIS_YONETIMI"], callback_data="cekilis_menu")],
-        [InlineKeyboardButton("🏆 Aktivite Ödülleri", callback_data="activity_menu")],
-        [InlineKeyboardButton(BUTTONS["ROLL_YONETIMI"], callback_data="roll_menu")],
-        [InlineKeyboardButton(BUTTONS["ETIKET_YONETIMI"], callback_data="etiket_menu")],
-        [InlineKeyboardButton(BUTTONS["GPT_AYARLARI"], callback_data="gpt_menu")],
-        [InlineKeyboardButton(BUTTONS["ISTATISTIKLER"], callback_data="stats_menu")],
-        [InlineKeyboardButton(BUTTONS["IPTAL"], callback_data="close_menu")],
-    ]
-
     sent_msg = await message.reply_text(
         MENU["ANA_MENU"],
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=_get_main_menu_keyboard(),
         parse_mode="HTML"
     )
 
