@@ -825,12 +825,10 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             )
             return
 
-        # Kullanıcıyı ekle (username -> telegram_id dönüşümü otomatik yapılır)
+        # Kullanıcıyı ekle (veritabanından aranır, API kullanılmaz)
         success, msg = await add_excluded_user_by_input(
-            bot=context.bot,
             group_id=ACTIVITY_GROUP_ID,
-            user_input=text.strip(),
-            added_by=user_id
+            user_input=text.strip()
         )
 
         context.user_data.pop('waiting_for', None)
