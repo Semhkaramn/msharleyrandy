@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from database import db
 from config import DEFAULT_ROLL_DURATION
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # Status tipleri
@@ -54,7 +57,7 @@ async def get_roll_state(group_id: int) -> Dict[str, Any]:
             }
 
     except Exception as e:
-        print(f"❌ Roll state getirme hatası: {e}")
+        logger.error(f"❌ Roll state getirme hatası: {e}")
         return {
             'status': STATUS_STOPPED,
             'active_duration': DEFAULT_ROLL_DURATION,
@@ -96,11 +99,11 @@ async def start_roll(group_id: int, duration: int) -> bool:
                     VALUES ($1, 1, TRUE)
                 """, session_id)
 
-                print(f"✅ Roll başlatıldı: Grup={group_id}, Süre={duration}dk")
+                logger.info(f"✅ Roll başlatıldı: Grup={group_id}, Süre={duration}dk")
                 return True
 
     except Exception as e:
-        print(f"❌ Roll başlatma hatası: {e}")
+        logger.error(f"❌ Roll başlatma hatası: {e}")
         return False
 
 
@@ -129,7 +132,7 @@ async def pause_roll(group_id: int) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Roll duraklatma hatası: {e}")
+        logger.error(f"❌ Roll duraklatma hatası: {e}")
         return False
 
 
@@ -170,7 +173,7 @@ async def lock_roll(group_id: int) -> Tuple[bool, str]:
             return True, "molada" if was_break else "normal"
 
     except Exception as e:
-        print(f"❌ Roll kilitleme hatası: {e}")
+        logger.error(f"❌ Roll kilitleme hatası: {e}")
         return False, "hata"
 
 
@@ -210,7 +213,7 @@ async def unlock_roll(group_id: int) -> Tuple[bool, str]:
             return False, ""
 
     except Exception as e:
-        print(f"❌ Roll kilit açma hatası: {e}")
+        logger.error(f"❌ Roll kilit açma hatası: {e}")
         return False, ""
 
 
@@ -262,7 +265,7 @@ async def start_break(group_id: int) -> Tuple[bool, str]:
             return True, "kilitli" if was_locked else "normal"
 
     except Exception as e:
-        print(f"❌ Mola başlatma hatası: {e}")
+        logger.error(f"❌ Mola başlatma hatası: {e}")
         return False, "hata"
 
 
@@ -340,7 +343,7 @@ async def resume_roll(group_id: int) -> Tuple[bool, str, int]:
             return False, "", 0
 
     except Exception as e:
-        print(f"❌ Roll devam hatası: {e}")
+        logger.error(f"❌ Roll devam hatası: {e}")
         return False, "", 0
 
 
@@ -396,7 +399,7 @@ async def save_step(group_id: int) -> Tuple[bool, str, int]:
             return True, "kaydedildi", step['step_number']
 
     except Exception as e:
-        print(f"❌ Adım kaydetme hatası: {e}")
+        logger.error(f"❌ Adım kaydetme hatası: {e}")
         return False, "hata", 0
 
 
@@ -411,7 +414,7 @@ async def stop_roll(group_id: int) -> bool:
             return True
 
     except Exception as e:
-        print(f"❌ Roll durdurma hatası: {e}")
+        logger.error(f"❌ Roll durdurma hatası: {e}")
         return False
 
 
@@ -484,7 +487,7 @@ async def track_user_message(
             return True
 
     except Exception as e:
-        print(f"❌ Roll mesaj takip hatası: {e}")
+        logger.error(f"❌ Roll mesaj takip hatası: {e}")
         return False
 
 
@@ -530,7 +533,7 @@ async def clean_inactive_users(group_id: int) -> int:
             return deleted
 
     except Exception as e:
-        print(f"❌ İnaktif temizleme hatası: {e}")
+        logger.error(f"❌ İnaktif temizleme hatası: {e}")
         return 0
 
 
@@ -595,7 +598,7 @@ async def get_status_list(group_id: int, return_raw: bool = False) -> Tuple[str,
             return session['status'], result_steps, session_info
 
     except Exception as e:
-        print(f"❌ Status list hatası: {e}")
+        logger.error(f"❌ Status list hatası: {e}")
         return "error", [], {}
 
 
