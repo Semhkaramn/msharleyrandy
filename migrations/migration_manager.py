@@ -435,6 +435,31 @@ class MigrationManager:
             """
         ))
 
+        # Migration 008: Etiket Hariç Tutma Tablosu
+        self.migrations.append(Migration(
+            version=8,
+            name="tag_excluded_users",
+            up_sql="""
+                -- Etiketlenmeyecek Kullanıcılar
+                -- Username girilse bile telegram_id olarak kaydedilir
+                CREATE TABLE IF NOT EXISTS tag_excluded_users (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    telegram_id BIGINT NOT NULL,
+                    username TEXT,
+                    first_name TEXT,
+                    added_by BIGINT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(group_id, telegram_id)
+                );
+
+                -- Index
+                CREATE INDEX IF NOT EXISTS idx_tag_excluded_group ON tag_excluded_users(group_id);
+                CREATE INDEX IF NOT EXISTS idx_tag_excluded_user ON tag_excluded_users(telegram_id);
+            """,
+            down_sql="DROP TABLE IF EXISTS tag_excluded_users;"
+        ))
+
         # Yeni migration'lar buraya eklenecek...
 
     async def _ensure_migrations_table(self):
