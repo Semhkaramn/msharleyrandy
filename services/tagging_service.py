@@ -13,6 +13,7 @@ from database import db
 from telegram import Bot
 from telegram.error import RetryAfter, TelegramError, BadRequest
 from utils.logger import get_logger
+from services.tag_exclusion_service import get_excluded_user_ids
 
 # Logger
 logger = get_logger(__name__)
@@ -280,21 +281,36 @@ async def cleanup_group_users(bot: Bot, group_id: int) -> int:
 async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
     """
     Gruptaki kayıtlı kullanıcıları getir
+    NOT: tag_excluded_users tablosundaki kullanıcılar HARİÇ TUTULUR!
 
     Args:
         group_id: Telegram grup ID
 
     Returns:
-        List[Dict]: Kullanıcı listesi
+        List[Dict]: Kullanıcı listesi (hariç tutulanlar filtrelenmiş)
     """
     try:
+        # Önce hariç tutulan kullanıcı ID'lerini al
+        excluded_ids = await get_excluded_user_ids(group_id)
+
         async with db.pool.acquire() as conn:
-            users = await conn.fetch("""
-                SELECT telegram_id, username, first_name, last_name
-                FROM telegram_users
-                WHERE group_id = $1
-                ORDER BY message_count DESC
-            """, group_id)
+            if excluded_ids:
+                # Hariç tutulanları filtrele
+                users = await conn.fetch("""
+                    SELECT telegram_id, username, first_name, last_name
+                    FROM telegram_users
+                    WHERE group_id = $1
+                      AND telegram_id != ALL($2::BIGINT[])
+                    ORDER BY message_count DESC
+                """, group_id, excluded_ids)
+            else:
+                # Hariç tutulan yoksa normal sorgu
+                users = await conn.fetch("""
+                    SELECT telegram_id, username, first_name, last_name
+                    FROM telegram_users
+                    WHERE group_id = $1
+                    ORDER BY message_count DESC
+                """, group_id)
 
             return [dict(u) for u in users]
     except Exception as e:
