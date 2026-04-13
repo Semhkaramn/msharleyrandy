@@ -166,6 +166,7 @@ RANDY = {
     "BULUNAMADI": "❌ Randy bulunamadı.",
     "AKTIF_DEGIL": "❌ Bu Randy artık aktif değil.",
     "YASAKLI": "🚫 Yasaklısınız ve Randy'lere katılamazsınız.",
+    "ADMIN_KATILAMAZ": "⚠️ Adminler Randy'ye katılamaz!",
 
     "KANAL_UYESI_DEGIL": "❌ Önce şu kanallara üye olmalısınız:\n{channels}",
 
