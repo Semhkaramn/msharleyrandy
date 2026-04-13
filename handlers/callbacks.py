@@ -1077,7 +1077,7 @@ async def show_gpt_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE)
         try:
             chat = await context.bot.get_chat(ACTIVITY_GROUP_ID)
             groups = [{'group_id': ACTIVITY_GROUP_ID, 'title': chat.title}]
-        except:
+        except TelegramError:
             pass
 
     if not groups:
@@ -2511,7 +2511,7 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                         channels_list.append(f'<a href="https://t.me/{activity_chat.username}">{activity_chat.title or activity_chat.username}</a>')
                     elif activity_chat.title:
                         channels_list.append(activity_chat.title)
-                except:
+                except TelegramError:
                     pass
 
             # Eklenen zorunlu kanalları al
