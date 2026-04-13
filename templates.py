@@ -130,7 +130,7 @@ MENU = {
         "• <code>.ben</code> - Kendi istatistikleriniz\n\n"
         "<b>Adminler:</b>\n"
         "• <code>.inf</code> (reply) - Birinin istatistikleri\n"
-        "• <code>.inf @username</code> - Kullanıcı istatistikleri\n"
+        "• <code>.inf @kullanıcı</code> - Kullanıcı istatistikleri\n"
         "• <code>.günlük</code> - Günlük sıralama\n"
         "• <code>.haftalık</code> - Haftalık sıralama\n"
         "• <code>.aylık</code> - Aylık sıralama\n"
@@ -252,8 +252,7 @@ STATS = {
         "    Aktiflik  ➜  <b>{activity_rank}</b>\n\n"
         "🎲 <b>Randy</b>\n"
         "    Katılım  ➜  <b>{randy_participated}</b>\n"
-        "    Kazanma  ➜  <b>{randy_won}</b>\n"
-        "{win_rate_line}"
+        "    Kazanma  ➜  <b>{randy_won}</b>\n{win_rate_line}"
     ),
 
     # Bot başlatma mesajı
