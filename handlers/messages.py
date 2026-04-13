@@ -56,6 +56,42 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from templates import MENU, BUTTONS, get_period_text, RANDY as RANDY_TEMPLATES, format_winner_list
 
 
+async def handle_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Üye değişikliklerini işler.
+    Kullanıcı gruptan ayrıldığında veya banlandığında veritabanından silinir.
+    """
+    from services.tagging_service import remove_user_from_db
+
+    # ChatMemberUpdated objesi
+    member_update = update.chat_member
+
+    if not member_update:
+        return
+
+    chat = member_update.chat
+    user = member_update.new_chat_member.user
+    new_status = member_update.new_chat_member.status
+    old_status = member_update.old_chat_member.status if member_update.old_chat_member else None
+
+    # Sadece grup/supergroup için işle
+    if chat.type not in ['group', 'supergroup']:
+        return
+
+    # Kullanıcı gruptan ayrıldı mı veya banlandı mı?
+    # Durum değişikliği: member/administrator -> left/kicked/banned
+    left_statuses = ['left', 'kicked', 'banned']
+    member_statuses = ['member', 'administrator', 'creator', 'restricted']
+
+    if new_status in left_statuses and old_status in member_statuses:
+        # Kullanıcı gruptan çıktı veya banlandı - veritabanından sil
+        try:
+            await remove_user_from_db(chat.id, user.id)
+            print(f"🚪 Üye ayrıldı/banlandı: {user.first_name} ({user.id}) - Grup: {chat.title} ({chat.id})")
+        except Exception as e:
+            print(f"❌ Üye silme hatası: {e}")
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Tüm mesajları işler:
