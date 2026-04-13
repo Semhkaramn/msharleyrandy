@@ -36,24 +36,13 @@ KARAKTER:
 - Ruh halin değişken (enerjik / sakin / dalgın / nazlı)
 - Gerçek zamanlı sohbet ediyormuş gibi konuşursun
 
-KONUŞMA MANTIĞI:
-Her mesajı aşağıdaki 4 MOD’dan birini seçerek yaz. Rastgele gibi düşün ama doğal olsun:
+KONUŞMA TARZI:
+İçinden rastgele bir tarz seç ve ona göre cevap ver:
 
-1) YORUM MODU:
-- Kısa yorum yaparsın
-- Örnek: "hahaha bu baya iyiymiş", "cidden mi ya", "şaka gibi"
-
-2) SORU MODU:
-- Karşı tarafa soru sorarsın
-- Örnek: "ne yaptın bugün", "nasıl geçti günün", "ciddii mi"
-
-3) REAKSİYON MODU:
-- Sadece tepki verirsin
-- Örnek: "ahahaha", "yaa off", "hımm"
-
-4) SOHBET MODU:
-- 1-3 cümlelik doğal anlatım yaparsın
-- Küçük detaylar ekleyebilirsin, konudan hafif sapabilirsin
+- Kısa yorum: "hahaha bu baya iyiymiş", "cidden mi ya", "şaka gibi"
+- Soru sorma: "ne yaptın bugün", "nasıl geçti günün", "ciddii mi"
+- Tepki: "ahahaha", "yaa off", "hımm"
+- Kısa sohbet: 1-3 cümlelik doğal anlatım
 
 DİL STİLİ:
 - Emoji kullanma
@@ -61,11 +50,77 @@ DİL STİLİ:
 - Bazen cümleler tam bitmeyebilir, doğal konuşma gibi
 - Fazla süslü veya kitap gibi konuşma
 
-ÖNEMLİ:
-- Ezber cümle kullanma, ama aynı "mod" içinde farklı ifadeler üret
-- Her mesaj tek bir mod üzerine kurulabilir veya hafif karışabilir
+ÇOK ÖNEMLİ KURALLAR:
+- ASLA "YORUM MODU:", "REAKSİYON MODU:", "SORU MODU:", "SOHBET MODU:" gibi etiketler yazma
+- ASLA hangi modda olduğunu belirtme veya açıklama
+- Sadece doğrudan cevabını yaz, başka bir şey ekleme
+- Ezber cümle kullanma, farklı ifadeler üret
 - İnsan gibi hızlı düşünülmeden yazılmış hissi ver
 """
+
+
+# ========== 🚫 GPT ATLANACAK MESAJLAR ==========
+
+def should_skip_gpt(text: str) -> bool:
+    """
+    GPT'nin cevap vermemesi gereken mesajları kontrol eder.
+    Randy, çekiliş, aktiflik, günlük/haftalık/aylık mesajlarına cevap verilmez.
+    """
+    if not text:
+        return False
+
+    lower = turkish_lower(text.strip())
+
+    # Bot mesajlarından gelen özel kalıplar (Randy, çekiliş vb.)
+    skip_patterns = [
+        # Randy mesajları
+        'randy başladı',
+        'randy sona erdi',
+        'katılımcı:',
+        'kazananlar:',
+        '🎉 katıl',
+        '🎲 randy',
+
+        # Çekiliş mesajları
+        'çekiliş başladı',
+        'çekilişi kazandınız',
+        'çekiliş sona erdi',
+        'çekiliş kazananı',
+        '🎁 çekiliş',
+
+        # Aktiflik mesajları
+        'aktiflik liderleri',
+        'en aktif',
+        'aktivite sıralaması',
+        'haftalık aktivite',
+        'aylık aktivite',
+        'günlük aktivite',
+        '🏆 haftalık',
+        '🏆 aylık',
+        '🏆 günlük',
+
+        # İstatistik komutları ve çıktıları
+        '.günlük',
+        '.haftalık',
+        '.aylık',
+        '.aktiflik',
+        'bugün yazdı',
+        'bu hafta yazdı',
+        'bu ay yazdı',
+        'mesaj istatistik',
+
+        # Roll mesajları
+        'roll başladı',
+        'roll sonlandırıldı',
+        'roll durumu',
+        'adım kaydedildi',
+    ]
+
+    for pattern in skip_patterns:
+        if pattern in lower:
+            return True
+
+    return False
 
 
 # ========== 🔥 ÖZEL CEVAP (GÜNCELLENDİ) ==========
@@ -93,7 +148,11 @@ def get_special_reply(text: str) -> Optional[str]:
 # ========== GPT RESPONSE ==========
 
 async def get_gpt_response(user_message: str, user_name: str = "Kullanıcı") -> Optional[str]:
-    
+
+    # 🚫 ATLANACAK MESAJ KONTROLÜ
+    if should_skip_gpt(user_message):
+        return None
+
     # 🔥 ÖNCE ÖZEL CEVAP KONTROLÜ
     special = get_special_reply(user_message)
     if special:
@@ -126,11 +185,16 @@ async def get_gpt_response(user_message: str, user_name: str = "Kullanıcı") ->
                 data = response.json()
                 content = data["choices"][0]["message"]["content"].strip()
 
+                # Kaldırılacak prefix'ler (mod etiketleri dahil)
                 prefixes_to_remove = [
-                    "Harley:", "harley:", "HARLEY:"
+                    "Harley:", "harley:", "HARLEY:",
+                    "YORUM MODU:", "Yorum Modu:", "yorum modu:",
+                    "REAKSİYON MODU:", "Reaksiyon Modu:", "reaksiyon modu:",
+                    "SORU MODU:", "Soru Modu:", "soru modu:",
+                    "SOHBET MODU:", "Sohbet Modu:", "sohbet modu:",
                 ]
                 for prefix in prefixes_to_remove:
-                    if content.lower().startswith(prefix.lower()):
+                    if content.startswith(prefix):
                         content = content[len(prefix):].strip()
                         break
 
