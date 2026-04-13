@@ -1,14 +1,13 @@
 """
 🚫 Etiket Hariç Tutma Servisi
 Belirli kullanıcıların etiketlenmesini engeller
-- Username girilse bile telegram_id olarak kaydedilir
-- Etiketleme sistemlerinde bu kullanıcılar atlanır
+- telegram_users tablosundaki is_taggable kolonu kullanılır
+- Username girince veritabanından bulunur, API'ye gidilmez
+- is_taggable = false olanlar etiketlenmez
 """
 
 from typing import List, Dict, Any, Optional, Tuple
 from database import db
-from telegram import Bot
-from telegram.error import TelegramError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -16,7 +15,7 @@ logger = get_logger(__name__)
 
 async def get_excluded_users(group_id: int) -> List[Dict[str, Any]]:
     """
-    Gruptaki etiketlenmeyecek kullanıcıları getir
+    Gruptaki etiketlenmeyecek kullanıcıları getir (is_taggable = false)
 
     Args:
         group_id: Grup ID
@@ -27,10 +26,10 @@ async def get_excluded_users(group_id: int) -> List[Dict[str, Any]]:
     try:
         async with db.pool.acquire() as conn:
             users = await conn.fetch("""
-                SELECT telegram_id, username, first_name, added_by, created_at
-                FROM tag_excluded_users
-                WHERE group_id = $1
-                ORDER BY created_at DESC
+                SELECT telegram_id, username, first_name, updated_at as created_at
+                FROM telegram_users
+                WHERE group_id = $1 AND is_taggable = FALSE
+                ORDER BY updated_at DESC
             """, group_id)
             return [dict(u) for u in users]
     except Exception as e:
@@ -51,7 +50,8 @@ async def get_excluded_user_ids(group_id: int) -> List[int]:
     try:
         async with db.pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT telegram_id FROM tag_excluded_users WHERE group_id = $1
+                SELECT telegram_id FROM telegram_users
+                WHERE group_id = $1 AND is_taggable = FALSE
             """, group_id)
             return [row['telegram_id'] for row in rows]
     except Exception as e:
@@ -68,13 +68,13 @@ async def is_user_excluded(group_id: int, telegram_id: int) -> bool:
         telegram_id: Telegram kullanıcı ID
 
     Returns:
-        bool: Hariç ise True
+        bool: Hariç ise True (is_taggable = false)
     """
     try:
         async with db.pool.acquire() as conn:
             result = await conn.fetchval("""
-                SELECT 1 FROM tag_excluded_users
-                WHERE group_id = $1 AND telegram_id = $2
+                SELECT 1 FROM telegram_users
+                WHERE group_id = $1 AND telegram_id = $2 AND is_taggable = FALSE
                 LIMIT 1
             """, group_id, telegram_id)
             return result is not None
@@ -83,55 +83,147 @@ async def is_user_excluded(group_id: int, telegram_id: int) -> bool:
         return False
 
 
-async def add_excluded_user(
-    group_id: int,
-    telegram_id: int,
-    username: str = None,
-    first_name: str = None,
-    added_by: int = None
-) -> Tuple[bool, str]:
+async def find_user_by_username(group_id: int, username: str) -> Optional[Dict[str, Any]]:
     """
-    Kullanıcıyı etiketleme hariç listesine ekle
+    Veritabanından username'e göre kullanıcı bul
+
+    Args:
+        group_id: Grup ID
+        username: Kullanıcı adı (@ ile veya @ olmadan)
+
+    Returns:
+        Dict veya None
+    """
+    username = username.strip().lstrip('@').lower()
+
+    try:
+        async with db.pool.acquire() as conn:
+            user = await conn.fetchrow("""
+                SELECT telegram_id, username, first_name, is_taggable
+                FROM telegram_users
+                WHERE group_id = $1 AND LOWER(username) = $2
+                LIMIT 1
+            """, group_id, username)
+            return dict(user) if user else None
+    except Exception as e:
+        logger.error(f"Kullanıcı arama hatası: {e}")
+        return None
+
+
+async def find_user_by_id(group_id: int, telegram_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Veritabanından telegram_id'ye göre kullanıcı bul
 
     Args:
         group_id: Grup ID
         telegram_id: Telegram kullanıcı ID
-        username: Kullanıcı adı (opsiyonel)
-        first_name: İsim (opsiyonel)
-        added_by: Ekleyen admin ID
+
+    Returns:
+        Dict veya None
+    """
+    try:
+        async with db.pool.acquire() as conn:
+            user = await conn.fetchrow("""
+                SELECT telegram_id, username, first_name, is_taggable
+                FROM telegram_users
+                WHERE group_id = $1 AND telegram_id = $2
+                LIMIT 1
+            """, group_id, telegram_id)
+            return dict(user) if user else None
+    except Exception as e:
+        logger.error(f"Kullanıcı arama hatası: {e}")
+        return None
+
+
+async def set_user_taggable(group_id: int, telegram_id: int, is_taggable: bool) -> Tuple[bool, str]:
+    """
+    Kullanıcının etiketlenebilirlik durumunu ayarla
+
+    Args:
+        group_id: Grup ID
+        telegram_id: Telegram kullanıcı ID
+        is_taggable: True = etiketlenebilir, False = etiketlenemez
 
     Returns:
         Tuple[bool, str]: (Başarılı mı, Mesaj)
     """
     try:
         async with db.pool.acquire() as conn:
-            # Zaten var mı kontrol et
-            exists = await conn.fetchval("""
-                SELECT 1 FROM tag_excluded_users
+            # Kullanıcı var mı kontrol et
+            user = await conn.fetchrow("""
+                SELECT username, first_name, is_taggable
+                FROM telegram_users
                 WHERE group_id = $1 AND telegram_id = $2
             """, group_id, telegram_id)
 
-            if exists:
-                return False, "Bu kullanıcı zaten listede."
+            if not user:
+                return False, "❌ Bu kullanıcı veritabanında yok. Kullanıcının grupta en az bir mesaj atmış olması gerekiyor."
+
+            current_status = user['is_taggable']
+            if current_status is None:
+                current_status = True  # Default değer
+
+            if current_status == is_taggable:
+                if is_taggable:
+                    return False, "Bu kullanıcı zaten etiketlenebilir durumda."
+                else:
+                    return False, "Bu kullanıcı zaten etiketlenmeyecek listesinde."
 
             await conn.execute("""
-                INSERT INTO tag_excluded_users
-                (group_id, telegram_id, username, first_name, added_by)
-                VALUES ($1, $2, $3, $4, $5)
-            """, group_id, telegram_id, username, first_name, added_by)
+                UPDATE telegram_users
+                SET is_taggable = $3, updated_at = NOW()
+                WHERE group_id = $1 AND telegram_id = $2
+            """, group_id, telegram_id, is_taggable)
 
-            display_name = f"@{username}" if username else first_name or str(telegram_id)
-            logger.info(f"Etiket hariç eklendi: {display_name} ({telegram_id}) - Grup: {group_id}")
-            return True, f"✅ {display_name} etiketlenmeyecek listesine eklendi."
+            display_name = f"@{user['username']}" if user['username'] else user['first_name'] or str(telegram_id)
+
+            if is_taggable:
+                logger.info(f"Etiketlenebilir yapıldı: {display_name} ({telegram_id}) - Grup: {group_id}")
+                return True, f"✅ {display_name} artık etiketlenebilir."
+            else:
+                logger.info(f"Etiket hariç yapıldı: {display_name} ({telegram_id}) - Grup: {group_id}")
+                return True, f"✅ {display_name} etiketlenmeyecek listesine eklendi."
 
     except Exception as e:
-        logger.error(f"Hariç tutma ekleme hatası: {e}")
+        logger.error(f"Etiketlenebilirlik ayarlama hatası: {e}")
         return False, "Bir hata oluştu."
+
+
+async def add_excluded_user_by_input(group_id: int, user_input: str) -> Tuple[bool, str]:
+    """
+    Username veya ID ile kullanıcıyı etiketlenmeyecek listesine ekle
+    Veritabanından arar, API kullanmaz
+
+    Args:
+        group_id: Grup ID
+        user_input: @username veya user_id
+
+    Returns:
+        Tuple[bool, str]: (Başarılı mı, Mesaj)
+    """
+    user_input = user_input.strip()
+
+    # Sayı ise ID olarak ara
+    if user_input.isdigit():
+        telegram_id = int(user_input)
+        user = await find_user_by_id(group_id, telegram_id)
+        if not user:
+            return False, f"❌ ID {telegram_id} veritabanında bulunamadı. Kullanıcının grupta mesaj atmış olması gerekiyor."
+        return await set_user_taggable(group_id, telegram_id, False)
+
+    # Username ile ara
+    username = user_input.lstrip('@')
+    user = await find_user_by_username(group_id, username)
+
+    if not user:
+        return False, f"❌ @{username} veritabanında bulunamadı. Kullanıcının grupta mesaj atmış olması gerekiyor."
+
+    return await set_user_taggable(group_id, user['telegram_id'], False)
 
 
 async def remove_excluded_user(group_id: int, telegram_id: int) -> Tuple[bool, str]:
     """
-    Kullanıcıyı etiketleme hariç listesinden çıkar
+    Kullanıcıyı etiketlenmeyecek listesinden çıkar (is_taggable = true yap)
 
     Args:
         group_id: Grup ID
@@ -140,119 +232,35 @@ async def remove_excluded_user(group_id: int, telegram_id: int) -> Tuple[bool, s
     Returns:
         Tuple[bool, str]: (Başarılı mı, Mesaj)
     """
-    try:
-        async with db.pool.acquire() as conn:
-            result = await conn.execute("""
-                DELETE FROM tag_excluded_users
-                WHERE group_id = $1 AND telegram_id = $2
-            """, group_id, telegram_id)
-
-            if result == "DELETE 0":
-                return False, "Bu kullanıcı listede değil."
-
-            logger.info(f"Etiket hariç çıkarıldı: {telegram_id} - Grup: {group_id}")
-            return True, f"✅ Kullanıcı etiketlenebilir listesine eklendi."
-
-    except Exception as e:
-        logger.error(f"Hariç tutma çıkarma hatası: {e}")
-        return False, "Bir hata oluştu."
+    return await set_user_taggable(group_id, telegram_id, True)
 
 
-async def resolve_user_to_id(bot: Bot, user_input: str) -> Tuple[Optional[int], Optional[str], Optional[str]]:
+async def remove_excluded_user_by_input(group_id: int, user_input: str) -> Tuple[bool, str]:
     """
-    Kullanıcı girdisini (username veya ID) Telegram ID'ye çevir
+    Username veya ID ile kullanıcıyı etiketlenebilir yap
 
     Args:
-        bot: Telegram bot instance
+        group_id: Grup ID
         user_input: @username veya user_id
 
     Returns:
-        Tuple[telegram_id, username, first_name] veya (None, None, None) hata durumunda
+        Tuple[bool, str]: (Başarılı mı, Mesaj)
     """
     user_input = user_input.strip()
 
-    # Sayı ise direkt ID olarak kullan
+    # Sayı ise ID olarak ara
     if user_input.isdigit():
         telegram_id = int(user_input)
-        try:
-            # Kullanıcı bilgisini al
-            chat = await bot.get_chat(telegram_id)
-            return telegram_id, chat.username, chat.first_name
-        except TelegramError:
-            # ID geçerli ama bilgi alınamadı, yine de kaydet
-            return telegram_id, None, None
+        return await set_user_taggable(group_id, telegram_id, True)
 
-    # @ ile başlayan username
+    # Username ile ara
     username = user_input.lstrip('@')
+    user = await find_user_by_username(group_id, username)
 
-    try:
-        chat = await bot.get_chat(f"@{username}")
+    if not user:
+        return False, f"❌ @{username} veritabanında bulunamadı."
 
-        # Kullanıcı mı kontrol et
-        if chat.type != 'private':
-            return None, None, None
-
-        return chat.id, chat.username, chat.first_name
-
-    except TelegramError as e:
-        logger.warning(f"Kullanıcı bulunamadı: {username} - {e}")
-        return None, None, None
-
-
-async def add_excluded_user_by_input(
-    bot: Bot,
-    group_id: int,
-    user_input: str,
-    added_by: int
-) -> Tuple[bool, str]:
-    """
-    Username veya ID ile kullanıcıyı hariç listesine ekle
-
-    Args:
-        bot: Telegram bot instance
-        group_id: Grup ID
-        user_input: @username veya user_id
-        added_by: Ekleyen admin ID
-
-    Returns:
-        Tuple[bool, str]: (Başarılı mı, Mesaj)
-    """
-    telegram_id, username, first_name = await resolve_user_to_id(bot, user_input)
-
-    if not telegram_id:
-        return False, "❌ Kullanıcı bulunamadı. Geçerli bir @username veya user_id girin."
-
-    return await add_excluded_user(
-        group_id=group_id,
-        telegram_id=telegram_id,
-        username=username,
-        first_name=first_name,
-        added_by=added_by
-    )
-
-
-async def remove_excluded_user_by_input(
-    bot: Bot,
-    group_id: int,
-    user_input: str
-) -> Tuple[bool, str]:
-    """
-    Username veya ID ile kullanıcıyı hariç listesinden çıkar
-
-    Args:
-        bot: Telegram bot instance
-        group_id: Grup ID
-        user_input: @username veya user_id
-
-    Returns:
-        Tuple[bool, str]: (Başarılı mı, Mesaj)
-    """
-    telegram_id, _, _ = await resolve_user_to_id(bot, user_input)
-
-    if not telegram_id:
-        return False, "❌ Kullanıcı bulunamadı."
-
-    return await remove_excluded_user(group_id, telegram_id)
+    return await set_user_taggable(group_id, user['telegram_id'], True)
 
 
 def format_excluded_users_list(users: List[Dict[str, Any]]) -> str:
@@ -285,3 +293,17 @@ def format_excluded_users_list(users: List[Dict[str, Any]]) -> str:
         lines.append(f"{i}. {display} (ID: <code>{telegram_id}</code>)")
 
     return "\n".join(lines)
+
+
+# Eski fonksiyonlar için uyumluluk (eski kod varsa çalışmaya devam etsin)
+async def add_excluded_user(
+    group_id: int,
+    telegram_id: int,
+    username: str = None,
+    first_name: str = None,
+    added_by: int = None
+) -> Tuple[bool, str]:
+    """
+    Eski API uyumluluğu için - set_user_taggable kullanır
+    """
+    return await set_user_taggable(group_id, telegram_id, False)
