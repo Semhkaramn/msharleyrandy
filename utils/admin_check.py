@@ -3,15 +3,15 @@
 Telegram API ile admin kontrolü ve cache yönetimi
 """
 
-import time
-from typing import Optional, Dict, Tuple
+from typing import Optional, Tuple
 from telegram import Bot, ChatMember
 from telegram.error import TelegramError
+from cachetools import TTLCache
 from config import ADMIN_CACHE_TTL, IGNORED_USER_IDS, ACTIVITY_GROUP_ID
 
 
-# Admin cache: {(group_id, user_id): (is_admin, timestamp)}
-_admin_cache: Dict[Tuple[int, int], Tuple[bool, float]] = {}
+# Admin cache: TTLCache ile otomatik temizleme (max 1000 entry, ADMIN_CACHE_TTL süre)
+_admin_cache: TTLCache[Tuple[int, int], bool] = TTLCache(maxsize=1000, ttl=ADMIN_CACHE_TTL)
 
 
 async def is_group_admin(bot: Bot, group_id: int, user_id: int) -> bool:
@@ -27,13 +27,10 @@ async def is_group_admin(bot: Bot, group_id: int, user_id: int) -> bool:
         bool: Admin ise True
     """
     cache_key = (group_id, user_id)
-    now = time.time()
 
-    # Cache'de var mı kontrol et
+    # Cache'de var mı kontrol et (TTLCache otomatik expire yönetiyor)
     if cache_key in _admin_cache:
-        is_admin, cached_time = _admin_cache[cache_key]
-        if now - cached_time < ADMIN_CACHE_TTL:
-            return is_admin
+        return _admin_cache[cache_key]
 
     # Telegram API'den kontrol et
     try:
@@ -43,8 +40,8 @@ async def is_group_admin(bot: Bot, group_id: int, user_id: int) -> bool:
             ChatMember.OWNER
         ]
 
-        # Cache'e kaydet
-        _admin_cache[cache_key] = (is_admin, now)
+        # Cache'e kaydet (TTLCache otomatik olarak eski kayıtları temizler)
+        _admin_cache[cache_key] = is_admin
 
         return is_admin
 
@@ -153,18 +150,16 @@ def clear_admin_cache(group_id: int = None, user_id: int = None):
         group_id: Belirli bir grubun cache'ini temizle (None ise hepsini)
         user_id: Belirli bir kullanıcının cache'ini temizle (None ise hepsini)
     """
-    global _admin_cache
-
     if group_id is None and user_id is None:
         _admin_cache.clear()
         return
 
     keys_to_remove = []
 
-    for key in _admin_cache:
+    for key in list(_admin_cache.keys()):
         g_id, u_id = key
         if (group_id is None or g_id == group_id) and (user_id is None or u_id == user_id):
             keys_to_remove.append(key)
 
     for key in keys_to_remove:
-        del _admin_cache[key]
+        _admin_cache.pop(key, None)
