@@ -1119,7 +1119,7 @@ async def show_tag_excluded_menu(query, user_id: int, context: ContextTypes.DEFA
         "🚫 <b>Etiketlenmeyecek Kullanıcılar</b>\n\n"
         f"{users_text}\n\n"
         "💡 <i>Bu listedeki kullanıcılar etiketleme işlemlerinde (</i><code>/etiket</code><i>, </i><code>/naber</code><i>, otomatik etiket) atlanır.</i>\n\n"
-        "⚠️ <i>Username değişse bile ID kaydedildiği için doğru çalışır.</i>"
+        "⚠️ <i>Kullanıcının grupta en az 1 mesaj atmış olması gerekiyor.</i>"
     )
 
     await query.edit_message_text(
