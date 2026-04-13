@@ -76,8 +76,8 @@ class Database:
             try:
                 await conn.execute("ALTER TABLE telegram_users ADD COLUMN IF NOT EXISTS activity_count INT DEFAULT 0")
                 await conn.execute("ALTER TABLE telegram_users ADD COLUMN IF NOT EXISTS activity_last_reset TIMESTAMP DEFAULT NOW()")
-            except:
-                pass
+            except Exception as e:
+                print(f"⚠️ Kolon ekleme hatası (muhtemelen zaten mevcut): {e}")
 
             # Grup Adminleri Cache
             await conn.execute("""
