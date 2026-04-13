@@ -435,29 +435,25 @@ class MigrationManager:
             """
         ))
 
-        # Migration 008: Etiket Hariç Tutma Tablosu
+
+        # Migration 008: is_taggable kolonu
         self.migrations.append(Migration(
-            version=8,
-            name="tag_excluded_users",
+            version=9,
+            name="is_taggable_column",
             up_sql="""
-                -- Etiketlenmeyecek Kullanıcılar
-                -- Username girilse bile telegram_id olarak kaydedilir
-                CREATE TABLE IF NOT EXISTS tag_excluded_users (
-                    id SERIAL PRIMARY KEY,
-                    group_id BIGINT NOT NULL,
-                    telegram_id BIGINT NOT NULL,
-                    username TEXT,
-                    first_name TEXT,
-                    added_by BIGINT NOT NULL,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    UNIQUE(group_id, telegram_id)
-                );
+                -- telegram_users tablosuna is_taggable kolonu ekle
+                -- false olanlar etiketlenmeyecek
+                ALTER TABLE telegram_users
+                ADD COLUMN IF NOT EXISTS is_taggable BOOLEAN DEFAULT TRUE;
 
                 -- Index
-                CREATE INDEX IF NOT EXISTS idx_tag_excluded_group ON tag_excluded_users(group_id);
-                CREATE INDEX IF NOT EXISTS idx_tag_excluded_user ON tag_excluded_users(telegram_id);
+                CREATE INDEX IF NOT EXISTS idx_telegram_users_taggable
+                ON telegram_users(group_id, is_taggable) WHERE is_taggable = FALSE;
             """,
-            down_sql="DROP TABLE IF EXISTS tag_excluded_users;"
+            down_sql="""
+                DROP INDEX IF EXISTS idx_telegram_users_taggable;
+                ALTER TABLE telegram_users DROP COLUMN IF EXISTS is_taggable;
+            """
         ))
 
         # Yeni migration'lar buraya eklenecek...
