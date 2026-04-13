@@ -175,6 +175,73 @@ async def remove_user_from_db(group_id: int, user_id: int) -> bool:
         return False
 
 
+async def get_verified_group_users(bot: Bot, group_id: int) -> List[Dict[str, Any]]:
+    """
+    Gruptaki DOĞRULANMIŞ kullanıcıları getir.
+    Her kullanıcının hala grupta olup olmadığını kontrol eder.
+    Grupta olmayanları veritabanından SİLER.
+
+    Bu fonksiyon etiketleme ve sıralama işlemlerinde kullanılmalıdır.
+
+    Args:
+        bot: Telegram bot instance
+        group_id: Telegram grup ID
+
+    Returns:
+        List[Dict]: Grupta olan aktif kullanıcı listesi
+    """
+    all_users = await get_group_users(group_id)
+    verified_users = []
+    removed_count = 0
+
+    for user in all_users:
+        user_id = user['telegram_id']
+
+        # Kullanıcının grupta olup olmadığını kontrol et
+        is_in_group = await check_user_in_group(bot, group_id, user_id)
+
+        if is_in_group:
+            verified_users.append(user)
+        else:
+            # Grupta olmayan kullanıcıyı veritabanından sil
+            await remove_user_from_db(group_id, user_id)
+            removed_count += 1
+
+    if removed_count > 0:
+        print(f"🧹 Temizlik: {removed_count} kullanıcı gruptan çıkmış/banlanmış - silindi (Grup: {group_id})")
+
+    return verified_users
+
+
+async def cleanup_group_users(bot: Bot, group_id: int) -> int:
+    """
+    Gruptaki tüm kullanıcıları kontrol edip çıkanları/banlananları temizle.
+    Periyodik temizlik veya manuel temizlik için kullanılır.
+
+    Args:
+        bot: Telegram bot instance
+        group_id: Telegram grup ID
+
+    Returns:
+        int: Silinen kullanıcı sayısı
+    """
+    all_users = await get_group_users(group_id)
+    removed_count = 0
+
+    for user in all_users:
+        user_id = user['telegram_id']
+        is_in_group = await check_user_in_group(bot, group_id, user_id)
+
+        if not is_in_group:
+            await remove_user_from_db(group_id, user_id)
+            removed_count += 1
+
+    if removed_count > 0:
+        print(f"🧹 Manuel Temizlik: {removed_count} kullanıcı silindi (Grup: {group_id})")
+
+    return removed_count
+
+
 async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
     """
     Gruptaki kayıtlı kullanıcıları getir
@@ -303,6 +370,7 @@ async def start_etiket_tagging(
     /etiket komutu - 5'erli mention etiketleme başlat
     Premium emoji destekli
     Kullanıcılar rastgele sıralanır
+    Grupta olmayan kullanıcılar otomatik atlanır ve silinir
 
     Args:
         group_id: Grup ID
@@ -319,8 +387,8 @@ async def start_etiket_tagging(
     if is_tagging_active(group_id):
         return False
 
-    # Kullanıcıları hızlıca getir (API kontrolü yapmadan)
-    users = await get_group_users(group_id)
+    # Kullanıcıları getir ve grupta olmayanları temizle
+    users = await get_verified_group_users(bot, group_id)
 
     if not users:
         return False
@@ -451,6 +519,7 @@ async def start_naber_tagging(
     """
     /naber komutu - Tek tek rastgele cümlelerle etiketleme
     Kullanıcılar rastgele sıralanır
+    Grupta olmayan kullanıcılar otomatik atlanır ve silinir
 
     Args:
         group_id: Grup ID
@@ -464,8 +533,8 @@ async def start_naber_tagging(
     if is_tagging_active(group_id):
         return False
 
-    # Kullanıcıları hızlıca getir (API kontrolü yapmadan)
-    users = await get_group_users(group_id)
+    # Kullanıcıları getir ve grupta olmayanları temizle
+    users = await get_verified_group_users(bot, group_id)
 
     if not users:
         return False
@@ -666,8 +735,8 @@ async def start_auto_tagging(group_id: int, bot, interval_minutes: int = 10):
 
                 # Aktif manuel etiketleme var mı kontrol et
                 if not is_tagging_active(group_id):
-                    # Aktif kullanıcıları getir (grupta olmayanlar otomatik silinir)
-                    users = await get_active_group_users(bot, group_id)
+                    # Aktif kullanıcıları getir (grupta olmayanlar veritabanından silinir)
+                    users = await get_verified_group_users(bot, group_id)
                     total_users = len(users)
 
                     if users:
