@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError
 
-from config import IGNORED_USER_IDS
+from config import IGNORED_USER_IDS, ACTIVITY_GROUP_ID
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -40,6 +40,7 @@ async def handle_member_update(update: Update, context: ContextTypes.DEFAULT_TYP
     """
     Üye değişikliklerini işler.
     Kullanıcı gruptan ayrıldığında veya banlandığında veritabanından silinir.
+    SADECE ACTIVITY_GROUP_ID'de çalışır.
     """
     from services.tagging_service import remove_user_from_db
 
@@ -56,6 +57,12 @@ async def handle_member_update(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Sadece grup/supergroup için işle
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Kullanıcı gruptan ayrıldı mı veya banlandı mı?
@@ -954,6 +961,12 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
     message = update.effective_message
 
     if not message:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # ========== RANDY REPLY BİTİRME KONTROLÜ ==========
