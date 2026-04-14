@@ -182,9 +182,10 @@ async def get_verified_group_users(bot: Bot, group_id: int) -> List[Dict[str, An
     """
     Gruptaki DOĞRULANMIŞ kullanıcıları getir.
     Her kullanıcının hala grupta olup olmadığını kontrol eder.
-    Grupta olmayanları veritabanından SİLER.
+    Grupta olmayanları etiketleme listesinden ATLAR ama VERİTABANINDAN SİLMEZ!
+    Kullanıcı verileri (mesaj sayısı, activity_count vb.) korunur.
 
-    Bu fonksiyon etiketleme ve sıralama işlemlerinde kullanılmalıdır.
+    Bu fonksiyon etiketleme işlemlerinde kullanılmalıdır.
 
     Args:
         bot: Telegram bot instance
@@ -206,10 +207,10 @@ async def get_verified_group_users(bot: Bot, group_id: int) -> List[Dict[str, An
     results = await asyncio.gather(*check_tasks, return_exceptions=True)
 
     verified_users = []
-    users_to_remove = []
+    skipped_count = 0
 
     for user, is_in_group in zip(all_users, results):
-        # Hata durumunda kullanıcıyı tutmaya devam et
+        # Hata durumunda kullanıcıyı tutmaya devam et (güvenli taraf)
         if isinstance(is_in_group, Exception):
             verified_users.append(user)
             continue
@@ -217,31 +218,28 @@ async def get_verified_group_users(bot: Bot, group_id: int) -> List[Dict[str, An
         if is_in_group:
             verified_users.append(user)
         else:
-            users_to_remove.append(user['telegram_id'])
+            # NOT: Kullanıcıyı SİLMİYORUZ, sadece etiketleme listesinden atlıyoruz
+            # Mesaj geçmişi ve activity_count korunur
+            skipped_count += 1
 
-    # Grupta olmayan kullanıcıları paralel olarak sil
-    if users_to_remove:
-        remove_tasks = [
-            remove_user_from_db(group_id, user_id)
-            for user_id in users_to_remove
-        ]
-        await asyncio.gather(*remove_tasks, return_exceptions=True)
-        logger.info(f"Temizlik: {len(users_to_remove)} kullanıcı gruptan çıkmış/banlanmış - silindi (Grup: {group_id})")
+    if skipped_count > 0:
+        logger.info(f"Etiketleme: {skipped_count} kullanıcı grupta değil - atlandı (silinmedi) (Grup: {group_id})")
 
     return verified_users
 
 
 async def cleanup_group_users(bot: Bot, group_id: int) -> int:
     """
-    Gruptaki tüm kullanıcıları kontrol edip çıkanları/banlananları temizle.
-    Periyodik temizlik veya manuel temizlik için kullanılır.
+    Gruptaki tüm kullanıcıları kontrol edip çıkanları/banlananları say.
+    NOT: Artık kullanıcıları SİLMİYOR, sadece sayıyor!
+    Mesaj geçmişi ve activity_count korunur.
 
     Args:
         bot: Telegram bot instance
         group_id: Telegram grup ID
 
     Returns:
-        int: Silinen kullanıcı sayısı
+        int: Grupta olmayan kullanıcı sayısı (silinmedi, sadece sayıldı)
     """
     all_users = await get_group_users(group_id)
 
@@ -255,26 +253,22 @@ async def cleanup_group_users(bot: Bot, group_id: int) -> int:
     ]
     results = await asyncio.gather(*check_tasks, return_exceptions=True)
 
-    users_to_remove = []
+    not_in_group_count = 0
 
     for user, is_in_group in zip(all_users, results):
-        # Hata durumunda kullanıcıyı silme
+        # Hata durumunda kullanıcıyı sayma
         if isinstance(is_in_group, Exception):
             continue
 
         if not is_in_group:
-            users_to_remove.append(user['telegram_id'])
+            not_in_group_count += 1
+            # NOT: Kullanıcıyı SİLMİYORUZ!
+            # Mesaj geçmişi ve activity_count korunur
 
-    # Grupta olmayan kullanıcıları paralel olarak sil
-    if users_to_remove:
-        remove_tasks = [
-            remove_user_from_db(group_id, user_id)
-            for user_id in users_to_remove
-        ]
-        await asyncio.gather(*remove_tasks, return_exceptions=True)
-        logger.info(f"Manuel Temizlik: {len(users_to_remove)} kullanıcı silindi (Grup: {group_id})")
+    if not_in_group_count > 0:
+        logger.info(f"Temizlik Raporu: {not_in_group_count} kullanıcı grupta değil (silinmedi) (Grup: {group_id})")
 
-    return len(users_to_remove)
+    return not_in_group_count
 
 
 async def get_group_users(group_id: int) -> List[Dict[str, Any]]:
