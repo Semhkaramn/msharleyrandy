@@ -31,7 +31,11 @@ from services.activity_service import (
     toggle_activity, ACTIVITY_TYPES, get_activity_status
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
+from config import ACTIVITY_GROUP_ID
 
+def _is_activity_group(chat):
+    """Helper: Komutun sadece ACTIVITY_GROUP_ID grubunda çalışmasını sağlar."""
+    return ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0 and chat.id == ACTIVITY_GROUP_ID
 
 async def _handle_randy_reply_end(update: Update, context: ContextTypes.DEFAULT_TYPE, reply_message):
     """
@@ -161,7 +165,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 group_id = int(arg.replace("stats_", ""))
             except ValueError:
                 # Eski format veya hatalı - ACTIVITY_GROUP_ID kullan
-                from config import ACTIVITY_GROUP_ID
                 group_id = ACTIVITY_GROUP_ID
 
             if group_id:
@@ -259,8 +262,6 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # Sadece ACTIVITY_GROUP_ID'de çalışır
-        from config import ACTIVITY_GROUP_ID
-
         if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0 and chat.id != ACTIVITY_GROUP_ID:
             # Bu grup activity group değil, sessizce çık
             return
@@ -311,7 +312,6 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Randy mesajını oluştur
         from services.randy_service import get_randy_channels
-        from config import ACTIVITY_GROUP_ID
 
         # Zorunlu kanalları al (activity dahil)
         channels_list = []
@@ -449,9 +449,7 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     /number X komutu - Kazanan sayısını değiştir
     Kullanım: /number 4 (kazanan sayısını 4 yapar)
-
-    - Aktif Randy varsa: Randy mesajını günceller
-    - Aktif Randy yoksa: Taslağı günceller (bir sonraki Randy bu sayıyla başlar)
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -462,6 +460,12 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü
@@ -545,7 +549,6 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     participant_count = await get_participant_count(randy['id'])
 
     # Randy mesajını güncelle
-    from config import ACTIVITY_GROUP_ID
 
     # Zorunlu kanalları al (activity dahil)
     channels_list = []
@@ -649,7 +652,7 @@ async def bitir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     /bitir komutu - Aktif Randy'yi bitirir
     Randy mesajına reply yaparak veya direkt kullanılabilir
-    Komut otomatik silinir
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -660,6 +663,12 @@ async def bitir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü
@@ -760,8 +769,7 @@ async def _finish_randy(context, chat_id: int, randy: dict):
 async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     .ben, !ben, /ben komutu - Kullanıcının istatistik kartını gösterir
-    - Bot başlatılmışsa: Özelden istatistik gönderir ve grupta "Özelden gönderildi" yazar
-    - Bot başlatılmamışsa: Grupta buton gösterir, tıklayınca botu başlatır ve özelden istatistik gönderir
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -772,6 +780,12 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Sistem hesapları için çalışmaz
@@ -880,6 +894,7 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Kullanım:
     - Reply ile: .inf (reply)
     - Username ile: .inf @username
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -890,6 +905,12 @@ async def bilgi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü - SADECE ADMİNLER KULLANABİLİR
@@ -1020,11 +1041,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     .aktiflik komutu - Aktivite sıralamasını ÖDÜLLERLE gösterir
     SADECE ADMİNLER KULLANABİLİR
     Grupta olmayan kullanıcılar otomatik filtrelenir ve silinir.
-
-    Manuel başlat/durdur sistemi:
-    - Aktifse: Mevcut sayımı gösterir
-    - Durmuşsa: Son sıralamayı gösterir
-    - Başlatılmamışsa: Uyarı verir
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     from services.activity_service import (
         get_activity_settings, get_leaderboard_with_rewards,
@@ -1047,6 +1064,12 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü
@@ -1180,23 +1203,39 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================
 
 async def gunluk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Günlük mesaj sıralaması (sadece adminler) - 20 kişi"""
+    """Günlük mesaj sıralaması (sadece adminler) - 20 kişi
+    SADECE ACTIVITY_GROUP_ID'de çalışır
+    """
+    chat = update.effective_chat
+    if not _is_activity_group(chat):
+        return
     await _leaderboard_command(update, context, 'daily')
 
 
 async def haftalik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Haftalık mesaj sıralaması (sadece adminler) - 20 kişi, ödül YOK"""
+    """Haftalık mesaj sıralaması (sadece adminler) - 20 kişi, ödül YOK
+    SADECE ACTIVITY_GROUP_ID'de çalışır
+    """
+    chat = update.effective_chat
+    if not _is_activity_group(chat):
+        return
     await _leaderboard_command(update, context, 'weekly')
 
 
 async def aylik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Aylık mesaj sıralaması (sadece adminler) - 20 kişi"""
+    """Aylık mesaj sıralaması (sadece adminler) - 20 kişi
+    SADECE ACTIVITY_GROUP_ID'de çalışır
+    """
+    chat = update.effective_chat
+    if not _is_activity_group(chat):
+        return
     await _leaderboard_command(update, context, 'monthly')
 
 
 async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str):
     """Leaderboard komutu helper - 20 kişi gösterir (ödül YOK, sadece mesaj sayısı)
     Grupta olmayan kullanıcılar otomatik filtrelenir ve silinir.
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -1207,6 +1246,12 @@ async def _leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü
@@ -1355,6 +1400,7 @@ async def etiket_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     /etiket [mesaj] komutu
     Gruptaki kayıtlı kullanıcıları 5'erli gruplar halinde etiketler
     Premium emoji destekli - kullanıcının gönderdiği premium emojiyi kullanır
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -1365,6 +1411,12 @@ async def etiket_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü
@@ -1436,6 +1488,7 @@ async def naber_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     /naber komutu
     Gruptaki kayıtlı kullanıcıları tek tek rastgele mesajlarla etiketler
     Premium emoji destekli
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -1446,6 +1499,12 @@ async def naber_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü
@@ -1503,6 +1562,7 @@ async def dur_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     /dur komutu
     Aktif etiketleme işlemini durdurur (/etiket veya /naber)
+    SADECE ACTIVITY_GROUP_ID'de çalışır
     """
     chat = update.effective_chat
     user = update.effective_user
@@ -1513,6 +1573,12 @@ async def dur_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Sadece gruplarda çalışır
     if chat.type not in ['group', 'supergroup']:
+        return
+
+    # 🔒 SADECE ACTIVITY_GROUP_ID'de çalış
+    if not ACTIVITY_GROUP_ID or ACTIVITY_GROUP_ID == 0:
+        return
+    if chat.id != ACTIVITY_GROUP_ID:
         return
 
     # Admin kontrolü
