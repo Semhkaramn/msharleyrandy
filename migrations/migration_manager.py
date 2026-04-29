@@ -436,7 +436,25 @@ class MigrationManager:
         ))
 
 
-        # Migration 008: is_taggable kolonu
+        # Migration 008: GPT Ayarları Tablosu
+        self.migrations.append(Migration(
+            version=8,
+            name="gpt_settings_table",
+            up_sql="""
+                CREATE TABLE IF NOT EXISTS gpt_settings (
+                    group_id BIGINT PRIMARY KEY,
+                    is_enabled BOOLEAN DEFAULT FALSE,
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS idx_gpt_settings_group ON gpt_settings(group_id);
+            """,
+            down_sql="""
+                DROP INDEX IF EXISTS idx_gpt_settings_group;
+                DROP TABLE IF EXISTS gpt_settings;
+            """
+        ))
+
+        # Migration 009: is_taggable kolonu
         self.migrations.append(Migration(
             version=9,
             name="is_taggable_column",
@@ -453,6 +471,53 @@ class MigrationManager:
             down_sql="""
                 DROP INDEX IF EXISTS idx_telegram_users_taggable;
                 ALTER TABLE telegram_users DROP COLUMN IF EXISTS is_taggable;
+            """
+        ))
+
+        # Migration 010: Aktivite tabloları
+        self.migrations.append(Migration(
+            version=10,
+            name="activity_tables",
+            up_sql="""
+                -- Aktivite ayarları tablosu
+                CREATE TABLE IF NOT EXISTS activity_settings (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT UNIQUE NOT NULL,
+                    activity_type TEXT DEFAULT 'weekly',
+                    enabled BOOLEAN DEFAULT FALSE,
+                    top_count INT DEFAULT 20,
+                    auto_reset BOOLEAN DEFAULT TRUE,
+                    auto_post BOOLEAN DEFAULT FALSE,
+                    auto_pin BOOLEAN DEFAULT TRUE,
+                    post_hour INT DEFAULT 23,
+                    post_minute INT DEFAULT 0,
+                    last_reset_at TIMESTAMP,
+                    last_posted_at TIMESTAMP,
+                    started_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+
+                -- Aktivite ödülleri tablosu
+                CREATE TABLE IF NOT EXISTS activity_rewards (
+                    id SERIAL PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    rank INT NOT NULL,
+                    reward_text TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(group_id, rank)
+                );
+
+                -- İndeksler
+                CREATE INDEX IF NOT EXISTS idx_activity_settings_group ON activity_settings(group_id);
+                CREATE INDEX IF NOT EXISTS idx_activity_rewards_group ON activity_rewards(group_id);
+            """,
+            down_sql="""
+                DROP INDEX IF EXISTS idx_activity_rewards_group;
+                DROP INDEX IF EXISTS idx_activity_settings_group;
+                DROP TABLE IF EXISTS activity_rewards;
+                DROP TABLE IF EXISTS activity_settings;
             """
         ))
 
