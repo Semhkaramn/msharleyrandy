@@ -43,14 +43,17 @@ from utils.admin_check import is_group_admin, is_activity_group_admin
 async def safe_answer(query, text: str = None, show_alert: bool = False):
     """
     Callback query'yi güvenli şekilde cevapla.
-    Zaman aşımı hatalarını yakalar ve loglar.
+    Zaman aşımı hatalarını yakalar ve sessizce geçer.
+    Bu hatalar genellikle eski mesajlardaki butonlara tıklanınca oluşur ve normaldir.
     """
     try:
         await query.answer(text, show_alert=show_alert)
         return True
     except BadRequest as e:
         if "Query is too old" in str(e) or "query id is invalid" in str(e):
-            logger.warning(f"⚠️ Callback query zaman aşımına uğradı: {e}")
+            # Bu hata normaldir, loglama yapma - kullanıcı eski bir butona tıklamış
+            # logger.debug(f"Callback query timeout: {e}")
+            pass
         else:
             logger.error(f"❌ Callback answer hatası: {e}")
         return False
@@ -184,9 +187,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
 
     # Randy join callbackleri için answer'ı kendi içinde yapacağız (show_alert için)
-    # Diğer tüm callbackler için hemen answer çağır
+    # Diğer tüm callbackler için hemen answer çağır - safe_answer ile timeout hatalarını yakala
     if not data.startswith("randy_join_"):
-        await query.answer()
+        answered = await safe_answer(query)
+        # Eğer query zaten timeout olduysa işleme devam etme
+        if not answered:
+            return
 
     # Menü mesaj ID'sini kaydet (hep aynı mesajı düzenlemek için)
     if query.message:
