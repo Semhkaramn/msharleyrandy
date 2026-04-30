@@ -17,8 +17,6 @@ Komutlar:
 
 import asyncio
 import logging
-import signal
-import sys
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -61,9 +59,6 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("telegram.ext").setLevel(logging.WARNING)
-
-# Shutdown flag
-_shutdown_event = asyncio.Event()
 
 
 async def post_init(application: Application) -> None:
@@ -131,22 +126,11 @@ async def post_shutdown(application: Application) -> None:
         logger.error(f"❌ Kapanış hatası: {e}")
 
 
-def signal_handler(signum, frame):
-    """SIGTERM ve SIGINT sinyallerini yakala"""
-    logger.info(f"📴 Sinyal alındı: {signum}, bot kapatılıyor...")
-    _shutdown_event.set()
-    sys.exit(0)
-
-
 def main():
     """Bot'u başlat"""
     if not BOT_TOKEN:
         logger.error("❌ BOT_TOKEN bulunamadı! .env dosyasını kontrol edin.")
         return
-
-    # Sinyal handler'ları kaydet
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
 
     # Application oluştur
     application = (
@@ -242,8 +226,7 @@ def main():
     logger.info("🚀 Bot başlatılıyor...")
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,  # Eski güncellemeleri at - timeout'ları önler
-        close_loop=False
+        drop_pending_updates=True  # Eski güncellemeleri at - timeout'ları önler
     )
 
 
