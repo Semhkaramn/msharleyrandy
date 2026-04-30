@@ -17,6 +17,8 @@ Komutlar:
 
 import asyncio
 import logging
+import signal
+import sys
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -60,18 +62,36 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("telegram.ext").setLevel(logging.WARNING)
 
+# Shutdown flag
+_shutdown_event = asyncio.Event()
+
 
 async def post_init(application: Application) -> None:
-    """Bot başladığında veritabanı bağlantısını kur ve otomatik görevleri başlat"""
+    """Bot başladığında veritabanı bağlantısını kur"""
     await db.connect()
-
-    # Otomatik etiket görevlerini yeniden başlat
-    await _restart_auto_tagging_tasks(application.bot)
-
-    # Aktif çekilişleri yeniden başlat
-    await _restart_active_giveaways(application.bot)
-
     logger.info("✅ Bot başlatıldı!")
+
+    # Arka planda çekiliş ve etiket görevlerini başlat (bot'u yavaşlatmadan)
+    asyncio.create_task(_delayed_startup_tasks(application.bot))
+
+
+async def _delayed_startup_tasks(bot):
+    """
+    Başlatma sonrası görevler - arka planda çalışır
+    Bot'un hızlı başlamasını sağlamak için 2 saniye bekler
+    """
+    try:
+        # Bot'un tamamen başlaması için kısa bir bekleme
+        await asyncio.sleep(2)
+
+        # Otomatik etiket görevlerini yeniden başlat
+        await _restart_auto_tagging_tasks(bot)
+
+        # Aktif çekilişleri yeniden başlat
+        await _restart_active_giveaways(bot)
+
+    except Exception as e:
+        logger.error(f"❌ Başlangıç görevleri hatası: {e}")
 
 
 async def _restart_active_giveaways(bot):
@@ -104,8 +124,18 @@ async def _restart_auto_tagging_tasks(bot):
 
 async def post_shutdown(application: Application) -> None:
     """Bot kapanırken veritabanı bağlantısını kapat"""
-    await db.close()
-    logger.info("🔌 Bot kapatıldı")
+    try:
+        await db.close()
+        logger.info("🔌 Bot kapatıldı")
+    except Exception as e:
+        logger.error(f"❌ Kapanış hatası: {e}")
+
+
+def signal_handler(signum, frame):
+    """SIGTERM ve SIGINT sinyallerini yakala"""
+    logger.info(f"📴 Sinyal alındı: {signum}, bot kapatılıyor...")
+    _shutdown_event.set()
+    sys.exit(0)
 
 
 def main():
@@ -113,6 +143,10 @@ def main():
     if not BOT_TOKEN:
         logger.error("❌ BOT_TOKEN bulunamadı! .env dosyasını kontrol edin.")
         return
+
+    # Sinyal handler'ları kaydet
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
 
     # Application oluştur
     application = (
@@ -206,7 +240,11 @@ def main():
 
     # Bot'u çalıştır (polling mode - Heroku için)
     logger.info("🚀 Bot başlatılıyor...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,  # Eski güncellemeleri at - timeout'ları önler
+        close_loop=False
+    )
 
 
 if __name__ == "__main__":
