@@ -6,7 +6,7 @@ Buton tıklamalarını yönetir
 import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from telegram.error import TelegramError
+from telegram.error import TelegramError, BadRequest
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,6 +34,29 @@ from services.giveaway_service import (
     update_announcement_message_id
 )
 from utils.admin_check import is_group_admin, is_activity_group_admin
+
+
+# ============================================
+# YARDIMCI FONKSİYONLAR
+# ============================================
+
+async def safe_answer(query, text: str = None, show_alert: bool = False):
+    """
+    Callback query'yi güvenli şekilde cevapla.
+    Zaman aşımı hatalarını yakalar ve loglar.
+    """
+    try:
+        await query.answer(text, show_alert=show_alert)
+        return True
+    except BadRequest as e:
+        if "Query is too old" in str(e) or "query id is invalid" in str(e):
+            logger.warning(f"⚠️ Callback query zaman aşımına uğradı: {e}")
+        else:
+            logger.error(f"❌ Callback answer hatası: {e}")
+        return False
+    except TelegramError as e:
+        logger.error(f"❌ Callback answer hatası: {e}")
+        return False
 
 
 # ============================================
@@ -2628,7 +2651,7 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
     success, code = await join_randy(randy_id, user_id, username, first_name, context.bot)
 
     if success:
-        await query.answer(RANDY["BASARIYLA_KATILDIN"], show_alert=True)
+        await safe_answer(query, RANDY["BASARIYLA_KATILDIN"], show_alert=True)
 
         # Katılımcı sayısını güncelle
         count = await get_participant_count(randy_id)
@@ -2711,14 +2734,15 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                 pass
 
     elif code == "zaten_katildi":
-        await query.answer(RANDY["ZATEN_KATILDIN"], show_alert=True)
+        await safe_answer(query, RANDY["ZATEN_KATILDIN"], show_alert=True)
 
     elif code == "aktif_degil":
-        await query.answer(RANDY["AKTIF_DEGIL"], show_alert=True)
+        await safe_answer(query, RANDY["AKTIF_DEGIL"], show_alert=True)
 
     elif code.startswith("kanal_uyesi_degil:"):
         channels = code.split(":", 1)[1]
-        await query.answer(
+        await safe_answer(
+            query,
             RANDY["KANAL_UYESI_DEGIL"].format(channels=channels),
             show_alert=True
         )
@@ -2729,7 +2753,8 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
         required = parts[2]
         current = parts[3]
 
-        await query.answer(
+        await safe_answer(
+            query,
             RANDY["MESAJ_SARTI_KARSILANMADI"].format(
                 period=period, required=required, current=current
             ),
@@ -2741,13 +2766,14 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
         required = parts[1]
         current = parts[2]
 
-        await query.answer(
+        await safe_answer(
+            query,
             RANDY["POST_RANDY_SARTI"].format(required=required, current=current),
             show_alert=True
         )
 
     elif code == "admin_katilamaz":
-        await query.answer(RANDY["ADMIN_KATILAMAZ"], show_alert=True)
+        await safe_answer(query, RANDY["ADMIN_KATILAMAZ"], show_alert=True)
 
     else:
-        await query.answer(ERRORS["GENEL"], show_alert=True)
+        await safe_answer(query, ERRORS["GENEL"], show_alert=True)
