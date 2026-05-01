@@ -17,6 +17,9 @@ Komutlar:
 
 import asyncio
 import logging
+import signal
+import sys
+import traceback
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -60,14 +63,25 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("telegram.ext").setLevel(logging.WARNING)
 
+# Global application reference for signal handling
+_application = None
+
 
 async def post_init(application: Application) -> None:
     """Bot başladığında veritabanı bağlantısını kur"""
-    await db.connect()
-    logger.info("✅ Bot başlatıldı!")
+    global _application
+    _application = application
 
-    # Arka planda çekiliş ve etiket görevlerini başlat (bot'u yavaşlatmadan)
-    asyncio.create_task(_delayed_startup_tasks(application.bot))
+    try:
+        await db.connect()
+        logger.info("✅ Bot başlatıldı!")
+
+        # Arka planda çekiliş ve etiket görevlerini başlat (bot'u yavaşlatmadan)
+        asyncio.create_task(_delayed_startup_tasks(application.bot))
+    except Exception as e:
+        logger.error(f"❌ post_init HATASI: {e}")
+        logger.error(traceback.format_exc())
+        raise
 
 
 async def _delayed_startup_tasks(bot):
@@ -132,103 +146,128 @@ def main():
         logger.error("❌ BOT_TOKEN bulunamadı! .env dosyasını kontrol edin.")
         return
 
-    # Application oluştur
-    application = (
-        Application.builder()
-        .token(BOT_TOKEN)
-        .post_init(post_init)
-        .post_shutdown(post_shutdown)
-        .build()
-    )
+    logger.info("📦 BOT_TOKEN mevcut, uzunluk: %d", len(BOT_TOKEN))
 
-    # ========== KOMUT HANDLER'LARI ==========
+    try:
+        # Application oluştur
+        application = (
+            Application.builder()
+            .token(BOT_TOKEN)
+            .post_init(post_init)
+            .post_shutdown(post_shutdown)
+            .read_timeout(30)
+            .write_timeout(30)
+            .connect_timeout(30)
+            .pool_timeout(30)
+            .build()
+        )
 
-    # /start - Özel mesajda bot başlatma
-    application.add_handler(CommandHandler("start", start_command))
+        # ========== KOMUT HANDLER'LARI ==========
 
-    # /randy - Özel mesajda Randy ayarları
-    application.add_handler(CommandHandler("randy", randy_command))
+        # /start - Özel mesajda bot başlatma
+        application.add_handler(CommandHandler("start", start_command))
 
-    # /number X - Kazanan sayısı ayarla (grup)
-    application.add_handler(CommandHandler("number", number_command))
+        # /randy - Özel mesajda Randy ayarları
+        application.add_handler(CommandHandler("randy", randy_command))
 
-    # /bitir - Randy'yi bitir (grup - admin)
-    application.add_handler(CommandHandler("bitir", bitir_command))
+        # /number X - Kazanan sayısı ayarla (grup)
+        application.add_handler(CommandHandler("number", number_command))
 
-    # /etiket - Toplu etiketleme (grup - admin)
-    application.add_handler(CommandHandler("etiket", etiket_command))
+        # /bitir - Randy'yi bitir (grup - admin)
+        application.add_handler(CommandHandler("bitir", bitir_command))
 
-    # /naber - Tek tek rastgele mesajlarla etiketleme (grup - admin)
-    application.add_handler(CommandHandler("naber", naber_command))
+        # /etiket - Toplu etiketleme (grup - admin)
+        application.add_handler(CommandHandler("etiket", etiket_command))
 
-    # /dur - Etiketlemeyi durdur (grup - admin)
-    application.add_handler(CommandHandler("dur", dur_command))
+        # /naber - Tek tek rastgele mesajlarla etiketleme (grup - admin)
+        application.add_handler(CommandHandler("naber", naber_command))
 
-    # .ben, !ben, /ben - Kullanıcı istatistikleri
-    application.add_handler(CommandHandler("ben", ben_command))
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[.!]ben$') & filters.ChatType.GROUPS,
-        ben_command
-    ))
+        # /dur - Etiketlemeyi durdur (grup - admin)
+        application.add_handler(CommandHandler("dur", dur_command))
 
-    # .inf, /inf - Kullanıcı bilgisi (reply veya @username ile)
-    application.add_handler(CommandHandler("inf", bilgi_command))
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[.!]inf(\s+@?\w+)?$') & filters.ChatType.GROUPS,
-        bilgi_command
-    ))
+        # .ben, !ben, /ben - Kullanıcı istatistikleri
+        application.add_handler(CommandHandler("ben", ben_command))
+        application.add_handler(MessageHandler(
+            filters.Regex(r'^[.!]ben
+) & filters.ChatType.GROUPS,
+            ben_command
+        ))
 
-    # .günlük - Günlük sıralama (admin)
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]g[üu]nl[üu]k$') & filters.ChatType.GROUPS,
-        gunluk_command
-    ))
+        # .inf, /inf - Kullanıcı bilgisi (reply veya @username ile)
+        application.add_handler(CommandHandler("inf", bilgi_command))
+        application.add_handler(MessageHandler(
+            filters.Regex(r'^[.!]inf(\s+@?\w+)?
+) & filters.ChatType.GROUPS,
+            bilgi_command
+        ))
 
-    # .haftalık - Haftalık sıralama (admin) - ödülleri de gösterir
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]haftal[ıi]k$') & filters.ChatType.GROUPS,
-        haftalik_command
-    ))
+        # .günlük - Günlük sıralama (admin)
+        application.add_handler(MessageHandler(
+            filters.Regex(r'^[./!]g[üu]nl[üu]k
+) & filters.ChatType.GROUPS,
+            gunluk_command
+        ))
 
-    # .aylık - Aylık sıralama (admin)
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]ayl[ıi]k$') & filters.ChatType.GROUPS,
-        aylik_command
-    ))
+        # .haftalık - Haftalık sıralama (admin) - ödülleri de gösterir
+        application.add_handler(MessageHandler(
+            filters.Regex(r'^[./!]haftal[ıi]k
+) & filters.ChatType.GROUPS,
+            haftalik_command
+        ))
 
-    # .aktiflik - Aktivite sıralaması (admin)
-    application.add_handler(MessageHandler(
-        filters.Regex(r'^[./!]aktiflik$') & filters.ChatType.GROUPS,
-        aktiflik_command
-    ))
+        # .aylık - Aylık sıralama (admin)
+        application.add_handler(MessageHandler(
+            filters.Regex(r'^[./!]ayl[ıi]k
+) & filters.ChatType.GROUPS,
+            aylik_command
+        ))
 
-    # ========== CALLBACK HANDLER ==========
-    application.add_handler(CallbackQueryHandler(handle_callback))
+        # .aktiflik - Aktivite sıralaması (admin)
+        application.add_handler(MessageHandler(
+            filters.Regex(r'^[./!]aktiflik
+) & filters.ChatType.GROUPS,
+            aktiflik_command
+        ))
 
-    # ========== ÜYE AYRILMA/BANLANMA HANDLER ==========
-    # Kullanıcı gruptan ayrıldığında veya banlandığında veritabanından silinir
-    application.add_handler(ChatMemberHandler(
-        handle_member_update,
-        ChatMemberHandler.CHAT_MEMBER
-    ))
+        # ========== CALLBACK HANDLER ==========
+        application.add_handler(CallbackQueryHandler(handle_callback))
 
-    # ========== MESAJ HANDLER ==========
-    # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
-    # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
-    # Randy reply bitirme ve medya ekleme için gerekli
-    application.add_handler(MessageHandler(
-        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
-         filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
-        handle_message
-    ))
+        # ========== ÜYE AYRILMA/BANLANMA HANDLER ==========
+        # Kullanıcı gruptan ayrıldığında veya banlandığında veritabanından silinir
+        application.add_handler(ChatMemberHandler(
+            handle_member_update,
+            ChatMemberHandler.CHAT_MEMBER
+        ))
 
-    # Bot'u çalıştır (polling mode - Heroku için)
-    logger.info("🚀 Bot başlatılıyor...")
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True  # Eski güncellemeleri at - timeout'ları önler
-    )
+        # ========== MESAJ HANDLER ==========
+        # Roll komutları + Mesaj sayma (grup) + Randy ayarları (özel)
+        # Tüm mesaj tiplerini yakala (TEXT, PHOTO, VIDEO, STICKER vs.)
+        # Randy reply bitirme ve medya ekleme için gerekli
+        application.add_handler(MessageHandler(
+            (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.ANIMATION |
+             filters.Sticker.ALL | filters.Document.ALL) & ~filters.COMMAND,
+            handle_message
+        ))
+
+        # Bot'u çalıştır (polling mode - Heroku için)
+        logger.info("🚀 Bot başlatılıyor...")
+        logger.info("📡 Polling başlıyor...")
+
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,  # Eski güncellemeleri at - timeout'ları önler
+            close_loop=False  # Event loop'u kapatma - graceful shutdown için
+        )
+
+        logger.info("🏁 run_polling() tamamlandı")
+
+    except Exception as e:
+        logger.error(f"❌ MAIN EXCEPTION: {e}")
+        logger.error(traceback.format_exc())
+        sys.exit(1)
 
 
 if __name__ == "__main__":
+    logger.info("🔄 Bot scripti başlatılıyor...")
     main()
+    logger.info("🔚 Bot scripti sonlandı")
