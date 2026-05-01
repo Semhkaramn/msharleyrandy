@@ -613,55 +613,40 @@ async def join_randy(
             if existing and (existing['username'] is not None or existing['first_name'] is not None):
                 return False, "zaten_katildi"
 
-            # Kanal üyelik kontrolü - HER KATILIM DENEMESINDE YAPILIR
+            # Kanal üyelik kontrolü - CACHED (60 saniye)
             # Activity group da zorunlu kanal olarak kontrol edilir
             if bot:
+                from utils.admin_check import is_chat_member
                 not_member_channels = []
-                check_errors = []
 
                 # Önce activity group kontrolü (her zaman zorunlu)
                 from config import ACTIVITY_GROUP_ID
                 if ACTIVITY_GROUP_ID and ACTIVITY_GROUP_ID != 0:
-                    try:
-                        member = await bot.get_chat_member(ACTIVITY_GROUP_ID, user_id)
-                        if member.status in ['left', 'kicked']:
-                            # Activity group bilgisini otomatik al
-                            try:
-                                activity_chat = await bot.get_chat(ACTIVITY_GROUP_ID)
-                                if activity_chat.username:
-                                    activity_name = f"@{activity_chat.username}"
-                                else:
-                                    activity_name = activity_chat.title or "Ana Grup"
-                            except Exception as e:
-                                logger.warning(f"⚠️ Activity grup bilgisi alınamadı: {e}")
-                                activity_name = "Ana Grup"
-                            not_member_channels.append(activity_name)
-                    except Exception as e:
-                        # Activity group kontrolü başarısız - bot gruba erişemiyor olabilir
-                        logger.warning(f"⚠️ Activity grup üyelik kontrolü hatası: {e}")
-                        check_errors.append("Ana Grup (erişim sorunu)")
+                    is_member = await is_chat_member(bot, ACTIVITY_GROUP_ID, user_id)
+                    if not is_member:
+                        # Activity group bilgisini otomatik al
+                        try:
+                            activity_chat = await bot.get_chat(ACTIVITY_GROUP_ID)
+                            if activity_chat.username:
+                                activity_name = f"@{activity_chat.username}"
+                            else:
+                                activity_name = activity_chat.title or "Ana Grup"
+                        except Exception as e:
+                            logger.warning(f"⚠️ Activity grup bilgisi alınamadı: {e}")
+                            activity_name = "Ana Grup"
+                        not_member_channels.append(activity_name)
 
                 # Sonra eklenen zorunlu kanalları kontrol et
                 channels = await get_randy_channels(randy_id)
                 for channel in channels:
-                    try:
-                        member = await bot.get_chat_member(channel['channel_id'], user_id)
-                        if member.status in ['left', 'kicked']:
-                            channel_name = f"@{channel['channel_username']}" if channel['channel_username'] else channel['channel_title']
-                            not_member_channels.append(channel_name)
-                    except Exception as e:
-                        # Kanal kontrolü başarısız - bot kanala erişemiyor olabilir
-                        channel_name = f"@{channel['channel_username']}" if channel.get('channel_username') else (channel.get('channel_title') or f"Kanal {channel['channel_id']}")
-                        logger.warning(f"⚠️ Kanal üyelik kontrolü hatası ({channel_name}): {e}")
-                        check_errors.append(f"{channel_name} (erişim sorunu)")
+                    is_member = await is_chat_member(bot, channel['channel_id'], user_id)
+                    if not is_member:
+                        channel_name = f"@{channel['channel_username']}" if channel['channel_username'] else channel['channel_title']
+                        not_member_channels.append(channel_name)
 
                 # Üyelik kontrolü geçemeyen kanallar varsa
                 if not_member_channels:
                     return False, f"kanal_uyesi_degil:{', '.join(not_member_channels)}"
-
-                # Erişim sorunu olan kanallar varsa (geçici olarak izin ver ama logla)
-                if check_errors:
-                    logger.warning(f"⚠️ Bazı kanallar kontrol edilemedi (kullanıcı {user_id}): {check_errors}")
 
             # Şart kontrolü
             if randy['requirement_type'] != 'none':
