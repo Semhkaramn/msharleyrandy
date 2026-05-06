@@ -860,13 +860,13 @@ async def ben_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Bot başlatılmış - grupta "Özelden gönderildi" yaz (tıklanabilir link)
         await message.reply_text(
             f"👋 {mention}\n"
-            f'📨 <a href="https://t.me/harleycasinosohbet_bot">Özelden gönderildi</a>',
+            f'📨 <a href="https://t.me/harleycasinobot">Özelden gönderildi</a>',
             parse_mode="HTML",
             disable_web_page_preview=True
         )
     else:
         # Bot başlatılmamış - deep link butonu göster (tıklayınca botu başlatır ve direkt istatistik gösterir)
-        deep_link = f"https://t.me/harleycasinosohbet_bot?start=stats_{chat.id}"
+        deep_link = f"https://t.me/harleycasinobot?start=stats_{chat.id}"
 
         keyboard = [[
             InlineKeyboardButton(
