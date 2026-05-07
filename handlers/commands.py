@@ -3,9 +3,12 @@
 Telegram bot komutlarını işler
 """
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError
+
+# Link önizlemelerini kapatmak için
+DISABLE_PREVIEW = LinkPreviewOptions(is_disabled=True)
 
 from database import db
 from utils.logger import get_logger
@@ -406,21 +409,24 @@ async def randy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         chat.id,
                         text,
                         reply_markup=InlineKeyboardMarkup(keyboard),
-                        parse_mode="HTML"
+                        parse_mode="HTML",
+                        link_preview_options=DISABLE_PREVIEW
                     )
             except TelegramError:
                 sent_msg = await context.bot.send_message(
                     chat.id,
                     text,
                     reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    link_preview_options=DISABLE_PREVIEW
                 )
         else:
             sent_msg = await context.bot.send_message(
                 chat.id,
                 text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="HTML"
+                parse_mode="HTML",
+                link_preview_options=DISABLE_PREVIEW
             )
 
         # Mesaj ID'sini kaydet
@@ -624,7 +630,8 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message_id=randy['message_id'],
                 text=text,
                 reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="HTML"
+                parse_mode="HTML",
+                link_preview_options=DISABLE_PREVIEW
             )
 
         # Bildirim mesajı gönder
