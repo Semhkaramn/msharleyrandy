@@ -2736,8 +2736,9 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                         reply_markup=InlineKeyboardMarkup(keyboard),
                         parse_mode="HTML"
                     )
-            except TelegramError:
-                pass
+                logger.info(f"✅ Randy mesajı güncellendi - Randy ID: {randy_id}, Katılımcı: {count}")
+            except TelegramError as e:
+                logger.error(f"❌ Randy mesaj güncelleme hatası - Randy ID: {randy_id}, Hata: {e}")
 
     elif code == "zaten_katildi":
         await safe_answer(query, RANDY["ZATEN_KATILDIN"], show_alert=True)
