@@ -2726,20 +2726,24 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
             ]]
 
             try:
-                # Medya varsa caption güncelle, yoksa text güncelle
-                if randy.get('media_file_id') and randy.get('media_type') != 'none':
-                    await query.edit_message_caption(
-                        caption=new_text,
-                        reply_markup=InlineKeyboardMarkup(keyboard),
-                        parse_mode="HTML"
-                    )
-                else:
+                # Önce text güncellemeyi dene, hata verirse caption dene
+                try:
                     await query.edit_message_text(
                         new_text,
                         reply_markup=InlineKeyboardMarkup(keyboard),
                         parse_mode="HTML",
                         link_preview_options=DISABLE_PREVIEW
                     )
+                except TelegramError as text_err:
+                    if "no text" in str(text_err).lower():
+                        # Medyalı mesaj - caption güncelle
+                        await query.edit_message_caption(
+                            caption=new_text,
+                            reply_markup=InlineKeyboardMarkup(keyboard),
+                            parse_mode="HTML"
+                        )
+                    else:
+                        raise text_err
                 logger.info(f"✅ Randy mesajı güncellendi - Randy ID: {randy_id}, Katılımcı: {count}")
             except TelegramError as e:
                 logger.error(f"❌ Randy mesaj güncelleme hatası - Randy ID: {randy_id}, Hata: {e}")
