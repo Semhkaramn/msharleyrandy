@@ -390,10 +390,12 @@ async def get_randy_channels(randy_id: int) -> List[Dict]:
                 ORDER BY created_at
             """, randy_id)
 
-            return [dict(c) for c in channels]
+            result = [dict(c) for c in channels]
+            logger.info(f"📢 Randy kanalları sorgulandı - Randy ID: {randy_id}, Bulunan kanal: {len(result)}")
+            return result
 
     except Exception as e:
-        logger.error(f"❌ Randy kanal listesi hatası: {e}")
+        logger.error(f"❌ Randy kanal listesi hatası - Randy ID: {randy_id}, Hata: {e}")
         return []
 
 # ============================================
@@ -503,11 +505,14 @@ async def start_randy(group_id: int, creator_id: int, message_id: int = None) ->
                 WHERE randy_draft_id = $1
             """, draft['id'])
 
+            logger.info(f"📢 Randy kanalları kopyalanıyor - Draft ID: {draft['id']}, Randy ID: {randy_id}, Kanal sayısı: {len(draft_channels)}")
+
             for ch in draft_channels:
                 await conn.execute("""
                     INSERT INTO randy_channels (randy_id, channel_id, channel_username, channel_title)
                     VALUES ($1, $2, $3, $4)
                 """, randy_id, ch['channel_id'], ch['channel_username'], ch['channel_title'])
+                logger.info(f"📢 Kanal kopyalandı - Randy ID: {randy_id}, Channel: {ch['channel_username'] or ch['channel_id']}")
 
             # NOT: Taslak silinmiyor - ayarlar kalıcı
 
@@ -584,9 +589,11 @@ async def join_randy(
         tuple: (Başarılı mı, Mesaj kodu)
     """
     try:
+        logger.info(f"🎲 Randy katılım isteği - Randy ID: {randy_id}, User ID: {user_id}, Username: {username}")
         randy = await get_randy_by_id(randy_id)
 
         if not randy:
+            logger.warning(f"⚠️ Randy bulunamadı - Randy ID: {randy_id}")
             return False, "bulunamadi"
 
         if randy['status'] != STATUS_ACTIVE:
@@ -611,7 +618,11 @@ async def join_randy(
 
             # Eğer kayıt var VE username/first_name dolu ise gerçekten katılmış
             if existing and (existing['username'] is not None or existing['first_name'] is not None):
+                logger.info(f"⚠️ Zaten katılmış - Randy ID: {randy_id}, User ID: {user_id}, Existing: {dict(existing)}")
                 return False, "zaten_katildi"
+
+            if existing:
+                logger.info(f"📝 Mevcut kayıt var ama gerçek katılımcı değil - Randy ID: {randy_id}, User ID: {user_id}, post_randy_count: {existing['post_randy_message_count']}")
 
             # Kanal üyelik kontrolü - CACHED (60 saniye)
             # Activity group da zorunlu kanal olarak kontrol edilir
@@ -679,12 +690,21 @@ async def join_randy(
                     SET username = $1, first_name = $2
                     WHERE randy_id = $3 AND telegram_id = $4
                 """, username, first_name, randy_id, user_id)
+                logger.info(f"✅ Randy katılımcı GÜNCELLENDİ - Randy ID: {randy_id}, User ID: {user_id}")
             else:
                 # Yeni kayıt ekle
                 await conn.execute("""
                     INSERT INTO randy_participants (randy_id, telegram_id, username, first_name)
                     VALUES ($1, $2, $3, $4)
                 """, randy_id, user_id, username, first_name)
+                logger.info(f"✅ Randy katılımcı EKLENDİ - Randy ID: {randy_id}, User ID: {user_id}")
+
+            # Katılımcı sayısını doğrula
+            new_count = await conn.fetchval("""
+                SELECT COUNT(*) FROM randy_participants
+                WHERE randy_id = $1 AND (username IS NOT NULL OR first_name IS NOT NULL)
+            """, randy_id)
+            logger.info(f"📊 Randy katılımcı sayısı: {new_count} - Randy ID: {randy_id}")
 
             return True, "basarili"
 
