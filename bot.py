@@ -196,16 +196,8 @@ async def _refresh_active_randy_messages(bot):
                     )
                 ]]
 
-                # Mesajı güncelle
-                if randy.get('media_file_id') and randy.get('media_type') != 'none':
-                    await bot.edit_message_caption(
-                        chat_id=group_id,
-                        message_id=message_id,
-                        caption=new_text,
-                        reply_markup=InlineKeyboardMarkup(keyboard),
-                        parse_mode="HTML"
-                    )
-                else:
+                # Mesajı güncelle - önce text dene, hata verirse caption dene
+                try:
                     await bot.edit_message_text(
                         chat_id=group_id,
                         message_id=message_id,
@@ -214,6 +206,18 @@ async def _refresh_active_randy_messages(bot):
                         parse_mode="HTML",
                         link_preview_options=DISABLE_PREVIEW
                     )
+                except TelegramError as text_err:
+                    if "no text" in str(text_err).lower() or "no caption" in str(text_err).lower():
+                        # Medyalı mesaj - caption güncelle
+                        await bot.edit_message_caption(
+                            chat_id=group_id,
+                            message_id=message_id,
+                            caption=new_text,
+                            reply_markup=InlineKeyboardMarkup(keyboard),
+                            parse_mode="HTML"
+                        )
+                    else:
+                        raise text_err
 
                 logger.info(f"🎲 Randy mesajı güncellendi - Randy ID: {randy_id}, Grup: {group_id}")
 
