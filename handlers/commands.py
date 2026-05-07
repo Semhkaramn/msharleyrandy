@@ -614,17 +614,9 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     ]]
 
-    # Orijinal Randy mesajını düzenle
+    # Orijinal Randy mesajını düzenle - önce text dene, hata verirse caption dene
     try:
-        if randy.get('media_file_id') and randy.get('media_type') != 'none':
-            await context.bot.edit_message_caption(
-                chat_id=chat.id,
-                message_id=randy['message_id'],
-                caption=text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="HTML"
-            )
-        else:
+        try:
             await context.bot.edit_message_text(
                 chat_id=chat.id,
                 message_id=randy['message_id'],
@@ -633,6 +625,18 @@ async def number_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML",
                 link_preview_options=DISABLE_PREVIEW
             )
+        except TelegramError as text_err:
+            if "no text" in str(text_err).lower():
+                # Medyalı mesaj - caption güncelle
+                await context.bot.edit_message_caption(
+                    chat_id=chat.id,
+                    message_id=randy['message_id'],
+                    caption=text,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="HTML"
+                )
+            else:
+                raise text_err
 
         # Bildirim mesajı gönder
         import asyncio
