@@ -4,9 +4,12 @@ Buton tıklamalarını yönetir
 """
 
 import re
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError, BadRequest
+
+# Link önizlemelerini kapatmak için
+DISABLE_PREVIEW = LinkPreviewOptions(is_disabled=True)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -2734,7 +2737,8 @@ async def handle_randy_join(query, user_id: int, randy_id: int, context: Context
                     await query.edit_message_text(
                         new_text,
                         reply_markup=InlineKeyboardMarkup(keyboard),
-                        parse_mode="HTML"
+                        parse_mode="HTML",
+                        link_preview_options=DISABLE_PREVIEW
                     )
                 logger.info(f"✅ Randy mesajı güncellendi - Randy ID: {randy_id}, Katılımcı: {count}")
             except TelegramError as e:
