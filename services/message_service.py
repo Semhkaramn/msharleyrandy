@@ -1,6 +1,7 @@
 """
 📊 Mesaj Sayma Servisi
 Kullanıcı mesajlarını sayar ve istatistikleri yönetir
+Aktivite için minimum karakter kontrolü
 """
 
 from datetime import datetime, timedelta, timezone
@@ -25,11 +26,14 @@ async def track_message(
     group_id: int,
     username: str = None,
     first_name: str = None,
-    last_name: str = None
+    last_name: str = None,
+    message_text: str = None
 ) -> bool:
     """
     Kullanıcı mesajını kaydet ve sayaçları güncelle
     SADECE ACTIVITY_GROUP_ID için çalışır!
+
+    Aktivite sayımı için minimum karakter kontrolü yapılır.
 
     Args:
         telegram_id: Telegram kullanıcı ID
@@ -37,11 +41,13 @@ async def track_message(
         username: Telegram username
         first_name: İsim
         last_name: Soyisim
+        message_text: Mesaj metni (aktivite için karakter kontrolü)
 
     Returns:
         bool: Başarılı ise True
     """
     from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_min_char_count
 
     # Sadece aktif grup için mesaj kaydet
     if ACTIVITY_GROUP_ID and group_id != ACTIVITY_GROUP_ID:
@@ -109,10 +115,18 @@ async def track_message(
                     SELECT enabled FROM activity_settings WHERE group_id = $1
                 """, group_id)
 
+                # Aktivite için minimum karakter kontrolü
+                should_count_activity = False
+                if activity_enabled and message_text:
+                    min_char_count = await get_min_char_count(group_id)
+                    # Boşluklar dahil karakter sayısı
+                    if len(message_text) >= min_char_count:
+                        should_count_activity = True
+
                 # Sayaçları güncelle (activity_count dahil)
                 # NOT: Kullanıcı bilgileri (username, first_name, last_name) her zaman güncellenir
                 # Bu sayede kullanıcı ismini değiştirdiğinde data'da da güncellenir
-                if activity_enabled:
+                if should_count_activity:
                     await conn.execute("""
                         UPDATE telegram_users
                         SET message_count = message_count + 1,
@@ -148,8 +162,13 @@ async def track_message(
                     SELECT enabled FROM activity_settings WHERE group_id = $1
                 """, group_id)
 
-                # Yeni kullanıcı oluştur (activity_count dahil)
-                activity_count = 1 if activity_enabled else 0
+                # Yeni kullanıcı için aktivite sayımı kontrolü
+                activity_count = 0
+                if activity_enabled and message_text:
+                    min_char_count = await get_min_char_count(group_id)
+                    if len(message_text) >= min_char_count:
+                        activity_count = 1
+
                 await conn.execute("""
                     INSERT INTO telegram_users (
                         telegram_id, group_id, username, first_name, last_name,
