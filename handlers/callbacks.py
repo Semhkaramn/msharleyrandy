@@ -127,7 +127,6 @@ DIRECT_CALLBACKS = {
 
     # Aktivite ödül menüsü
     "activity_menu": ("show_activity_menu", True, None),
-    "activity_settings": ("show_activity_settings", True, None),
     "activity_top_menu": ("show_activity_top_count_menu", True, None),
     "activity_top_custom": ("prompt_activity_top_custom", True, None),
     "activity_min_char_menu": ("show_activity_min_char_menu", True, None),
@@ -171,7 +170,6 @@ PATTERN_CALLBACKS = [
     (r"^cekilis_detail_(\d+)$", "show_cekilis_detail", "int"),
 
     # Aktivite patterns
-    (r"^activity_type_(.+)$", "set_activity_type", "str"),
     (r"^activity_top_(\d+)$", "set_activity_top_count", "int"),
     (r"^activity_min_char_(\d+)$", "set_activity_min_char", "int"),
     (r"^activity_set_reward_(\d+)$", "prompt_activity_reward", "int"),
@@ -2349,46 +2347,6 @@ async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
-
-
-async def show_activity_settings(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Aktivite tipi seçim menüsü"""
-    from config import ACTIVITY_GROUP_ID
-    from services.activity_service import get_activity_settings, ACTIVITY_TYPES
-
-    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
-    current = settings.get('activity_type', 'weekly') if settings else 'weekly'
-
-    keyboard = [
-        [InlineKeyboardButton(f"📅 Günlük{' ✓' if current == 'daily' else ''}", callback_data="activity_type_daily")],
-        [InlineKeyboardButton(f"📆 Haftalık{' ✓' if current == 'weekly' else ''}", callback_data="activity_type_weekly")],
-        [InlineKeyboardButton(f"📅 Aylık{' ✓' if current == 'monthly' else ''}", callback_data="activity_type_monthly")],
-        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_menu")],
-    ]
-
-    await query.edit_message_text(
-        "📊 <b>Aktivite Tipi Seçin</b>\n\n"
-        "Sıralama hangi periyotta hesaplansın?\n\n"
-        f"<b>Şu anki:</b> {ACTIVITY_TYPES.get(current, current)}\n\n"
-        "• <b>Günlük:</b> Her gün sıfırlanır\n"
-        "• <b>Haftalık:</b> Her Pazartesi sıfırlanır\n"
-        "• <b>Aylık:</b> Her ayın 1'inde sıfırlanır",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
-
-
-async def set_activity_type(query, user_id: int, activity_type: str, context: ContextTypes.DEFAULT_TYPE):
-    """Aktivite tipini ayarla"""
-    from config import ACTIVITY_GROUP_ID
-    from services.activity_service import create_or_update_activity_settings, get_activity_type_text
-
-    await create_or_update_activity_settings(ACTIVITY_GROUP_ID, activity_type=activity_type)
-
-    type_text = get_activity_type_text(activity_type)
-    await query.answer(f"✅ Aktivite tipi {type_text} olarak ayarlandı!", show_alert=True)
-
-    await show_activity_menu(query, user_id, context)
 
 
 async def show_activity_top_count_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
