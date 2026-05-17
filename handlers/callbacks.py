@@ -2229,8 +2229,7 @@ async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_
     from config import ACTIVITY_GROUP_ID
     from services.activity_service import (
         get_activity_settings, get_activity_rewards,
-        get_activity_type_text, ACTIVITY_TYPES, ensure_activity_tables,
-        get_activity_status
+        ensure_activity_tables, get_activity_status
     )
     from datetime import timezone
     try:
@@ -2269,13 +2268,12 @@ async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_
     status_info = await get_activity_status(ACTIVITY_GROUP_ID)
     settings = await get_activity_settings(ACTIVITY_GROUP_ID)
 
-    activity_type = status_info.get('activity_type', 'weekly')
     enabled = status_info.get('enabled', False)
     top_count = status_info.get('top_count', 20)
+    min_char_count = status_info.get('min_char_count', 10)
     started_at = status_info.get('started_at')
+    ended_at = status_info.get('ended_at')
     has_data = status_info.get('has_data', False)
-
-    type_text = get_activity_type_text(activity_type)
 
     # Durum metni
     if enabled:
@@ -2297,11 +2295,20 @@ async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_
     else:
         started_text = "—"
 
+    # Bitiş tarihi
+    if ended_at:
+        if ended_at.tzinfo is None:
+            ended_at = ended_at.replace(tzinfo=timezone.utc)
+        ended_local = ended_at.astimezone(TR_TZ)
+        ended_text = ended_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        ended_text = "—"
+
     # Ödülleri getir
-    rewards = await get_activity_rewards(ACTIVITY_GROUP_ID, activity_type)
+    rewards = await get_activity_rewards(ACTIVITY_GROUP_ID)
 
     keyboard = [
-        [InlineKeyboardButton(f"📊 Periyod: {type_text}", callback_data="activity_settings")],
+        [InlineKeyboardButton(f"🔤 Min Karakter: {min_char_count}", callback_data="activity_min_char_menu")],
         [InlineKeyboardButton(f"👥 Kişi Sayısı: {top_count}", callback_data="activity_top_menu")],
         [InlineKeyboardButton("🎁 Ödülleri Ayarla", callback_data="activity_rewards_menu")],
         [InlineKeyboardButton(toggle_text, callback_data="activity_toggle")],
@@ -2321,16 +2328,17 @@ async def show_activity_menu(query, user_id: int, context: ContextTypes.DEFAULT_
     text = (
         "🏆 <b>Aktivite Ödül Sistemi</b>\n\n"
         f"<b>Durum:</b> {status}\n"
-        f"<b>Periyod:</b> {type_text}\n"
-        f"<b>Başlama:</b> {started_text}\n"
-        f"<b>Gösterilecek:</b> {top_count} kişi\n\n"
+        f"<b>Başlangıç:</b> {started_text}\n"
+        f"<b>Bitiş:</b> {ended_text}\n"
+        f"<b>Gösterilecek:</b> {top_count} kişi\n"
+        f"<b>Min Karakter:</b> {min_char_count}\n\n"
         f"<b>Ödüller:</b>\n{rewards_text}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         "💡 <b>Nasıl Çalışır:</b>\n"
         "• <b>Başlat:</b> Sayaçlar sıfırlanır, yeni sayım başlar\n"
         "• <b>Durdur:</b> Sayım durur, son sıralama kalır\n"
-        "• <code>.aktiflik</code> ile grupta sıralamayı görün\n"
-        "• <code>.günlük</code> <code>.haftalık</code> <code>.aylık</code> otomatik sıfırlanır"
+        "• <b>Min Karakter:</b> Mesajın sayılması için gereken minimum karakter\n"
+        "• <code>.aktiflik</code> ile grupta sıralamayı görün"
     )
 
     await query.edit_message_text(
@@ -2604,18 +2612,17 @@ async def toggle_activity(query, user_id: int, context: ContextTypes.DEFAULT_TYP
 
     settings = await get_activity_settings(ACTIVITY_GROUP_ID)
     enabled = settings.get('enabled', False) if settings else False
-    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
 
     if enabled:
-        # Durdur - veriler kalır
+        # Durdur - veriler kalır, bitiş tarihi kaydedilir
         await stop_activity_tracking(ACTIVITY_GROUP_ID)
         await query.answer(
             "🔴 Aktivite takibi durduruldu!\n\nSon sıralama kaydedildi, .aktiflik ile görüntülenebilir.",
             show_alert=True
         )
     else:
-        # Başlat - sayaçlar sıfırlanır, yeni başlangıç
-        await start_activity_tracking(ACTIVITY_GROUP_ID, activity_type)
+        # Başlat - sayaçlar sıfırlanır, yeni başlangıç tarihi kaydedilir
+        await start_activity_tracking(ACTIVITY_GROUP_ID)
         await query.answer(
             "🟢 Aktivite takibi başlatıldı!\n\nTüm sayaçlar sıfırlandı, yeni sayım başladı.",
             show_alert=True
