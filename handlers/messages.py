@@ -1065,9 +1065,12 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
     if not text:
         # Mesaj sayma ve Randy takibi için devam et
         if user and not is_system_user(user.id) and not is_anonymous:
+            # Medya mesajları için caption kullan, yoksa boş string
+            msg_text = message.caption or ""
             await track_message(
                 user.id, chat.id,
-                user.username, user.first_name, user.last_name
+                user.username, user.first_name, user.last_name,
+                message_text=msg_text
             )
             await track_post_randy_message(
                 chat.id, user.id,
@@ -1108,10 +1111,11 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
     first_name = user.first_name
     last_name = user.last_name
 
-    # 1. Mesaj sayma
+    # 1. Mesaj sayma (aktivite için karakter kontrolü yapılır)
     await track_message(
         user_id, chat.id,
-        username, first_name, last_name
+        username, first_name, last_name,
+        message_text=text
     )
 
     # 2. Roll kullanıcı takibi
