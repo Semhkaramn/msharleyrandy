@@ -818,6 +818,71 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
             )
         return
 
+    # ========== AKTİVİTE MANUEL MİNİMUM KARAKTER ==========
+    if waiting_for == 'activity_min_char_custom':
+        from config import ACTIVITY_GROUP_ID
+        from services.activity_service import set_min_char_count
+
+        text = message.text or ""
+
+        # Sayıyı parse et
+        try:
+            count = int(text.strip())
+        except ValueError:
+            await message.reply_text(
+                "❌ Geçerli bir sayı giriniz.\n\n<i>Örnek: 12</i>",
+                parse_mode="HTML"
+            )
+            return
+
+        # Geçerli aralık kontrolü
+        if count < 1 or count > 100:
+            await message.reply_text(
+                "❌ Karakter sayısı 1-100 arasında olmalıdır.",
+                parse_mode="HTML"
+            )
+            return
+
+        # Kaydet
+        success = await set_min_char_count(ACTIVITY_GROUP_ID, count)
+
+        if success:
+            context.user_data.pop('waiting_for', None)
+
+            await message.reply_text(
+                f"✅ Minimum karakter <b>{count}</b> olarak ayarlandı!",
+                parse_mode="HTML"
+            )
+
+            # Menüye geri dön
+            from handlers.callbacks import show_activity_menu
+            menu_message_id = context.user_data.get('menu_message_id')
+            if menu_message_id:
+                try:
+                    class FakeQuery:
+                        def __init__(self, message):
+                            self.message = message
+
+                        async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                            await context.bot.edit_message_text(
+                                chat_id=self.message.chat.id,
+                                message_id=menu_message_id,
+                                text=text,
+                                reply_markup=reply_markup,
+                                parse_mode=parse_mode
+                            )
+
+                    fake_query = FakeQuery(message)
+                    await show_activity_menu(fake_query, user_id, context)
+                except TelegramError:
+                    pass
+        else:
+            await message.reply_text(
+                "❌ Ayar kaydedilemedi. Lütfen tekrar deneyin.",
+                parse_mode="HTML"
+            )
+        return
+
     # ========== ETİKET HARİÇ TUTMA - KULLANICI EKLEME ==========
     if waiting_for == 'tag_excluded_add':
         from config import ACTIVITY_GROUP_ID
