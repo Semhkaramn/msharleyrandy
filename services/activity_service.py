@@ -1,7 +1,7 @@
 """
 🏆 Aktivite Ödül Servisi
-Günlük, Haftalık, Aylık aktivite takibi ve ödül sistemi
 Manuel başlat/durdur sistemi - .aktiflik komutu için
+Minimum karakter kuralı ile mesaj sayımı
 """
 
 from datetime import datetime, timedelta, timezone
@@ -20,13 +20,6 @@ logger = get_logger(__name__)
 # Türkiye saat dilimi
 TR_TZ = ZoneInfo("Europe/Istanbul")
 
-# Aktivite tipleri
-ACTIVITY_TYPES = {
-    'daily': 'Günlük',
-    'weekly': 'Haftalık',
-    'monthly': 'Aylık'
-}
-
 
 async def ensure_activity_tables():
     """Aktivite tablolarını oluştur (migration)"""
@@ -37,23 +30,32 @@ async def ensure_activity_tables():
                 CREATE TABLE IF NOT EXISTS activity_settings (
                     id SERIAL PRIMARY KEY,
                     group_id BIGINT UNIQUE NOT NULL,
-                    activity_type TEXT DEFAULT 'weekly',
                     enabled BOOLEAN DEFAULT FALSE,
                     top_count INT DEFAULT 20,
-                    auto_reset BOOLEAN DEFAULT TRUE,
-                    auto_post BOOLEAN DEFAULT FALSE,
-                    auto_pin BOOLEAN DEFAULT TRUE,
-                    post_hour INT DEFAULT 23,
-                    post_minute INT DEFAULT 0,
-                    last_reset_at TIMESTAMP,
-                    last_posted_at TIMESTAMP,
+                    min_char_count INT DEFAULT 10,
                     started_at TIMESTAMP,
+                    ended_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW()
                 )
             """)
 
-            # Aktivite ödülleri tablosu (periyod bazlı)
+            # min_char_count ve ended_at kolonları yoksa ekle (migration)
+            await conn.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name='activity_settings' AND column_name='min_char_count') THEN
+                        ALTER TABLE activity_settings ADD COLUMN min_char_count INT DEFAULT 10;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name='activity_settings' AND column_name='ended_at') THEN
+                        ALTER TABLE activity_settings ADD COLUMN ended_at TIMESTAMP;
+                    END IF;
+                END $$;
+            """)
+
+            # Aktivite ödülleri tablosu
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS activity_rewards (
                     id SERIAL PRIMARY KEY,
@@ -93,17 +95,25 @@ async def get_activity_settings(group_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
+async def get_min_char_count(group_id: int) -> int:
+    """Grubun minimum karakter sayısı ayarını getir"""
+    try:
+        settings = await get_activity_settings(group_id)
+        if settings:
+            return settings.get('min_char_count', 10) or 10
+        return 10
+    except Exception as e:
+        logger.error(f"❌ Min char count getirme hatası: {e}")
+        return 10
+
+
 async def create_or_update_activity_settings(
     group_id: int,
-    activity_type: str = None,
     enabled: bool = None,
     top_count: int = None,
-    auto_reset: bool = None,
-    auto_post: bool = None,
-    auto_pin: bool = None,
-    post_hour: int = None,
-    post_minute: int = None,
-    started_at: datetime = None
+    min_char_count: int = None,
+    started_at: datetime = None,
+    ended_at: datetime = None
 ) -> bool:
     """Aktivite ayarlarını oluştur veya güncelle"""
     try:
@@ -117,11 +127,6 @@ async def create_or_update_activity_settings(
                 values = []
                 idx = 1
 
-                if activity_type is not None:
-                    updates.append(f"activity_type = ${idx}")
-                    values.append(activity_type)
-                    idx += 1
-
                 if enabled is not None:
                     updates.append(f"enabled = ${idx}")
                     values.append(enabled)
@@ -132,34 +137,19 @@ async def create_or_update_activity_settings(
                     values.append(top_count)
                     idx += 1
 
-                if auto_reset is not None:
-                    updates.append(f"auto_reset = ${idx}")
-                    values.append(auto_reset)
-                    idx += 1
-
-                if auto_post is not None:
-                    updates.append(f"auto_post = ${idx}")
-                    values.append(auto_post)
-                    idx += 1
-
-                if auto_pin is not None:
-                    updates.append(f"auto_pin = ${idx}")
-                    values.append(auto_pin)
-                    idx += 1
-
-                if post_hour is not None:
-                    updates.append(f"post_hour = ${idx}")
-                    values.append(post_hour)
-                    idx += 1
-
-                if post_minute is not None:
-                    updates.append(f"post_minute = ${idx}")
-                    values.append(post_minute)
+                if min_char_count is not None:
+                    updates.append(f"min_char_count = ${idx}")
+                    values.append(min_char_count)
                     idx += 1
 
                 if started_at is not None:
                     updates.append(f"started_at = ${idx}")
                     values.append(started_at)
+                    idx += 1
+
+                if ended_at is not None:
+                    updates.append(f"ended_at = ${idx}")
+                    values.append(ended_at)
                     idx += 1
 
                 if updates:
@@ -176,21 +166,16 @@ async def create_or_update_activity_settings(
                 # Yeni oluştur
                 await conn.execute("""
                     INSERT INTO activity_settings (
-                        group_id, activity_type, enabled, top_count,
-                        auto_reset, auto_post, auto_pin, post_hour, post_minute,
-                        started_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        group_id, enabled, top_count, min_char_count,
+                        started_at, ended_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6)
                 """,
                     group_id,
-                    activity_type or 'weekly',
                     enabled if enabled is not None else False,
                     top_count or 20,
-                    auto_reset if auto_reset is not None else False,
-                    auto_post if auto_post is not None else False,
-                    auto_pin if auto_pin is not None else True,
-                    post_hour or 23,
-                    post_minute or 0,
-                    started_at
+                    min_char_count or 10,
+                    started_at,
+                    ended_at
                 )
 
             return True
@@ -199,11 +184,13 @@ async def create_or_update_activity_settings(
         return False
 
 
-async def set_activity_type(group_id: int, activity_type: str) -> bool:
-    """Aktivite tipini ayarla (daily/weekly/monthly)"""
-    if activity_type not in ACTIVITY_TYPES:
-        return False
-    return await create_or_update_activity_settings(group_id, activity_type=activity_type)
+async def set_min_char_count(group_id: int, min_char_count: int) -> bool:
+    """Minimum karakter sayısını ayarla"""
+    if min_char_count < 1:
+        min_char_count = 1
+    if min_char_count > 100:
+        min_char_count = 100
+    return await create_or_update_activity_settings(group_id, min_char_count=min_char_count)
 
 
 async def toggle_activity(group_id: int, enabled: bool) -> bool:
@@ -211,7 +198,7 @@ async def toggle_activity(group_id: int, enabled: bool) -> bool:
     return await create_or_update_activity_settings(group_id, enabled=enabled)
 
 
-async def get_activity_rewards(group_id: int, activity_type: str = None) -> List[Dict[str, Any]]:
+async def get_activity_rewards(group_id: int) -> List[Dict[str, Any]]:
     """Aktivite ödüllerini getir"""
     try:
         async with db.pool.acquire() as conn:
@@ -260,7 +247,6 @@ async def delete_activity_reward(group_id: int, rank: int) -> bool:
 
 async def get_activity_leaderboard(
     group_id: int,
-    activity_type: str = None,
     limit: int = 20,
     exclude_admin_ids: List[int] = None
 ) -> List[Dict[str, Any]]:
@@ -270,9 +256,6 @@ async def get_activity_leaderboard(
     enabled olup olmadığına bakmaz - her zaman mevcut veriyi döner
     """
     try:
-        # Ayarları al
-        settings = await get_activity_settings(group_id)
-
         # Hariç tutulacak ID'ler
         excluded_ids = list(IGNORED_USER_IDS)
         if exclude_admin_ids:
@@ -308,7 +291,6 @@ async def get_activity_leaderboard(
 
 async def get_leaderboard_with_rewards(
     group_id: int,
-    activity_type: str = None,
     exclude_admin_ids: List[int] = None,
     limit: int = None
 ) -> List[Dict[str, Any]]:
@@ -319,12 +301,6 @@ async def get_leaderboard_with_rewards(
     """
     settings = await get_activity_settings(group_id)
 
-    if not activity_type:
-        if settings:
-            activity_type = settings.get('activity_type', 'weekly')
-        else:
-            activity_type = 'weekly'
-
     # Limit belirtilmişse onu kullan, değilse settings'den al
     if limit is not None:
         top_count = limit
@@ -332,7 +308,7 @@ async def get_leaderboard_with_rewards(
         top_count = settings.get('top_count', 20) if settings else 20
 
     # Sıralamayı al
-    users = await get_activity_leaderboard(group_id, activity_type, top_count, exclude_admin_ids)
+    users = await get_activity_leaderboard(group_id, top_count, exclude_admin_ids)
 
     # Ödülleri al
     rewards = await get_activity_rewards(group_id)
@@ -348,7 +324,7 @@ async def get_leaderboard_with_rewards(
     return result
 
 
-async def get_user_activity_rank(user_id: int, group_id: int, activity_type: str = None) -> int:
+async def get_user_activity_rank(user_id: int, group_id: int) -> int:
     """Kullanıcının aktivite sıralamasındaki yerini getir"""
     try:
         async with db.pool.acquire() as conn:
@@ -373,55 +349,12 @@ async def get_user_activity_rank(user_id: int, group_id: int, activity_type: str
         return 0
 
 
-def get_activity_type_text(activity_type: str) -> str:
-    """Aktivite tipi metnini döndür"""
-    return ACTIVITY_TYPES.get(activity_type, activity_type)
-
-
-def get_period_info(activity_type: str) -> str:
-    """Periyot bilgisini döndür"""
-    now = datetime.now(TR_TZ)
-
-    if activity_type == 'daily':
-        return now.strftime('%d %B %Y')
-    elif activity_type == 'weekly':
-        week_start = now - timedelta(days=now.weekday())
-        week_end = week_start + timedelta(days=6)
-        return f"{week_start.strftime('%d.%m')} - {week_end.strftime('%d.%m.%Y')}"
-    elif activity_type == 'monthly':
-        return now.strftime('%B %Y')
-
-    return ""
-
-
-def get_next_reset_time(activity_type: str) -> str:
-    """Bir sonraki sıfırlama zamanını döndür"""
-    now = datetime.now(TR_TZ)
-
-    if activity_type == 'daily':
-        next_reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        return next_reset.strftime('%d.%m.%Y %H:%M')
-    elif activity_type == 'weekly':
-        days_until_monday = (7 - now.weekday()) % 7
-        if days_until_monday == 0:
-            days_until_monday = 7
-        next_reset = (now + timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-        return next_reset.strftime('%d.%m.%Y %H:%M')
-    elif activity_type == 'monthly':
-        if now.month == 12:
-            next_reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        else:
-            next_reset = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        return next_reset.strftime('%d.%m.%Y %H:%M')
-
-    return ""
-
-
-async def start_activity_tracking(group_id: int, activity_type: str = 'weekly') -> bool:
+async def start_activity_tracking(group_id: int) -> bool:
     """
     Aktivite takibini başlat
     - Tüm kullanıcıların activity_count'unu sıfırla
     - Başlama tarihini kaydet
+    - Bitiş tarihini temizle
     - enabled = True yap
     """
     try:
@@ -438,9 +371,9 @@ async def start_activity_tracking(group_id: int, activity_type: str = 'weekly') 
         # Ayarları güncelle
         return await create_or_update_activity_settings(
             group_id,
-            activity_type=activity_type,
             enabled=True,
-            started_at=now
+            started_at=now,
+            ended_at=None  # Bitiş tarihini temizle
         )
     except Exception as e:
         logger.error(f"❌ Aktivite takibi başlatma hatası: {e}")
@@ -450,13 +383,17 @@ async def start_activity_tracking(group_id: int, activity_type: str = 'weekly') 
 async def stop_activity_tracking(group_id: int) -> bool:
     """
     Aktivite takibini durdur
-    - Sadece enabled = False yap
+    - enabled = False yap
+    - Bitiş tarihini kaydet
     - Veriler silinmez, son sıralama görüntülenebilir
     """
     try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
         return await create_or_update_activity_settings(
             group_id,
-            enabled=False
+            enabled=False,
+            ended_at=now
         )
     except Exception as e:
         logger.error(f"❌ Aktivite takibi durdurma hatası: {e}")
@@ -468,7 +405,8 @@ async def get_activity_status(group_id: int) -> Dict[str, Any]:
     Aktivite durumunu detaylı getir
     - enabled: Aktif mi?
     - started_at: Ne zaman başladı?
-    - activity_type: Periyod tipi
+    - ended_at: Ne zaman bitti?
+    - min_char_count: Minimum karakter sayısı
     - has_data: Veri var mı?
     """
     try:
@@ -487,16 +425,18 @@ async def get_activity_status(group_id: int) -> Dict[str, Any]:
             return {
                 'enabled': settings.get('enabled', False),
                 'started_at': settings.get('started_at'),
-                'activity_type': settings.get('activity_type', 'weekly'),
+                'ended_at': settings.get('ended_at'),
                 'top_count': settings.get('top_count', 20),
+                'min_char_count': settings.get('min_char_count', 10) or 10,
                 'has_data': has_data
             }
 
         return {
             'enabled': False,
             'started_at': None,
-            'activity_type': 'weekly',
+            'ended_at': None,
             'top_count': 20,
+            'min_char_count': 10,
             'has_data': has_data
         }
     except Exception as e:
@@ -504,7 +444,8 @@ async def get_activity_status(group_id: int) -> Dict[str, Any]:
         return {
             'enabled': False,
             'started_at': None,
-            'activity_type': 'weekly',
+            'ended_at': None,
             'top_count': 20,
+            'min_char_count': 10,
             'has_data': False
         }
