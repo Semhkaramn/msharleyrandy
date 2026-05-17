@@ -29,9 +29,8 @@ from services.tagging_service import (
 )
 from services.activity_service import (
     get_activity_settings, get_leaderboard_with_rewards,
-    get_activity_type_text, get_period_info, get_next_reset_time,
-    set_activity_reward, get_activity_rewards, set_activity_type,
-    toggle_activity, ACTIVITY_TYPES, get_activity_status
+    set_activity_reward, get_activity_rewards,
+    toggle_activity, get_activity_status
 )
 from utils.admin_check import is_group_admin, is_system_user, can_anonymous_admin_use_commands, is_activity_group_admin
 from config import ACTIVITY_GROUP_ID
@@ -1056,7 +1055,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     from services.activity_service import (
         get_activity_settings, get_leaderboard_with_rewards,
-        get_activity_type_text, get_activity_status
+        get_activity_status
     )
     from datetime import timezone
     try:
@@ -1096,7 +1095,6 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_info = await get_activity_status(chat.id)
     settings = await get_activity_settings(chat.id)
 
-    activity_type = status_info.get('activity_type', 'weekly')
     enabled = status_info.get('enabled', False)
     started_at = status_info.get('started_at')
     ended_at = status_info.get('ended_at')
@@ -1112,9 +1110,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
 
     # Sıralamayı ödüllerle birlikte al - daha fazla kişi getir (filtreleme için)
-    leaderboard = await get_leaderboard_with_rewards(chat.id, activity_type, admin_ids, limit=40)
-
-    type_text = get_activity_type_text(activity_type)
+    leaderboard = await get_leaderboard_with_rewards(chat.id, admin_ids, limit=40)
 
     # Başlama tarihi formatla
     if started_at:
@@ -1174,15 +1170,10 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🏆 <b>Aktivite Sıralaması</b>",
         f"📊 {status_text}",
         f"📅 Başlangıç: {started_text}",
+        f"🏁 Bitiş: {ended_text}",
+        f"🔤 Min Karakter: {min_char_count}",
+        ""
     ]
-
-    # Bitiş tarihi (sadece durduğunda göster)
-    if not enabled and ended_text != "—":
-        lines.append(f"🏁 Bitiş: {ended_text}")
-
-    # Minimum karakter bilgisi
-    lines.append(f"🔤 Min Karakter: {min_char_count}")
-    lines.append("")
 
     if not verified_leaderboard:
         # Liste boş ama yine de düzgün format göster
@@ -1222,7 +1213,7 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 lines.append(f"{medal} {name} — <b>{count}</b> mesaj")
 
-        lines.append(f"\n💬 {type_text} en aktif {len(verified_leaderboard)} kullanıcı")
+        lines.append(f"\n💬 En aktif {len(verified_leaderboard)} kullanıcı")
 
     await message.reply_text("\n".join(lines), parse_mode="HTML")
 
