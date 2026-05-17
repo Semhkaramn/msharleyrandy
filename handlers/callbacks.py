@@ -130,6 +130,8 @@ DIRECT_CALLBACKS = {
     "activity_settings": ("show_activity_settings", True, None),
     "activity_top_menu": ("show_activity_top_count_menu", True, None),
     "activity_top_custom": ("prompt_activity_top_custom", True, None),
+    "activity_min_char_menu": ("show_activity_min_char_menu", True, None),
+    "activity_min_char_custom": ("prompt_activity_min_char_custom", True, None),
     "activity_rewards_menu": ("show_activity_rewards_menu", True, None),
     "activity_set_all_rewards": ("prompt_all_activity_rewards", True, None),
     "activity_toggle": ("show_activity_toggle_confirm", True, None),
@@ -171,6 +173,7 @@ PATTERN_CALLBACKS = [
     # Aktivite patterns
     (r"^activity_type_(.+)$", "set_activity_type", "str"),
     (r"^activity_top_(\d+)$", "set_activity_top_count", "int"),
+    (r"^activity_min_char_(\d+)$", "set_activity_min_char", "int"),
     (r"^activity_set_reward_(\d+)$", "prompt_activity_reward", "int"),
 
     # Haftalık ödül patterns (geriye uyumluluk)
@@ -2419,6 +2422,70 @@ async def show_activity_top_count_menu(query, user_id: int, context: ContextType
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+
+
+async def show_activity_min_char_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Minimum karakter sayısı seçim menüsü"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import get_activity_settings
+
+    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
+    current = settings.get('min_char_count', 10) if settings else 10
+
+    keyboard = [
+        [
+            InlineKeyboardButton(f"5{' ✓' if current == 5 else ''}", callback_data="activity_min_char_5"),
+            InlineKeyboardButton(f"10{' ✓' if current == 10 else ''}", callback_data="activity_min_char_10"),
+            InlineKeyboardButton(f"15{' ✓' if current == 15 else ''}", callback_data="activity_min_char_15"),
+        ],
+        [
+            InlineKeyboardButton(f"20{' ✓' if current == 20 else ''}", callback_data="activity_min_char_20"),
+            InlineKeyboardButton(f"25{' ✓' if current == 25 else ''}", callback_data="activity_min_char_25"),
+            InlineKeyboardButton(f"30{' ✓' if current == 30 else ''}", callback_data="activity_min_char_30"),
+        ],
+        [InlineKeyboardButton("✏️ Manuel Gir", callback_data="activity_min_char_custom")],
+        [InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_menu")],
+    ]
+
+    await query.edit_message_text(
+        "🔤 <b>Minimum Karakter Sayısı</b>\n\n"
+        f"Şu anki değer: <b>{current}</b> karakter\n\n"
+        "Mesajın aktivitede sayılması için minimum karakter sayısı.\n\n"
+        "💡 <b>Örnekler:</b>\n"
+        f"• \"naber\" = 5 karakter ❌ (sayılmaz, {current} karakter gerekli)\n"
+        f"• \"naber cano\" = 10 karakter {'✅' if current <= 10 else '❌'}\n"
+        f"• \"merhaba arkadaşlar\" = 18 karakter {'✅' if current <= 18 else '❌'}\n\n"
+        "<i>Boşluklar dahil sayılır.</i>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def prompt_activity_min_char_custom(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Manuel minimum karakter girişi için prompt"""
+    context.user_data['waiting_for'] = 'activity_min_char_custom'
+
+    keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_min_char_menu")]]
+
+    await query.edit_message_text(
+        "✏️ <b>Manuel Karakter Sayısı</b>\n\n"
+        "Minimum karakter sayısını yazın:\n\n"
+        "<i>Örnek: 12</i>\n\n"
+        "⚠️ <b>Not:</b> 1-100 arası bir sayı giriniz.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+
+async def set_activity_min_char(query, user_id: int, count: int, context: ContextTypes.DEFAULT_TYPE):
+    """Minimum karakter sayısını ayarla"""
+    from config import ACTIVITY_GROUP_ID
+    from services.activity_service import set_min_char_count
+
+    await set_min_char_count(ACTIVITY_GROUP_ID, count)
+    await query.answer(f"✅ Minimum karakter {count} olarak ayarlandı!", show_alert=True)
+
+    await show_activity_menu(query, user_id, context)
 
 
 async def prompt_activity_top_custom(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
