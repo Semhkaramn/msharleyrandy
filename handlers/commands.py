@@ -1099,6 +1099,8 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     activity_type = status_info.get('activity_type', 'weekly')
     enabled = status_info.get('enabled', False)
     started_at = status_info.get('started_at')
+    ended_at = status_info.get('ended_at')
+    min_char_count = status_info.get('min_char_count', 10)
     has_data = status_info.get('has_data', False)
 
     # Grup adminlerinin ID'lerini al
@@ -1122,6 +1124,15 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         started_text = started_local.strftime("%d.%m.%Y %H:%M")
     else:
         started_text = "—"
+
+    # Bitiş tarihi formatla
+    if ended_at:
+        if ended_at.tzinfo is None:
+            ended_at = ended_at.replace(tzinfo=timezone.utc)
+        ended_local = ended_at.astimezone(TR_TZ)
+        ended_text = ended_local.strftime("%d.%m.%Y %H:%M")
+    else:
+        ended_text = "—"
 
     # Durum metni
     if not enabled and not has_data:
@@ -1160,11 +1171,18 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     medals = ['🥇', '🥈', '🥉']
     lines = [
-        f"🏆 <b>{type_text} Aktivite Sıralaması</b>",
+        f"🏆 <b>Aktivite Sıralaması</b>",
         f"📊 {status_text}",
         f"📅 Başlangıç: {started_text}",
-        ""
     ]
+
+    # Bitiş tarihi (sadece durduğunda göster)
+    if not enabled and ended_text != "—":
+        lines.append(f"🏁 Bitiş: {ended_text}")
+
+    # Minimum karakter bilgisi
+    lines.append(f"🔤 Min Karakter: {min_char_count}")
+    lines.append("")
 
     if not verified_leaderboard:
         # Liste boş ama yine de düzgün format göster
