@@ -2518,16 +2518,13 @@ async def set_activity_top_count(query, user_id: int, count: int, context: Conte
 async def show_activity_rewards_menu(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Ödül ayarlama menüsü"""
     from config import ACTIVITY_GROUP_ID
-    from services.activity_service import get_activity_settings, get_activity_rewards, get_activity_type_text
+    from services.activity_service import get_activity_settings, get_activity_rewards
 
     settings = await get_activity_settings(ACTIVITY_GROUP_ID)
-    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
     top_count = settings.get('top_count', 20) if settings else 20
 
-    rewards = await get_activity_rewards(ACTIVITY_GROUP_ID, activity_type)
+    rewards = await get_activity_rewards(ACTIVITY_GROUP_ID)
     rewards_dict = {r['rank']: r['reward_text'] for r in rewards}
-
-    type_text = get_activity_type_text(activity_type)
 
     keyboard = [
         [InlineKeyboardButton("📝 Tümünü Yaz (Alt Alta)", callback_data="activity_set_all_rewards")],
@@ -2554,7 +2551,7 @@ async def show_activity_rewards_menu(query, user_id: int, context: ContextTypes.
         rewards_text = "  Henüz ödül tanımlanmamış\n"
 
     text = (
-        f"🎁 <b>{type_text} Ödülleri</b>\n\n"
+        "🎁 <b>Aktivite Ödülleri</b>\n\n"
         f"<b>Mevcut Ödüller:</b>\n{rewards_text}\n"
         "💡 <b>Toplu Ödül Girişi:</b>\n"
         "<i>\"Tümünü Yaz\" ile ödülleri alt alta yazabilirsiniz.</i>\n"
@@ -2570,21 +2567,13 @@ async def show_activity_rewards_menu(query, user_id: int, context: ContextTypes.
 
 async def prompt_activity_reward(query, user_id: int, rank: int, context: ContextTypes.DEFAULT_TYPE):
     """Tek ödül için yazı iste"""
-    from config import ACTIVITY_GROUP_ID
-    from services.activity_service import get_activity_settings, get_activity_type_text
-
-    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
-    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
-    type_text = get_activity_type_text(activity_type)
-
     context.user_data['waiting_for'] = 'activity_reward'
     context.user_data['activity_reward_rank'] = rank
-    context.user_data['activity_reward_type'] = activity_type
 
     keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_rewards_menu")]]
 
     await query.edit_message_text(
-        f"🎁 <b>{rank}. Sıra Ödülü ({type_text})</b>\n\n"
+        f"🎁 <b>{rank}. Sıra Ödülü</b>\n\n"
         f"Bu sıra için ödül metnini yazın:\n\n"
         f"<i>Örnek: 50 TL Hediye Çeki</i>",
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -2594,28 +2583,20 @@ async def prompt_activity_reward(query, user_id: int, rank: int, context: Contex
 
 async def prompt_all_activity_rewards(query, user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Tüm ödüller için toplu giriş iste"""
-    from config import ACTIVITY_GROUP_ID
-    from services.activity_service import get_activity_settings, get_activity_type_text
-
-    settings = await get_activity_settings(ACTIVITY_GROUP_ID)
-    activity_type = settings.get('activity_type', 'weekly') if settings else 'weekly'
-    type_text = get_activity_type_text(activity_type)
-
     context.user_data['waiting_for'] = 'activity_all_rewards'
-    context.user_data['activity_reward_type'] = activity_type
 
     keyboard = [[InlineKeyboardButton(BUTTONS["GERI"], callback_data="activity_rewards_menu")]]
 
     await query.edit_message_text(
-        f"🎁 <b>{type_text} Ödülleri (Toplu Giriş)</b>\n\n"
-        f"Ödülleri <b>alt alta</b> yazın.\n"
-        f"Her satır bir sıranın ödülü olacak.\n\n"
-        f"<b>Örnek:</b>\n"
-        f"<code>100 TL Hediye Çeki\n"
-        f"50 TL Hediye Çeki\n"
-        f"25 TL Hediye Çeki\n"
-        f"VIP Üyelik\n"
-        f"Premium Rozet</code>",
+        "🎁 <b>Aktivite Ödülleri (Toplu Giriş)</b>\n\n"
+        "Ödülleri <b>alt alta</b> yazın.\n"
+        "Her satır bir sıranın ödülü olacak.\n\n"
+        "<b>Örnek:</b>\n"
+        "<code>100 TL Hediye Çeki\n"
+        "50 TL Hediye Çeki\n"
+        "25 TL Hediye Çeki\n"
+        "VIP Üyelik\n"
+        "Premium Rozet</code>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
