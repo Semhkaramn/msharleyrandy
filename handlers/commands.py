@@ -3,6 +3,7 @@
 Telegram bot komutlarını işler
 """
 
+import html
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 from telegram.ext import ContextTypes
 from telegram.error import TelegramError
@@ -1204,7 +1205,9 @@ async def aktiflik_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 display_name = f"Kullanıcı {str(telegram_id)[-4:]}"
 
-            name = f'<a href="tg://user?id={telegram_id}">{display_name}</a>'
+            # HTML özel karakterlerini escape et (< > & gibi)
+            safe_display_name = html.escape(display_name)
+            name = f'<a href="tg://user?id={telegram_id}">{safe_display_name}</a>'
             count = user_data.get('message_count', 0)
             reward = user_data.get('reward')
 
